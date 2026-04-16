@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+.metadata
+.dart_tool/
+build/
+android/.gradle/
+ios/Pods/

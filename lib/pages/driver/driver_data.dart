@@ -36,6 +36,7 @@ class DriverTripSummary {
   final String passengerName;
   final String route;
   final String completedAt;
+  final DateTime completedDate;
   final String earnings;
   final double rating;
 
@@ -43,6 +44,7 @@ class DriverTripSummary {
     required this.passengerName,
     required this.route,
     required this.completedAt,
+    required this.completedDate,
     required this.earnings,
     required this.rating,
   });
@@ -97,11 +99,12 @@ class DriverMockData {
     ),
   ];
 
-  static const List<DriverTripSummary> history = <DriverTripSummary>[
+  static final List<DriverTripSummary> history = <DriverTripSummary>[
     DriverTripSummary(
       passengerName: 'Ana Lopez',
       route: 'Public Market to Poblacion',
       completedAt: 'Apr 16, 2026 - 6:55 AM',
+      completedDate: DateTime(2026, 4, 16, 6, 55),
       earnings: 'PHP 20',
       rating: 5.0,
     ),
@@ -109,6 +112,7 @@ class DriverMockData {
       passengerName: 'John Perez',
       route: 'Municipal Hall to School',
       completedAt: 'Apr 15, 2026 - 4:25 PM',
+      completedDate: DateTime(2026, 4, 15, 16, 25),
       earnings: 'PHP 25',
       rating: 4.8,
     ),

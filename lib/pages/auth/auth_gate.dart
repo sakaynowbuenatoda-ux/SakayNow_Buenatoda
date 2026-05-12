@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/session/app_user.dart';
 import '../../core/session/session_service.dart';
+import 'account_status_page.dart';
+import 'auth_ui.dart';
 import 'loading_screen.dart';
 import 'login_page.dart';
 
@@ -15,31 +17,40 @@ class AuthGate extends StatelessWidget {
       stream: SessionService.authStateChanges(),
       builder: (context, authSnapshot) {
         if (authSnapshot.connectionState == ConnectionState.waiting) {
-          return const LoadingScreen();
+          return LoadingScreen();
         }
 
         final firebaseUser = authSnapshot.data;
         if (firebaseUser == null) {
-          return const LoginPage();
+          return LoginPage();
         }
 
-        return FutureBuilder<AppUser>(
-          future: SessionService.loadUserProfile(firebaseUser.uid),
+        return StreamBuilder<AppUser>(
+          stream: SessionService.watchUserProfile(firebaseUser.uid),
           builder: (context, profileSnapshot) {
             if (profileSnapshot.connectionState == ConnectionState.waiting) {
-              return const LoadingScreen();
+              return LoadingScreen();
             }
 
             if (profileSnapshot.hasError) {
-              return _AuthErrorState(
-                message: profileSnapshot.error.toString(),
-              );
+              return _AuthErrorState(message: profileSnapshot.error.toString());
             }
 
             final appUser = profileSnapshot.data;
             if (appUser == null) {
               return const _AuthErrorState(
                 message: 'Unable to load user profile.',
+              );
+            }
+
+            if (appUser.isBanned) {
+              return AccountStatusPage(
+                icon: Icons.block_rounded,
+                title: 'Account access restricted',
+                description:
+                    'This account is currently restricted. Please contact the SakayNow admin team if you believe this is a mistake.',
+                primaryLabel: 'Back to login',
+                onPrimaryPressed: (context) => SessionService.signOut(),
               );
             }
 
@@ -58,39 +69,43 @@ class _AuthErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.error_outline,
-                size: 48,
-                color: Colors.redAccent,
+    return AuthUi.scope(
+      context,
+      Scaffold(
+        backgroundColor: AuthUi.background,
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              24,
+              24,
+              24 + MediaQuery.of(context).viewPadding.bottom + 56,
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.error_outline, size: 48, color: AuthUi.primary),
+                  SizedBox(height: 12),
+                  Text(
+                    'Something went wrong while restoring your session.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AuthUi.body),
+                  ),
+                  SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: SessionService.signOut,
+                    child: Text('Back to Login'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'Something went wrong while restoring your session.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.black54),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: SessionService.signOut,
-                child: const Text('Back to Login'),
-              ),
-            ],
+            ),
           ),
         ),
       ),

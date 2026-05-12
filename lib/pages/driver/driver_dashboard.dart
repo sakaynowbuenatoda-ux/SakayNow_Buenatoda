@@ -4,7 +4,9 @@ import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'driver_data.dart';
 
 class DriverDashboardPage extends StatelessWidget {
-  const DriverDashboardPage({super.key});
+  final bool isVerified;
+
+  const DriverDashboardPage({super.key, required this.isVerified});
 
   @override
   Widget build(BuildContext context) {
@@ -12,13 +14,14 @@ class DriverDashboardPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('Driver Dashboard', style: PassengerUi.sectionTitle.copyWith(fontSize: 22)),
-          const SizedBox(height: 6),
-          Text(
-            'Monitor performance, earnings, ride completion, and service quality.',
-            style: PassengerUi.bodyText,
+          PassengerPageHeader(
+            title: 'Dashboard',
+            subtitle:
+                'Monitor performance, queue readiness, and account standing.',
+            icon: Icons.dashboard_rounded,
+            accentColor: PassengerUi.primary,
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 16),
           ...DriverMockData.stats.asMap().entries.map(
             (MapEntry<int, DriverInfoStat> entry) => Padding(
               padding: EdgeInsets.only(
@@ -31,15 +34,29 @@ class DriverDashboardPage extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           PassengerSurfaceCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text('Driver Standing', style: PassengerUi.cardTitle),
-                const SizedBox(height: 8),
+                Text('Standing', style: PassengerUi.cardTitle),
+                SizedBox(height: 8),
+                PassengerStatusChip(
+                  label: isVerified
+                      ? 'Verified driver'
+                      : 'Pending verification',
+                  textColor: isVerified
+                      ? PassengerUi.successText
+                      : PassengerUi.primary,
+                  backgroundColor: isVerified
+                      ? PassengerUi.successBackground
+                      : PassengerUi.dangerSoft,
+                ),
+                SizedBox(height: 12),
                 Text(
-                  'Your profile is positioned for ranking, verification review, and continued ride access once operational data is connected.',
+                  isVerified
+                      ? 'Your verified driver account is ready for profile management, ranking, and continued ride access as operational data is connected.'
+                      : 'You can already access your driver home, but profile editing stays locked until an admin verifies your account and reviews your submitted credentials.',
                   style: PassengerUi.bodyText,
                 ),
               ],

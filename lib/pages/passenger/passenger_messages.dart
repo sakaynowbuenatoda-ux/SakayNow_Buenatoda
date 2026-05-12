@@ -7,13 +7,13 @@ import 'passenger_data.dart';
 class PassengerMessages extends StatelessWidget {
   final String userId;
   final String firstName;
-  final String role;
+  final String passengerType;
 
   const PassengerMessages({
     super.key,
     required this.userId,
     required this.firstName,
-    required this.role,
+    required this.passengerType,
   });
 
   @override
@@ -22,13 +22,14 @@ class PassengerMessages extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('Messages', style: PassengerUi.sectionTitle.copyWith(fontSize: 22)),
-          const SizedBox(height: 6),
-          Text(
-            'Stay in touch with drivers and support during booking, pickup, and follow-up.',
-            style: PassengerUi.bodyText,
+          PassengerPageHeader(
+            title: 'Messages',
+            subtitle:
+                'Keep trip updates and driver conversations easy to scan.',
+            icon: Icons.chat_bubble_rounded,
+            accentColor: PassengerUi.accentBlue,
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 16),
           PassengerSurfaceCard(
             child: Row(
               children: <Widget>[
@@ -40,17 +41,19 @@ class PassengerMessages extends StatelessWidget {
                 ),
                 PassengerStatusChip(
                   label: '1 new',
-                  textColor: Color(0xFF1D4ED8),
-                  backgroundColor: Color(0xFFDBEAFE),
+                  textColor: PassengerUi.accentBlue,
+                  backgroundColor: PassengerUi.blueSoft,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           ...PassengerMockData.inboxMessages.asMap().entries.map(
             (MapEntry<int, PassengerInboxMessage> entry) => Padding(
               padding: EdgeInsets.only(
-                bottom: entry.key == PassengerMockData.inboxMessages.length - 1 ? 0 : 12,
+                bottom: entry.key == PassengerMockData.inboxMessages.length - 1
+                    ? 0
+                    : 12,
               ),
               child: PassengerMessageCard(message: entry.value),
             ),

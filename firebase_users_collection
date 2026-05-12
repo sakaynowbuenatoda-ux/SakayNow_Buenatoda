@@ -1,0 +1,25 @@
+## Users Collection
+
+Passengers
+  "user_id": "AUTH_UID",
+  "email": "user@email.com",
+  "first_name": "Juan",
+  "last_name": "Dela Cruz",
+  "role": "passenger",
+  "passenger_type": "student/Regular",
+  "isVerified": false,
+  "isActive": false,
+  "isBanned": false,
+  "created_at": "server timestamp"
+
+
+Drivers
+  "user_id": "AUTH_UID",
+  "email": "driver@email.com",
+  "first_name": "Ana",
+  "last_name": "Reyes",
+  "role": "driver",
+  "isVerified": false,
+  "isActive": false,
+  "isBanned": false,
+  "created_at": "server timestamp"

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../config/app_assets.dart';
+import '../passenger_widgets/passenger_ui.dart';
 
 class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String adminName;
@@ -15,7 +17,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onMenuTap,
     required this.onProfileSettingsTap,
     required this.onLogout,
-    this.logoAssetPath,
+    this.logoAssetPath = AppAssets.logo,
   });
 
   @override
@@ -30,20 +32,20 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
-          title: const Row(
+          title: Row(
             children: [
               Icon(Icons.logout_rounded, size: 22),
               SizedBox(width: 8),
               Text('Confirm Logout'),
             ],
           ),
-          content: const Text(
+          content: Text(
             'Are you sure you want to log out of your admin account?',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
@@ -52,7 +54,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Logout'),
+              child: Text('Logout'),
             ),
           ],
         );
@@ -60,6 +62,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
 
     if (shouldLogout == true) {
+      if (!context.mounted) return;
       await onLogout(context);
     }
   }
@@ -69,8 +72,8 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       automaticallyImplyLeading: false,
       elevation: 0,
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.white,
+      backgroundColor: PassengerUi.surface,
+      surfaceTintColor: PassengerUi.surface,
       toolbarHeight: 72,
       titleSpacing: 0,
       title: Padding(
@@ -79,49 +82,46 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
           children: [
             IconButton(
               onPressed: onMenuTap,
-              icon: const Icon(
+              icon: Icon(
                 Icons.menu_rounded,
-                color: Colors.black87,
+                color: PassengerUi.title,
                 size: 28,
               ),
               tooltip: 'Open menu',
             ),
-            const SizedBox(width: 4),
+            SizedBox(width: 4),
 
             // Logo
             Container(
               height: 40,
               width: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFFF3F6FB),
+                color: PassengerUi.mutedSurface,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: logoAssetPath != null
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        logoAssetPath!,
-                        fit: BoxFit.cover,
-                      ),
+                      child: Image.asset(logoAssetPath!, fit: BoxFit.cover),
                     )
-                  : const Icon(
+                  : Icon(
                       Icons.directions_bus_rounded,
-                      color: Color(0xFF2563EB),
+                      color: PassengerUi.primary,
                       size: 24,
                     ),
             ),
 
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
 
             // App name
             Expanded(
               child: Text(
                 appName,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.black87,
+                style: TextStyle(
+                  color: PassengerUi.title,
                   fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
@@ -132,7 +132,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: PopupMenuButton<String>(
-            offset: const Offset(0, 52),
+            offset: Offset(0, 52),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
@@ -143,7 +143,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
                 await _showLogoutConfirmation(context);
               }
             },
-            itemBuilder: (context) => const [
+            itemBuilder: (context) => [
               PopupMenuItem<String>(
                 value: 'settings',
                 child: Row(
@@ -159,11 +159,15 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
                 value: 'logout',
                 child: Row(
                   children: [
-                    Icon(Icons.logout_rounded, size: 20, color: Colors.red),
+                    Icon(
+                      Icons.logout_rounded,
+                      size: 20,
+                      color: PassengerUi.primary,
+                    ),
                     SizedBox(width: 10),
                     Text(
                       'Logout',
-                      style: TextStyle(color: Colors.red),
+                      style: TextStyle(color: PassengerUi.primary),
                     ),
                   ],
                 ),
@@ -172,38 +176,43 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 10),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: PassengerUi.mutedSurface,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: PassengerUi.border),
+              ),
               child: Row(
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor: const Color(0xFFDBEAFE),
+                    backgroundColor: PassengerUi.primary.withValues(
+                      alpha: 0.12,
+                    ),
                     child: Text(
-                      adminName.isNotEmpty
-                          ? adminName[0].toUpperCase()
-                          : 'A',
-                      style: const TextStyle(
-                        color: Color(0xFF1D4ED8),
+                      adminName.isNotEmpty ? adminName[0].toUpperCase() : 'A',
+                      style: TextStyle(
+                        color: PassengerUi.primary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 120),
+                    constraints: BoxConstraints(maxWidth: 120),
                     child: Text(
                       adminName,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.black87,
+                      style: TextStyle(
+                        color: PassengerUi.title,
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  const Icon(
+                  SizedBox(width: 4),
+                  Icon(
                     Icons.keyboard_arrow_down_rounded,
-                    color: Colors.black54,
+                    color: PassengerUi.accentBlue,
                   ),
                 ],
               ),

@@ -1,11 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../config/map_config.dart';
+import '../../controllers/booking_map_controller.dart';
+import '../../controllers/ride_tracking_controller.dart';
+import '../../models/place_prediction.dart';
+import '../../models/ride_location.dart';
+import '../../services/geofencing_service.dart';
+import '../../services/ride_tracking_service.dart';
+import '../../widgets/firebase_storage_image.dart';
+import '../../widgets/maps/location_pin_picker_sheet.dart';
+import '../../widgets/maps/place_search_field.dart';
+import '../../widgets/maps/route_summary_card.dart';
+import '../../widgets/maps/map_text_styles.dart';
+import '../../widgets/maps/map_marker_icons.dart';
+import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../rides/ride_monitoring_page.dart';
 import 'passenger_data.dart';
 
 class PassengerBookRidePage extends StatefulWidget {
-  const PassengerBookRidePage({super.key});
+  final String passengerId;
+  final PassengerQuickDestination? initialDropoffDestination;
+
+  const PassengerBookRidePage({
+    super.key,
+    required this.passengerId,
+    this.initialDropoffDestination,
+  });
 
   @override
   State<PassengerBookRidePage> createState() => _PassengerBookRidePageState();
@@ -14,215 +36,526 @@ class PassengerBookRidePage extends StatefulWidget {
 class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
   final TextEditingController _pickupController = TextEditingController();
   final TextEditingController _destinationController = TextEditingController();
+  late final BookingMapController _controller;
+  BookingLocationTarget _activeMapTarget = BookingLocationTarget.dropoff;
 
-  bool _showDrivers = false;
-
-  final List<_PassengerDriverOption> _drivers = const <_PassengerDriverOption>[
-    _PassengerDriverOption(
-      name: 'Juan Dela Cruz',
-      unitCode: 'Trike 014',
-      eta: '2 mins away',
-      rating: 4.9,
-    ),
-    _PassengerDriverOption(
-      name: 'Pedro Garcia',
-      unitCode: 'Trike 022',
-      eta: '4 mins away',
-      rating: 4.8,
-    ),
-    _PassengerDriverOption(
-      name: 'Rogelio Santos',
-      unitCode: 'Trike 031',
-      eta: '5 mins away',
-      rating: 4.7,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _controller = BookingMapController(passengerId: widget.passengerId);
+    _pickupController.addListener(_rebuildForTypedLocations);
+    _destinationController.addListener(_rebuildForTypedLocations);
+    _initialize();
+  }
 
   @override
   void dispose() {
+    _pickupController.removeListener(_rebuildForTypedLocations);
+    _destinationController.removeListener(_rebuildForTypedLocations);
     _pickupController.dispose();
     _destinationController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final compact = PassengerUi.isCompactWidth(context);
+
     return Scaffold(
       backgroundColor: PassengerUi.background,
       appBar: AppBar(
         backgroundColor: PassengerUi.background,
         elevation: 0,
         surfaceTintColor: PassengerUi.background,
-        title: Text(
-          'Book a Ride',
-          style: GoogleFonts.archivoBlack(
-            color: PassengerUi.title,
-            fontSize: 20,
-          ),
-        ),
+        title: Text('Book a Ride', style: MapTextStyles.title),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const _PassengerRideMapCard(),
-              const SizedBox(height: 16),
-              _PassengerLocationField(
-                controller: _pickupController,
-                label: 'Pickup location',
-                icon: Icons.my_location_rounded,
-                iconColor: PassengerUi.secondary,
-              ),
-              const SizedBox(height: 12),
-              _PassengerLocationField(
-                controller: _destinationController,
-                label: 'Drop-off location',
-                icon: Icons.location_on_rounded,
-                iconColor: PassengerUi.primary,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: PassengerMockData.quickDestinations
-                    .asMap()
-                    .entries
-                    .map(
-                      (MapEntry<int, PassengerQuickDestination> entry) => Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            right: entry.key == PassengerMockData.quickDestinations.length - 1
-                                ? 0
-                                : 10,
-                          ),
-                          child: _PassengerSavedLocationButton(
-                            destination: entry.value,
-                            onTap: () => _applyDestination(entry.value),
+      body: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: PassengerUi.pagePadding(context),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  PassengerSurfaceCard(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      children: <Widget>[
+                        _MapTargetSelector(
+                          activeTarget: _activeMapTarget,
+                          onChanged: (target) =>
+                              setState(() => _activeMapTarget = target),
+                        ),
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: PassengerUi.cardRadius,
+                          child: SizedBox(
+                            height: compact ? 220 : 260,
+                            child: Stack(
+                              children: <Widget>[
+                                Positioned.fill(
+                                  child: SakayGoogleMap(
+                                    initialCameraTarget:
+                                        _controller.initialCameraTarget,
+                                    bounds: _controller.route?.bounds,
+                                    markers: _bookingMapMarkers(),
+                                    polylines: _controller.polylines,
+                                    circles: _controller.circles,
+                                    myLocationEnabled:
+                                        _controller.currentLatLng != null,
+                                    onTap: _selectLocationFromMapTap,
+                                  ),
+                                ),
+                                if (_controller.isInitializing)
+                                  const Positioned.fill(
+                                    child: ColoredBox(
+                                      color: Color(0x66FFFFFF),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    )
-                    .toList(),
-              ),
-              const SizedBox(height: 16),
-              PassengerSurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text('Ride Notes', style: PassengerUi.cardTitle),
-                    SizedBox(height: 8),
-                    Text(
-                      'Geofencing, verified drivers, and transparent local fares will be connected to live Firebase data next.',
-                      style: PassengerUi.bodyText,
+                      ],
+                    ),
+                  ),
+                  if (_controller.locationMessage != null) ...<Widget>[
+                    const SizedBox(height: 12),
+                    _InlineNotice(
+                      icon: Icons.location_off_rounded,
+                      message: _controller.locationMessage!,
                     ),
                   ],
-                ),
+                  const SizedBox(height: 16),
+                  PlaceSearchField(
+                    controller: _pickupController,
+                    label: 'Pickup location',
+                    icon: Icons.my_location_rounded,
+                    iconColor: PassengerUi.secondary,
+                    isLoading: _controller.isPickupSearching,
+                    predictions: _controller.pickupPredictions,
+                    onSearchChanged: _controller.searchPickup,
+                    onPredictionSelected: _selectPickup,
+                    onUseCurrentLocation: _useCurrentLocationAsPickup,
+                    onPickFromMap: () =>
+                        _pickLocationOnMap(BookingLocationTarget.pickup),
+                  ),
+                  const SizedBox(height: 12),
+                  PlaceSearchField(
+                    controller: _destinationController,
+                    label: 'Drop-off location',
+                    icon: Icons.location_on_rounded,
+                    iconColor: PassengerUi.primary,
+                    isLoading: _controller.isDropoffSearching,
+                    predictions: _controller.dropoffPredictions,
+                    onSearchChanged: _controller.searchDropoff,
+                    onPredictionSelected: _selectDropoff,
+                    onPickFromMap: () =>
+                        _pickLocationOnMap(BookingLocationTarget.dropoff),
+                  ),
+                  const SizedBox(height: 16),
+                  _SavedDestinationRow(onTap: _applySavedDestination),
+                  const SizedBox(height: 16),
+                  RouteSummaryCard(
+                    route: _controller.route,
+                    estimate: _controller.estimate,
+                    isLoading: _controller.isRouteLoading,
+                    errorMessage: _controller.errorMessage,
+                  ),
+                  const SizedBox(height: 16),
+                  PassengerSurfaceCard(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Icon(
+                          Icons.radar_rounded,
+                          color: PassengerUi.accentBlue,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Pickup and destination radius checks use configurable geofencing thresholds for Buenavista trips.',
+                            style: MapTextStyles.body,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _controller.canCreateBooking
+                          ? _openDriverSelectionPanel
+                          : _hasTypedLocations
+                          ? _openDriverSelectionPanel
+                          : null,
+                      icon: _controller.isBookingLoading
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.two_wheeler_rounded),
+                      label: Text(
+                        _controller.isBookingLoading
+                            ? 'Requesting Ride...'
+                            : 'Request Ride',
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _findDrivers,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: PassengerUi.primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 54),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: Text(
-                    'Find Available Drivers',
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-              if (_showDrivers) ...<Widget>[
-                const SizedBox(height: 22),
-                const PassengerSectionHeader(title: 'Nearby Drivers'),
-                const SizedBox(height: 12),
-                ..._drivers.asMap().entries.map(
-                  (MapEntry<int, _PassengerDriverOption> entry) => Padding(
-                    padding: EdgeInsets.only(bottom: entry.key == _drivers.length - 1 ? 0 : 12),
-                    child: _PassengerDriverCard(
-                      driver: entry.value,
-                      onTap: () => _selectDriver(entry.value),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  void _applyDestination(PassengerQuickDestination destination) {
-    setState(() {
-      _destinationController.text = destination.address;
-    });
+  bool get _hasTypedLocations =>
+      _pickupController.text.trim().isNotEmpty &&
+      _destinationController.text.trim().isNotEmpty;
+
+  void _rebuildForTypedLocations() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
-  void _findDrivers() {
-    if (_pickupController.text.trim().isEmpty ||
-        _destinationController.text.trim().isEmpty) {
+  Future<void> _initialize() async {
+    MapMarkerIcons.load().then((icons) {
+      if (mounted) {
+        _controller.setMarkerIcons(icons);
+      }
+    });
+    await _controller.initialize();
+    final activeRide = await _controller.findActiveRide();
+    if (mounted && activeRide != null) {
+      _openRide(activeRide.bookingId);
+      return;
+    }
+
+    final pickup = _controller.pickupLocation;
+    if (!mounted || pickup == null) {
+      return;
+    }
+
+    _pickupController.text = _locationDisplayText(pickup);
+    final initialDropoff = widget.initialDropoffDestination;
+    if (initialDropoff?.hasCoordinates == true) {
+      await _applyDestinationToTarget(
+        initialDropoff!,
+        BookingLocationTarget.dropoff,
+      );
+    }
+  }
+
+  Future<void> _useCurrentLocationAsPickup() async {
+    final location = await _controller.useCurrentLocationAsPickup();
+    if (location != null) {
+      _pickupController.text = _locationDisplayText(location);
+      setState(() => _activeMapTarget = BookingLocationTarget.dropoff);
+    }
+  }
+
+  Future<void> _selectPickup(PlacePrediction prediction) async {
+    final location = await _controller.selectPickup(prediction);
+    _pickupController.text = _locationDisplayText(location);
+    setState(() => _activeMapTarget = BookingLocationTarget.dropoff);
+  }
+
+  Future<void> _selectDropoff(PlacePrediction prediction) async {
+    final location = await _controller.selectDropoff(prediction);
+    _destinationController.text = _locationDisplayText(location);
+  }
+
+  Future<void> _pickLocationOnMap(BookingLocationTarget target) async {
+    final selected = await showModalBottomSheet<LocationPinPickResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => LocationPinPickerSheet(
+        title: target == BookingLocationTarget.pickup
+            ? 'Pin Pickup'
+            : 'Pin Drop-off',
+        actionLabel: target == BookingLocationTarget.pickup
+            ? 'Set Pickup Location'
+            : 'Set Drop-off Location',
+        accentColor: target == BookingLocationTarget.pickup
+            ? PassengerUi.secondary
+            : PassengerUi.primary,
+        initialTarget:
+            (target == BookingLocationTarget.pickup
+                ? _controller.pickupLocation?.latLng
+                : _controller.dropoffLocation?.latLng) ??
+            _controller.currentLatLng ??
+            MapConfig.buenavistaCenter,
+        myLocationEnabled: _controller.currentLatLng != null,
+      ),
+    );
+
+    if (!mounted || selected == null) {
+      return;
+    }
+
+    final selectedPlace = selected.googlePlace;
+    final location = selectedPlace != null
+        ? await _controller.selectResolvedLocation(
+            target: target,
+            location: selectedPlace,
+          )
+        : target == BookingLocationTarget.pickup
+        ? await _controller.selectPickupFromPin(selected.location)
+        : await _controller.selectDropoffFromPin(selected.location);
+    if (!mounted) {
+      return;
+    }
+    _writeLocationToField(target, _locationDisplayText(location));
+    if (target == BookingLocationTarget.pickup) {
+      setState(() => _activeMapTarget = BookingLocationTarget.dropoff);
+    }
+  }
+
+  Future<void> _selectLocationFromMapTap(LatLng location) async {
+    final target = _activeMapTarget;
+    final rideLocation = target == BookingLocationTarget.pickup
+        ? await _controller.selectPickupFromPin(location)
+        : await _controller.selectDropoffFromPin(location);
+
+    if (!mounted) {
+      return;
+    }
+
+    _writeLocationToField(target, _locationDisplayText(rideLocation));
+    if (target == BookingLocationTarget.pickup) {
+      setState(() => _activeMapTarget = BookingLocationTarget.dropoff);
+    }
+  }
+
+  Future<void> _applySavedDestination(
+    PassengerQuickDestination destination,
+  ) async {
+    await _applyDestinationToTarget(destination, _activeMapTarget);
+  }
+
+  Future<void> _applyDestinationToTarget(
+    PassengerQuickDestination destination,
+    BookingLocationTarget target,
+  ) async {
+    if (!destination.hasCoordinates) {
+      _showSnackBar('Set ${destination.label} first.');
+      return;
+    }
+
+    try {
+      final location = await _controller.selectKnownLocation(
+        target: target,
+        label: destination.label,
+        address: destination.address ?? destination.label,
+        latitude: destination.latitude,
+        longitude: destination.longitude,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      _writeLocationToField(target, _locationDisplayText(location));
+      if (target == BookingLocationTarget.pickup) {
+        setState(() => _activeMapTarget = BookingLocationTarget.dropoff);
+      }
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showSnackBar(error.toString());
+    }
+  }
+
+  Future<void> _openDriverSelectionPanel() async {
+    final ready = await _controller.resolveTypedLocations(
+      pickupText: _pickupController.text,
+      dropoffText: _destinationController.text,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    _syncFieldsFromController();
+
+    if (!ready) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter both pickup and drop-off locations first.'),
+        SnackBar(
+          content: Text(
+            _controller.errorMessage ??
+                'Select a valid pickup and drop-off location first.',
+          ),
         ),
       );
       return;
     }
 
-    setState(() {
-      _showDrivers = true;
-    });
+    final bookingId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DriverSelectionPanel(controller: _controller),
+    );
+
+    if (!mounted || bookingId == null) {
+      return;
+    }
+
+    _openRide(bookingId);
   }
 
-  void _selectDriver(_PassengerDriverOption driver) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Selected ${driver.name}. Booking confirmation is the next step.'),
+  void _writeLocationToField(BookingLocationTarget target, String address) {
+    if (target == BookingLocationTarget.pickup) {
+      _pickupController.text = address;
+    } else {
+      _destinationController.text = address;
+    }
+  }
+
+  String _locationDisplayText(RideLocation location) {
+    final name = location.name?.trim();
+    if (name != null && name.isNotEmpty && name != 'Pinned location') {
+      return name;
+    }
+
+    return location.address;
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _syncFieldsFromController() {
+    final pickup = _controller.pickupLocation;
+    final dropoff = _controller.dropoffLocation;
+    if (pickup != null) {
+      _pickupController.text = _locationDisplayText(pickup);
+    }
+    if (dropoff != null) {
+      _destinationController.text = _locationDisplayText(dropoff);
+    }
+  }
+
+  Set<Marker> _bookingMapMarkers() {
+    return _controller.markers;
+  }
+
+  void _openRide(String bookingId) {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => RideMonitoringPage(
+          bookingId: bookingId,
+          userId: widget.passengerId,
+          viewerRole: RideViewerRole.passenger,
+        ),
       ),
     );
   }
 }
 
-class _PassengerRideMapCard extends StatelessWidget {
-  const _PassengerRideMapCard();
+class _MapTargetSelector extends StatelessWidget {
+  final BookingLocationTarget activeTarget;
+  final ValueChanged<BookingLocationTarget> onChanged;
+
+  const _MapTargetSelector({
+    required this.activeTarget,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      padding: const EdgeInsets.all(18),
+    return Align(
+      alignment: Alignment.centerLeft,
       child: Container(
-        height: 220,
+        padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: const LinearGradient(
-            colors: <Color>[
-              Color(0xFFDFF2FF),
-              Color(0xFFE9F9EE),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: PassengerUi.surface.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: PassengerUi.border),
+          boxShadow: PassengerUi.cardShadow,
         ),
-        child: Center(
-          child: Column(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            _TargetButton(
+              label: 'Pickup',
+              icon: Icons.my_location_rounded,
+              color: PassengerUi.secondary,
+              isSelected: activeTarget == BookingLocationTarget.pickup,
+              onTap: () => onChanged(BookingLocationTarget.pickup),
+            ),
+            _TargetButton(
+              label: 'Drop-off',
+              icon: Icons.location_on_rounded,
+              color: PassengerUi.primary,
+              isSelected: activeTarget == BookingLocationTarget.dropoff,
+              onTap: () => onChanged(BookingLocationTarget.dropoff),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TargetButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _TargetButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isSelected ? color.withValues(alpha: 0.14) : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(Icons.map_rounded, size: 48, color: PassengerUi.primary),
-              SizedBox(height: 8),
-              Text('Geofencing coverage', style: PassengerUi.cardTitle),
-              SizedBox(height: 4),
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? color : PassengerUi.body,
+              ),
+              const SizedBox(width: 6),
               Text(
-                'Buenavista, Bohol',
-                style: PassengerUi.bodyText,
+                label,
+                style: MapTextStyles.body.copyWith(
+                  color: isSelected ? color : PassengerUi.body,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
@@ -232,35 +565,523 @@ class _PassengerRideMapCard extends StatelessWidget {
   }
 }
 
-class _PassengerLocationField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final IconData icon;
-  final Color iconColor;
+class _DriverSelectionPanel extends StatefulWidget {
+  final BookingMapController controller;
 
-  const _PassengerLocationField({
-    required this.controller,
-    required this.label,
-    required this.icon,
-    required this.iconColor,
+  const _DriverSelectionPanel({required this.controller});
+
+  @override
+  State<_DriverSelectionPanel> createState() => _DriverSelectionPanelState();
+}
+
+class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
+  final GeofencingService _geofencingService = const GeofencingService();
+  bool _isExpanded = false;
+  String? _bookingDriverId;
+
+  @override
+  Widget build(BuildContext context) {
+    final sheetHeight = MediaQuery.sizeOf(context).height * 0.90;
+    final pickup = widget.controller.pickupLocation?.latLng;
+
+    return Container(
+      height: sheetHeight,
+      decoration: BoxDecoration(
+        color: PassengerUi.background,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: StreamBuilder<List<AvailableDriver>>(
+        stream: widget.controller.watchAvailableDrivers(),
+        builder: (context, snapshot) {
+          final drivers = snapshot.data ?? <AvailableDriver>[];
+          final sortedDrivers = _sortDrivers(drivers, pickup);
+          final nearbyDrivers = _nearbyDrivers(sortedDrivers, pickup);
+          final otherActiveDrivers = _otherActiveDrivers(
+            sortedDrivers,
+            nearbyDrivers,
+          );
+          final mapHeight = _isExpanded ? sheetHeight * 0.52 : 220.0;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const SizedBox(height: 10),
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: PassengerUi.border,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 12, 10),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text('Available Drivers', style: MapTextStyles.title),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${nearbyDrivers.length} nearby - ${sortedDrivers.length} active verified',
+                            style: MapTextStyles.body,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: _isExpanded ? 'Collapse map' : 'Expand map',
+                      onPressed: () =>
+                          setState(() => _isExpanded = !_isExpanded),
+                      icon: Icon(
+                        _isExpanded
+                            ? Icons.unfold_less_rounded
+                            : Icons.unfold_more_rounded,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  height: mapHeight,
+                  child: ClipRRect(
+                    borderRadius: PassengerUi.cardRadius,
+                    child: SakayGoogleMap(
+                      initialCameraTarget:
+                          pickup ?? widget.controller.initialCameraTarget,
+                      bounds: widget.controller.route?.bounds,
+                      markers: _driverMarkers(sortedDrivers),
+                      polylines: widget.controller.polylines,
+                      circles: _driverCircles(),
+                      myLocationEnabled:
+                          widget.controller.currentLatLng != null,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    18,
+                    0,
+                    18,
+                    14 + PassengerUi.pageBottomInset(context),
+                  ),
+                  child: snapshot.connectionState == ConnectionState.waiting
+                      ? const Center(child: CircularProgressIndicator())
+                      : _DriverPanelContent(
+                          nearbyDrivers: nearbyDrivers,
+                          otherActiveDrivers: otherActiveDrivers,
+                          hasPickup: pickup != null,
+                          bookingDriverId: _bookingDriverId,
+                          isRequestingAny: _bookingDriverId == 'any',
+                          isBookingLoading: widget.controller.isBookingLoading,
+                          distanceLabelBuilder: (driver) =>
+                              _distanceLabel(driver, pickup),
+                          onBookDriver: (driver) =>
+                              _bookDriver(driver.driverId),
+                          onRequestAnyway: () => _bookDriver(null),
+                        ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  List<AvailableDriver> _sortDrivers(
+    List<AvailableDriver> drivers,
+    LatLng? pickup,
+  ) {
+    final sorted = [...drivers];
+    if (pickup == null) {
+      return sorted;
+    }
+
+    sorted.sort((a, b) {
+      final aDistance = _geofencingService.distanceBetweenMeters(
+        a.location.latLng,
+        pickup,
+      );
+      final bDistance = _geofencingService.distanceBetweenMeters(
+        b.location.latLng,
+        pickup,
+      );
+      return aDistance.compareTo(bDistance);
+    });
+    return sorted;
+  }
+
+  List<AvailableDriver> _nearbyDrivers(
+    List<AvailableDriver> drivers,
+    LatLng? pickup,
+  ) {
+    if (pickup == null) {
+      return drivers;
+    }
+
+    return drivers
+        .where(
+          (driver) => _geofencingService.isDriverNearPickup(
+            driverLocation: driver.location.latLng,
+            pickupLocation: pickup,
+          ),
+        )
+        .toList();
+  }
+
+  List<AvailableDriver> _otherActiveDrivers(
+    List<AvailableDriver> drivers,
+    List<AvailableDriver> nearbyDrivers,
+  ) {
+    final nearbyIds = nearbyDrivers.map((driver) => driver.driverId).toSet();
+    return drivers
+        .where((driver) => !nearbyIds.contains(driver.driverId))
+        .toList();
+  }
+
+  Set<Marker> _driverMarkers(List<AvailableDriver> drivers) {
+    final markers = <Marker>{...widget.controller.markers};
+    for (final driver in drivers) {
+      markers.add(
+        Marker(
+          markerId: MarkerId('driver_${driver.driverId}'),
+          position: driver.location.latLng,
+          infoWindow: InfoWindow(title: driver.fullName),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueAzure,
+          ),
+        ),
+      );
+    }
+
+    return markers;
+  }
+
+  Set<Circle> _driverCircles() {
+    final pickup = widget.controller.pickupLocation?.latLng;
+    if (pickup == null) {
+      return widget.controller.circles;
+    }
+
+    return <Circle>{
+      ...widget.controller.circles,
+      Circle(
+        circleId: const CircleId('available_driver_radius'),
+        center: pickup,
+        radius: MapConfig.driverNearPickupRadiusMeters,
+        fillColor: PassengerUi.accentBlue.withValues(alpha: 0.07),
+        strokeColor: PassengerUi.accentBlue.withValues(alpha: 0.55),
+        strokeWidth: 1,
+      ),
+    };
+  }
+
+  String _distanceLabel(AvailableDriver driver, LatLng? pickup) {
+    if (pickup == null) {
+      return 'Nearby';
+    }
+
+    final distance = _geofencingService.distanceBetweenMeters(
+      driver.location.latLng,
+      pickup,
+    );
+    final seconds = _geofencingService.approximateDurationSeconds(distance);
+    final minutes = (seconds / 60).ceil().clamp(1, 999);
+    final distanceText = distance < 1000
+        ? '${distance.round()} m'
+        : '${(distance / 1000).toStringAsFixed(1)} km';
+
+    return '$minutes min away - $distanceText';
+  }
+
+  Future<void> _bookDriver(String? driverId) async {
+    setState(() => _bookingDriverId = driverId ?? 'any');
+    final bookingId = await widget.controller.createBooking(
+      preferredDriverId: driverId,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (bookingId != null) {
+      Navigator.of(context).pop(bookingId);
+      return;
+    }
+
+    setState(() => _bookingDriverId = null);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          widget.controller.errorMessage ?? 'Unable to request ride.',
+        ),
+      ),
+    );
+  }
+}
+
+class _DriverPanelContent extends StatelessWidget {
+  final List<AvailableDriver> nearbyDrivers;
+  final List<AvailableDriver> otherActiveDrivers;
+  final bool hasPickup;
+  final String? bookingDriverId;
+  final bool isRequestingAny;
+  final bool isBookingLoading;
+  final String Function(AvailableDriver driver) distanceLabelBuilder;
+  final ValueChanged<AvailableDriver> onBookDriver;
+  final VoidCallback onRequestAnyway;
+
+  const _DriverPanelContent({
+    required this.nearbyDrivers,
+    required this.otherActiveDrivers,
+    required this.hasPickup,
+    required this.bookingDriverId,
+    required this.isRequestingAny,
+    required this.isBookingLoading,
+    required this.distanceLabelBuilder,
+    required this.onBookDriver,
+    required this.onRequestAnyway,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasNearbyDrivers = nearbyDrivers.isNotEmpty;
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (hasNearbyDrivers)
+            _DriverListSection(
+              title: 'Active drivers nearby',
+              subtitle: hasPickup
+                  ? 'Inside the pickup geofence'
+                  : 'Sorted by availability',
+              drivers: nearbyDrivers,
+              bookingDriverId: bookingDriverId,
+              distanceLabelBuilder: distanceLabelBuilder,
+              onBookDriver: onBookDriver,
+            )
+          else
+            _NoDriversState(
+              hasActiveDrivers: otherActiveDrivers.isNotEmpty,
+              isBooking: isRequestingAny || isBookingLoading,
+              onRequestAnyway: onRequestAnyway,
+            ),
+          if (otherActiveDrivers.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 16),
+            _DriverListSection(
+              title: hasNearbyDrivers
+                  ? 'Other active drivers'
+                  : 'Active drivers',
+              subtitle: hasNearbyDrivers
+                  ? 'Available but outside the pickup geofence'
+                  : 'Available verified drivers right now',
+              drivers: otherActiveDrivers,
+              bookingDriverId: bookingDriverId,
+              distanceLabelBuilder: distanceLabelBuilder,
+              onBookDriver: onBookDriver,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DriverListSection extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final List<AvailableDriver> drivers;
+  final String? bookingDriverId;
+  final String Function(AvailableDriver driver) distanceLabelBuilder;
+  final ValueChanged<AvailableDriver> onBookDriver;
+
+  const _DriverListSection({
+    required this.title,
+    required this.subtitle,
+    required this.drivers,
+    required this.bookingDriverId,
+    required this.distanceLabelBuilder,
+    required this.onBookDriver,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(title, style: MapTextStyles.title.copyWith(fontSize: 16)),
+        const SizedBox(height: 3),
+        Text(subtitle, style: MapTextStyles.body.copyWith(fontSize: 13)),
+        const SizedBox(height: 10),
+        for (final driver in drivers) ...<Widget>[
+          _AvailableDriverCard(
+            driver: driver,
+            distanceLabel: distanceLabelBuilder(driver),
+            isBooking: bookingDriverId == driver.driverId,
+            onBook: () => onBookDriver(driver),
+          ),
+          if (driver != drivers.last) const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+}
+
+class _AvailableDriverCard extends StatelessWidget {
+  final AvailableDriver driver;
+  final String distanceLabel;
+  final bool isBooking;
+  final VoidCallback onBook;
+
+  const _AvailableDriverCard({
+    required this.driver,
+    required this.distanceLabel,
+    required this.isBooking,
+    required this.onBook,
   });
 
   @override
   Widget build(BuildContext context) {
     return PassengerSurfaceCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
         children: <Widget>[
-          Icon(icon, color: iconColor),
+          ClipOval(
+            child: SizedBox(
+              width: 52,
+              height: 52,
+              child: FirebaseStorageImage(
+                imageUrl: driver.profileImageUrl,
+                fallback: Container(
+                  color: PassengerUi.blueSoft,
+                  alignment: Alignment.center,
+                  child: Text(
+                    driver.fullName.isEmpty
+                        ? 'D'
+                        : driver.fullName[0].toUpperCase(),
+                    style: TextStyle(
+                      color: PassengerUi.accentBlue,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
-            child: TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                labelText: label,
-                border: InputBorder.none,
-                labelStyle: PassengerUi.bodyText,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        driver.fullName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MapTextStyles.title.copyWith(fontSize: 15),
+                      ),
+                    ),
+                    if (driver.isVerified)
+                      Icon(
+                        Icons.verified_rounded,
+                        size: 18,
+                        color: PassengerUi.successText,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.star_rounded,
+                      size: 16,
+                      color: PassengerUi.highlightAmber,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      driver.rating.toStringAsFixed(1),
+                      style: MapTextStyles.body.copyWith(fontSize: 12.5),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        distanceLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MapTextStyles.body.copyWith(fontSize: 12.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          ElevatedButton(
+            onPressed: isBooking ? null : onBook,
+            child: isBooking
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Book Now'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoDriversState extends StatelessWidget {
+  final bool hasActiveDrivers;
+  final bool isBooking;
+  final VoidCallback onRequestAnyway;
+
+  const _NoDriversState({
+    required this.hasActiveDrivers,
+    required this.isBooking,
+    required this.onRequestAnyway,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PassengerSurfaceCard(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          PassengerEmptyState(
+            icon: Icons.two_wheeler_outlined,
+            title: 'No active drivers nearby',
+            description: hasActiveDrivers
+                ? 'You can request anyway or choose an active driver below.'
+                : 'You can still create a request. It will appear when a verified driver goes active.',
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: isBooking ? null : onRequestAnyway,
+              icon: const Icon(Icons.radar_rounded),
+              label: Text(isBooking ? 'Requesting...' : 'Request Anyway'),
             ),
           ),
         ],
@@ -269,11 +1090,67 @@ class _PassengerLocationField extends StatelessWidget {
   }
 }
 
-class _PassengerSavedLocationButton extends StatelessWidget {
+class _SavedDestinationRow extends StatelessWidget {
+  final ValueChanged<PassengerQuickDestination> onTap;
+
+  const _SavedDestinationRow({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final destinations = PassengerMockData.quickDestinations;
+        final isTight = constraints.maxWidth < 380;
+
+        if (isTight) {
+          final itemWidth = (constraints.maxWidth - 10) / 2;
+
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: destinations
+                .map(
+                  (destination) => SizedBox(
+                    width: itemWidth,
+                    child: _SavedDestinationButton(
+                      destination: destination,
+                      onTap: () => onTap(destination),
+                    ),
+                  ),
+                )
+                .toList(),
+          );
+        }
+
+        return Row(
+          children: destinations
+              .asMap()
+              .entries
+              .map(
+                (entry) => Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: entry.key == destinations.length - 1 ? 0 : 10,
+                    ),
+                    child: _SavedDestinationButton(
+                      destination: entry.value,
+                      onTap: () => onTap(entry.value),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+}
+
+class _SavedDestinationButton extends StatelessWidget {
   final PassengerQuickDestination destination;
   final VoidCallback onTap;
 
-  const _PassengerSavedLocationButton({
+  const _SavedDestinationButton({
     required this.destination,
     required this.onTap,
   });
@@ -283,10 +1160,8 @@ class _PassengerSavedLocationButton extends StatelessWidget {
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        side: const BorderSide(color: PassengerUi.border),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        side: BorderSide(color: PassengerUi.border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       ),
       child: Column(
@@ -295,7 +1170,7 @@ class _PassengerSavedLocationButton extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             destination.label,
-            style: PassengerUi.valueText.copyWith(fontSize: 13),
+            style: MapTextStyles.value.copyWith(fontSize: 13),
             textAlign: TextAlign.center,
           ),
         ],
@@ -304,80 +1179,23 @@ class _PassengerSavedLocationButton extends StatelessWidget {
   }
 }
 
-class _PassengerDriverCard extends StatelessWidget {
-  final _PassengerDriverOption driver;
-  final VoidCallback onTap;
+class _InlineNotice extends StatelessWidget {
+  final IconData icon;
+  final String message;
 
-  const _PassengerDriverCard({
-    required this.driver,
-    required this.onTap,
-  });
+  const _InlineNotice({required this.icon, required this.message});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(20),
-      onTap: onTap,
-      child: PassengerSurfaceCard(
-        child: Row(
-          children: <Widget>[
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE6F3FF),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                driver.name.substring(0, 1),
-                style: PassengerUi.cardTitle,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(driver.name, style: PassengerUi.cardTitle),
-                  const SizedBox(height: 4),
-                  Text(driver.unitCode, style: PassengerUi.bodyText),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: <Widget>[
-                      const Icon(Icons.access_time_rounded, size: 16, color: PassengerUi.secondary),
-                      const SizedBox(width: 4),
-                      Text(driver.eta, style: PassengerUi.bodyText.copyWith(fontSize: 13)),
-                      const SizedBox(width: 12),
-                      const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF4B400)),
-                      const SizedBox(width: 4),
-                      Text(
-                        driver.rating.toStringAsFixed(1),
-                        style: PassengerUi.valueText.copyWith(fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: PassengerUi.body),
-          ],
-        ),
+    return PassengerSurfaceCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, color: PassengerUi.highlightAmber),
+          const SizedBox(width: 12),
+          Expanded(child: Text(message, style: MapTextStyles.body)),
+        ],
       ),
     );
   }
-}
-
-class _PassengerDriverOption {
-  final String name;
-  final String unitCode;
-  final String eta;
-  final double rating;
-
-  const _PassengerDriverOption({
-    required this.name,
-    required this.unitCode,
-    required this.eta,
-    required this.rating,
-  });
 }

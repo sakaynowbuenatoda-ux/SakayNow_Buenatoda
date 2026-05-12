@@ -1,0 +1,652 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import '../config/map_config.dart';
+import '../models/distance_matrix_result.dart';
+import '../models/place_prediction.dart';
+import '../models/ride.dart';
+import '../models/ride_location.dart';
+import '../models/route_result.dart';
+import '../services/distance_matrix_service.dart';
+import '../services/google_directions_service.dart';
+import '../services/google_places_service.dart';
+import '../services/location_service.dart';
+import '../services/ride_tracking_service.dart';
+import '../widgets/maps/map_marker_icons.dart';
+
+enum BookingLocationTarget { pickup, dropoff }
+
+class BookingMapController extends ChangeNotifier {
+  BookingMapController({
+    required this.passengerId,
+    LocationService? locationService,
+    GooglePlacesService? placesService,
+    GoogleDirectionsService? directionsService,
+    DistanceMatrixService? distanceMatrixService,
+    RideTrackingService? rideTrackingService,
+  }) : _locationService = locationService ?? const LocationService(),
+       _placesService = placesService ?? GooglePlacesService(),
+       _directionsService = directionsService ?? GoogleDirectionsService(),
+       _distanceMatrixService =
+           distanceMatrixService ?? DistanceMatrixService(),
+       _rideTrackingService = rideTrackingService ?? RideTrackingService();
+
+  final String passengerId;
+  final LocationService _locationService;
+  final GooglePlacesService _placesService;
+  final GoogleDirectionsService _directionsService;
+  final DistanceMatrixService _distanceMatrixService;
+  final RideTrackingService _rideTrackingService;
+
+  bool isInitializing = true;
+  bool isPickupSearching = false;
+  bool isDropoffSearching = false;
+  bool isRouteLoading = false;
+  bool isBookingLoading = false;
+  String? errorMessage;
+  String? locationMessage;
+  Position? currentPosition;
+  RideLocation? pickupLocation;
+  RideLocation? dropoffLocation;
+  RouteResult? route;
+  DistanceMatrixResult? estimate;
+  MapMarkerIcons? markerIcons;
+  List<PlacePrediction> pickupPredictions = <PlacePrediction>[];
+  List<PlacePrediction> dropoffPredictions = <PlacePrediction>[];
+
+  int _pickupSearchToken = 0;
+  int _dropoffSearchToken = 0;
+
+  LatLng get initialCameraTarget =>
+      currentLatLng ?? pickupLocation?.latLng ?? MapConfig.buenavistaCenter;
+
+  LatLng? get currentLatLng {
+    final position = currentPosition;
+    if (position == null) {
+      return null;
+    }
+
+    return LatLng(position.latitude, position.longitude);
+  }
+
+  bool get canCreateBooking {
+    return passengerId.isNotEmpty &&
+        pickupLocation?.hasCoordinates == true &&
+        dropoffLocation?.hasCoordinates == true &&
+        route != null &&
+        !isBookingLoading;
+  }
+
+  Stream<List<AvailableDriver>> watchAvailableDrivers() {
+    return _rideTrackingService.watchAvailableDrivers();
+  }
+
+  Stream<Ride?> watchPassengerActiveRide() {
+    return _rideTrackingService.watchPassengerActiveRide(passengerId);
+  }
+
+  Set<Marker> get markers {
+    final markers = <Marker>{};
+    final current = currentLatLng;
+    final pickup = pickupLocation?.latLng;
+    final dropoff = dropoffLocation?.latLng;
+
+    if (current != null && !_sameLatLng(current, pickup)) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('current_location'),
+          position: current,
+          infoWindow: const InfoWindow(title: 'Current location'),
+          icon:
+              markerIcons?.current ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ),
+      );
+    }
+
+    if (pickup != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('pickup_location'),
+          position: pickup,
+          infoWindow: InfoWindow(title: pickupLocation?.address ?? 'Pickup'),
+          draggable: true,
+          onDragEnd: selectPickupFromPin,
+          icon:
+              markerIcons?.pickup ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        ),
+      );
+    }
+
+    if (dropoff != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('dropoff_location'),
+          position: dropoff,
+          infoWindow: InfoWindow(title: dropoffLocation?.address ?? 'Drop-off'),
+          draggable: true,
+          onDragEnd: selectDropoffFromPin,
+          icon: markerIcons?.dropoff ?? BitmapDescriptor.defaultMarker,
+        ),
+      );
+    }
+
+    return markers;
+  }
+
+  Set<Polyline> get polylines {
+    final activeRoute = route;
+    if (activeRoute == null || activeRoute.polylinePoints.isEmpty) {
+      return <Polyline>{};
+    }
+
+    return <Polyline>{
+      Polyline(
+        polylineId: const PolylineId('selected_route'),
+        points: activeRoute.polylinePoints,
+        color: const Color(0xFF2E7EA7),
+        width: 5,
+      ),
+    };
+  }
+
+  Set<Circle> get circles {
+    final pickup = pickupLocation?.latLng;
+    if (pickup == null) {
+      return <Circle>{};
+    }
+
+    return <Circle>{
+      Circle(
+        circleId: const CircleId('pickup_radius'),
+        center: pickup,
+        radius: MapConfig.pickupRadiusMeters,
+        fillColor: const Color(0xFF157A56).withValues(alpha: 0.12),
+        strokeColor: const Color(0xFF157A56),
+        strokeWidth: 1,
+      ),
+    };
+  }
+
+  Future<void> initialize() async {
+    isInitializing = true;
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      currentPosition = await _locationService.getCurrentPosition();
+      pickupLocation = RideLocation(
+        address: 'Current location',
+        latitude: currentPosition!.latitude,
+        longitude: currentPosition!.longitude,
+      );
+      locationMessage = null;
+    } on Exception catch (error) {
+      locationMessage = error.toString();
+    } finally {
+      isInitializing = false;
+      notifyListeners();
+    }
+  }
+
+  void setMarkerIcons(MapMarkerIcons icons) {
+    markerIcons = icons;
+    notifyListeners();
+  }
+
+  Future<RideLocation?> useCurrentLocationAsPickup() async {
+    try {
+      currentPosition = await _locationService.getCurrentPosition();
+      pickupLocation = RideLocation(
+        address: 'Current location',
+        latitude: currentPosition!.latitude,
+        longitude: currentPosition!.longitude,
+      );
+      locationMessage = null;
+      errorMessage = null;
+      await refreshRoute();
+      notifyListeners();
+      return pickupLocation;
+    } on Exception catch (error) {
+      locationMessage = error.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<void> searchPickup(String query) async {
+    final token = ++_pickupSearchToken;
+    isPickupSearching = true;
+    notifyListeners();
+
+    try {
+      final results = await _placesService.autocomplete(
+        input: query,
+        locationBias: currentLatLng ?? MapConfig.buenavistaCenter,
+      );
+      if (token == _pickupSearchToken) {
+        pickupPredictions = results;
+        errorMessage = null;
+      }
+    } on Exception catch (error) {
+      if (token == _pickupSearchToken) {
+        errorMessage = error.toString();
+        pickupPredictions = <PlacePrediction>[];
+      }
+    } finally {
+      if (token == _pickupSearchToken) {
+        isPickupSearching = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> searchDropoff(String query) async {
+    final token = ++_dropoffSearchToken;
+    isDropoffSearching = true;
+    notifyListeners();
+
+    try {
+      final results = await _placesService.autocomplete(
+        input: query,
+        locationBias: currentLatLng ?? MapConfig.buenavistaCenter,
+      );
+      if (token == _dropoffSearchToken) {
+        dropoffPredictions = results;
+        errorMessage = null;
+      }
+    } on Exception catch (error) {
+      if (token == _dropoffSearchToken) {
+        errorMessage = error.toString();
+        dropoffPredictions = <PlacePrediction>[];
+      }
+    } finally {
+      if (token == _dropoffSearchToken) {
+        isDropoffSearching = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<RideLocation> selectPickup(PlacePrediction prediction) async {
+    final details = await _placesService.fetchDetails(prediction.placeId);
+    pickupLocation = details.toRideLocation();
+    pickupPredictions = <PlacePrediction>[];
+    errorMessage = null;
+    await refreshRoute();
+    notifyListeners();
+    return pickupLocation!;
+  }
+
+  Future<RideLocation> selectDropoff(PlacePrediction prediction) async {
+    final details = await _placesService.fetchDetails(prediction.placeId);
+    dropoffLocation = details.toRideLocation();
+    dropoffPredictions = <PlacePrediction>[];
+    errorMessage = null;
+    await refreshRoute();
+    notifyListeners();
+    return dropoffLocation!;
+  }
+
+  Future<RideLocation> selectPickupFromPin(LatLng location) {
+    return _selectLocationFromPin(
+      target: BookingLocationTarget.pickup,
+      location: location,
+    );
+  }
+
+  Future<RideLocation> selectDropoffFromPin(LatLng location) async {
+    return _selectLocationFromPin(
+      target: BookingLocationTarget.dropoff,
+      location: location,
+    );
+  }
+
+  Future<RideLocation> selectResolvedLocation({
+    required BookingLocationTarget target,
+    required RideLocation location,
+  }) async {
+    await _setLocation(target: target, location: location);
+    return location;
+  }
+
+  Future<RideLocation> selectKnownLocation({
+    required BookingLocationTarget target,
+    required String label,
+    required String address,
+    double? latitude,
+    double? longitude,
+  }) async {
+    if (latitude != null && longitude != null) {
+      final location = RideLocation(
+        address: address,
+        name: label,
+        latitude: latitude,
+        longitude: longitude,
+      );
+      await _setLocation(target: target, location: location);
+      return location;
+    }
+
+    final results = await _placesService.autocomplete(
+      input: address,
+      locationBias: currentLatLng ?? MapConfig.buenavistaCenter,
+    );
+    if (results.isEmpty) {
+      throw StateError('Unable to find $label on the map.');
+    }
+
+    final details = await _placesService.fetchDetails(results.first.placeId);
+    final location = details.toRideLocation();
+    await _setLocation(target: target, location: location);
+    return location;
+  }
+
+  Future<bool> resolveTypedLocations({
+    required String pickupText,
+    required String dropoffText,
+  }) async {
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      if (_shouldResolveTypedLocation(pickupLocation, pickupText)) {
+        final pickup = await _resolveTypedLocation(pickupText);
+        await _setLocation(
+          target: BookingLocationTarget.pickup,
+          location: pickup,
+          refresh: false,
+        );
+      }
+
+      if (_shouldResolveTypedLocation(dropoffLocation, dropoffText)) {
+        final dropoff = await _resolveTypedLocation(dropoffText);
+        await _setLocation(
+          target: BookingLocationTarget.dropoff,
+          location: dropoff,
+          refresh: false,
+        );
+      }
+
+      await refreshRoute();
+      return canCreateBooking;
+    } on Exception catch (error) {
+      errorMessage = error.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<RideLocation> _selectLocationFromPin({
+    required BookingLocationTarget target,
+    required LatLng location,
+  }) async {
+    String address;
+    RideLocation? knownPlace;
+    try {
+      knownPlace = await _placesService.nearestKnownPlace(location);
+    } on Exception {
+      knownPlace = null;
+    }
+
+    if (knownPlace != null) {
+      await _setLocation(target: target, location: knownPlace);
+      return knownPlace;
+    }
+
+    try {
+      address = await _placesService.reverseGeocode(location);
+    } on Exception {
+      address =
+          '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}';
+    }
+
+    final rideLocation = RideLocation(
+      address: address.isEmpty ? 'Pinned location' : address,
+      name: 'Pinned location',
+      latitude: location.latitude,
+      longitude: location.longitude,
+    );
+
+    await _setLocation(target: target, location: rideLocation);
+    return rideLocation;
+  }
+
+  bool _sameLatLng(LatLng? a, LatLng? b) {
+    if (a == null || b == null) {
+      return false;
+    }
+
+    const tolerance = 0.00003;
+    return (a.latitude - b.latitude).abs() < tolerance &&
+        (a.longitude - b.longitude).abs() < tolerance;
+  }
+
+  Future<RideLocation> _resolveTypedLocation(String query) async {
+    final normalized = query.trim();
+    if (normalized.isEmpty) {
+      throw StateError('Enter a pickup and drop-off location first.');
+    }
+
+    if (normalized.toLowerCase() == 'current location' &&
+        currentPosition != null) {
+      return RideLocation(
+        address: 'Current location',
+        latitude: currentPosition!.latitude,
+        longitude: currentPosition!.longitude,
+      );
+    }
+
+    final results = await _placesService.autocomplete(
+      input: normalized,
+      locationBias: currentLatLng ?? MapConfig.buenavistaCenter,
+    );
+    if (results.isEmpty) {
+      throw StateError('No map result found for "$normalized".');
+    }
+
+    final details = await _placesService.fetchDetails(results.first.placeId);
+    return details.toRideLocation();
+  }
+
+  Future<void> _setLocation({
+    required BookingLocationTarget target,
+    required RideLocation location,
+    bool refresh = true,
+  }) async {
+    if (target == BookingLocationTarget.pickup) {
+      pickupLocation = location;
+      pickupPredictions = <PlacePrediction>[];
+    } else {
+      dropoffLocation = location;
+      dropoffPredictions = <PlacePrediction>[];
+    }
+
+    errorMessage = null;
+    if (refresh) {
+      await refreshRoute();
+    } else {
+      notifyListeners();
+    }
+  }
+
+  bool _shouldResolveTypedLocation(RideLocation? current, String text) {
+    final normalized = text.trim();
+    if (normalized.isEmpty) {
+      return false;
+    }
+
+    if (current?.hasCoordinates != true) {
+      return true;
+    }
+
+    return current!.address.trim().toLowerCase() != normalized.toLowerCase();
+  }
+
+  void clearPickupPredictions() {
+    pickupPredictions = <PlacePrediction>[];
+    notifyListeners();
+  }
+
+  void clearDropoffPredictions() {
+    dropoffPredictions = <PlacePrediction>[];
+    notifyListeners();
+  }
+
+  Future<void> refreshRoute() async {
+    final pickup = pickupLocation?.latLng;
+    final dropoff = dropoffLocation?.latLng;
+    if (pickup == null || dropoff == null) {
+      route = null;
+      estimate = null;
+      notifyListeners();
+      return;
+    }
+
+    isRouteLoading = true;
+    notifyListeners();
+
+    try {
+      final fetchedRoute = await _directionsService.fetchRoute(
+        origin: pickup,
+        destination: dropoff,
+      );
+      route = fetchedRoute;
+
+      try {
+        estimate = await _distanceMatrixService.estimate(
+          origin: pickup,
+          destination: dropoff,
+        );
+      } on Exception {
+        estimate = null;
+      }
+
+      errorMessage = null;
+    } on Exception catch (error) {
+      if (kIsWeb) {
+        route = _buildApproximateRoute(origin: pickup, destination: dropoff);
+        estimate = null;
+        errorMessage = null;
+      } else {
+        route = null;
+        estimate = null;
+        errorMessage = error.toString();
+      }
+    } catch (error) {
+      if (kIsWeb) {
+        route = _buildApproximateRoute(origin: pickup, destination: dropoff);
+        estimate = null;
+        errorMessage = null;
+      } else {
+        route = null;
+        estimate = null;
+        errorMessage = error.toString();
+      }
+    } finally {
+      isRouteLoading = false;
+      notifyListeners();
+    }
+  }
+
+  RouteResult _buildApproximateRoute({
+    required LatLng origin,
+    required LatLng destination,
+  }) {
+    final directDistanceMeters = Geolocator.distanceBetween(
+      origin.latitude,
+      origin.longitude,
+      destination.latitude,
+      destination.longitude,
+    );
+    final routeDistanceMeters = (directDistanceMeters * 1.2).round();
+    final durationSeconds =
+        routeDistanceMeters ~/ MapConfig.averageTricycleMetersPerSecond;
+    final points = <LatLng>[origin, destination];
+
+    return RouteResult(
+      encodedPolyline: RouteResult.encodePolyline(points),
+      polylinePoints: points,
+      distanceMeters: routeDistanceMeters,
+      durationSeconds: durationSeconds,
+      distanceText: _formatDistance(routeDistanceMeters),
+      durationText: _formatDuration(durationSeconds),
+      bounds: _boundsFor(origin, destination),
+    );
+  }
+
+  LatLngBounds _boundsFor(LatLng a, LatLng b) {
+    final southwest = LatLng(
+      a.latitude < b.latitude ? a.latitude : b.latitude,
+      a.longitude < b.longitude ? a.longitude : b.longitude,
+    );
+    final northeast = LatLng(
+      a.latitude > b.latitude ? a.latitude : b.latitude,
+      a.longitude > b.longitude ? a.longitude : b.longitude,
+    );
+
+    return LatLngBounds(southwest: southwest, northeast: northeast);
+  }
+
+  String _formatDistance(int meters) {
+    if (meters < 1000) {
+      return '$meters m';
+    }
+
+    return '${(meters / 1000).toStringAsFixed(1)} km';
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = (seconds / 60).ceil();
+    return '$minutes min';
+  }
+
+  Future<Ride?> findActiveRide() {
+    return _rideTrackingService.findPassengerActiveRide(passengerId);
+  }
+
+  Future<String?> createBooking({String? preferredDriverId}) async {
+    final pickup = pickupLocation;
+    final dropoff = dropoffLocation;
+    final selectedRoute = route;
+
+    if (pickup == null || dropoff == null || selectedRoute == null) {
+      errorMessage = 'Select a pickup and drop-off location first.';
+      notifyListeners();
+      return null;
+    }
+
+    isBookingLoading = true;
+    notifyListeners();
+
+    try {
+      final activeRide = await _rideTrackingService.findPassengerActiveRide(
+        passengerId,
+      );
+      if (activeRide != null) {
+        errorMessage = 'You already have an active ride.';
+        return activeRide.bookingId;
+      }
+
+      final bookingId = await _rideTrackingService.createBooking(
+        passengerId: passengerId,
+        pickupLocation: pickup,
+        dropoffLocation: dropoff,
+        route: selectedRoute,
+        estimate: estimate,
+        preferredDriverId: preferredDriverId,
+      );
+      errorMessage = null;
+      return bookingId;
+    } on Exception catch (error) {
+      errorMessage = error.toString();
+      return null;
+    } finally {
+      isBookingLoading = false;
+      notifyListeners();
+    }
+  }
+}

@@ -1,23 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../config/app_assets.dart';
 import '../core/session/session_service.dart';
+import 'firebase_storage_image.dart';
+import 'passenger_widgets/passenger_ui.dart';
 
 class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   final String firstName;
+  final String? profileImageUrl;
   final VoidCallback onNotificationsTap;
   final ValueChanged<String>? onProfileSelected;
 
   final bool isDriver;
+  final bool showVerifiedBadge;
   final bool isActive;
   final ValueChanged<bool>? onStatusChanged;
 
   const AppBarWidget({
     super.key,
     required this.firstName,
+    this.profileImageUrl,
     required this.onNotificationsTap,
     this.onProfileSelected,
     this.isDriver = false,
+    this.showVerifiedBadge = false,
     this.isActive = false,
     this.onStatusChanged,
   });
@@ -42,22 +49,23 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: Text('Confirm Logout'),
+        content: Text('Are you sure you want to logout?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Logout'),
+            child: Text('Logout'),
           ),
         ],
       ),
     );
 
     if (shouldLogout == true) {
+      if (!context.mounted) return;
       await _logout(context);
     }
   }
@@ -72,25 +80,26 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = PassengerUi.isCompactWidth(context);
+
     return AppBar(
       elevation: 0,
-      toolbarHeight: 72,
-      backgroundColor: Colors.transparent,
+      toolbarHeight: compact ? 64 : 72,
+      backgroundColor: PassengerUi.surface,
+      surfaceTintColor: Colors.transparent,
       automaticallyImplyLeading: false,
-      titleSpacing: 16,
+      titleSpacing: compact ? 12 : 16,
       flexibleSpace: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color.fromARGB(255, 255, 255, 255),
-              Color.fromARGB(255, 255, 255, 255),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+        decoration: BoxDecoration(
+          color: PassengerUi.surface.withValues(alpha: 0.96),
+          border: Border(
+            bottom: BorderSide(
+              color: PassengerUi.border.withValues(alpha: 0.75),
+            ),
           ),
         ),
       ),
-      title: const _AppLogo(),
+      title: _AppLogo(compact: compact, showBrandText: !isDriver),
       actions: [
         if (isDriver)
           Padding(
@@ -98,19 +107,24 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
             child: _ActiveStatusToggle(
               value: isActive,
               onChanged: onStatusChanged ?? (_) {},
+              compact: compact,
             ),
           ),
-         _ModernIconButton(
+        _ModernIconButton(
           icon: Icons.notifications_none_rounded,
           onTap: onNotificationsTap,
+          compact: compact,
         ),
-        _NameText(firstName: firstName),
-        const SizedBox(width: 10),
+        if (!compact) _NameText(firstName: firstName),
+        SizedBox(width: compact ? 6 : 10),
         _ProfileAvatarMenu(
           firstName: firstName,
+          profileImageUrl: profileImageUrl,
+          showVerifiedBadge: showVerifiedBadge,
           onSelected: (value) => _handleMenuAction(context, value),
+          compact: compact,
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: compact ? 8 : 12),
       ],
     );
   }
@@ -122,28 +136,41 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
 //// ---------- INTERNAL WIDGETS BELOW ---------- ////
 
 class _AppLogo extends StatelessWidget {
-  const _AppLogo();
+  final bool compact;
+  final bool showBrandText;
+
+  const _AppLogo({required this.compact, required this.showBrandText});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 6 : 10,
+        vertical: compact ? 6 : 8,
+      ),
       child: Row(
         children: [
-          Icon(
-            Icons.local_taxi_rounded,
-            color: Color.fromARGB(255, 1, 96, 154),
-          ),
-          SizedBox(width: 8),
-          Text(
-            'SakayNow',
-            style: GoogleFonts.luckiestGuy(
-              color: const Color.fromARGB(255, 1, 96, 154),
-            //  fontWeight: FontWeight.w700,
-              fontSize: 17,
-              letterSpacing: 0.2,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(compact ? 8 : 10),
+            child: Image.asset(
+              AppAssets.logo,
+              width: compact ? 32 : 36,
+              height: compact ? 32 : 36,
+              fit: BoxFit.cover,
             ),
           ),
+          if (showBrandText) ...[
+            SizedBox(width: compact ? 6 : 8),
+            Text(
+              'SakayNow',
+              style: GoogleFonts.poppins(
+                color: PassengerUi.primary,
+                fontSize: compact ? 16 : 18,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -166,7 +193,7 @@ class _NameText extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.archivoBlack(
-            color: Color.fromARGB(255, 0, 0, 0),
+            color: PassengerUi.title,
             fontSize: 16,
             fontWeight: FontWeight.w500,
           ),
@@ -179,29 +206,31 @@ class _NameText extends StatelessWidget {
 class _ModernIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
+  final bool compact;
 
   const _ModernIconButton({
     required this.icon,
     required this.onTap,
+    required this.compact,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: EdgeInsets.only(right: compact ? 4 : 8),
       child: Material(
-        color: Colors.white.withOpacity(0.15),
+        color: PassengerUi.mutedSurface,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: SizedBox(
-            width: 42,
-            height: 42,
+            width: compact ? 38 : 42,
+            height: compact ? 38 : 42,
             child: Icon(
               icon,
-              color: const Color.fromARGB(255, 0, 0, 0),
-              size: 22,
+              color: PassengerUi.accentBlue,
+              size: compact ? 20 : 22,
             ),
           ),
         ),
@@ -212,25 +241,28 @@ class _ModernIconButton extends StatelessWidget {
 
 class _ProfileAvatarMenu extends StatelessWidget {
   final String firstName;
+  final String? profileImageUrl;
+  final bool showVerifiedBadge;
   final ValueChanged<String> onSelected;
+  final bool compact;
 
   const _ProfileAvatarMenu({
     required this.firstName,
+    required this.profileImageUrl,
+    required this.showVerifiedBadge,
     required this.onSelected,
+    required this.compact,
   });
 
   @override
   Widget build(BuildContext context) {
-    final initial =
-        firstName.isNotEmpty ? firstName[0].toUpperCase() : '?';
+    final initial = firstName.isNotEmpty ? firstName[0].toUpperCase() : '?';
 
     return PopupMenuButton<String>(
       onSelected: onSelected,
-      offset: const Offset(0, 50),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      itemBuilder: (context) => const [
+      offset: Offset(0, 50),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      itemBuilder: (context) => [
         PopupMenuItem(
           value: 'profile',
           child: ListTile(
@@ -254,43 +286,82 @@ class _ProfileAvatarMenu extends StatelessWidget {
           value: 'logout',
           child: ListTile(
             dense: true,
-            leading: Icon(Icons.logout_rounded, color: Colors.redAccent),
-            title: Text(
-              'Logout',
-              style: TextStyle(color: Colors.redAccent),
-            ),
+            leading: Icon(Icons.logout_rounded, color: PassengerUi.primary),
+            title: Text('Logout', style: TextStyle(color: PassengerUi.primary)),
             contentPadding: EdgeInsets.zero,
           ),
         ),
       ],
-      child: Container(
-        margin: const EdgeInsets.only(right: 4),
-        padding: const EdgeInsets.all(2.5),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withOpacity(0.75),
-            width: 1.4,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.10),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          Container(
+            margin: EdgeInsets.only(right: compact ? 2 : 4),
+            padding: const EdgeInsets.all(2.5),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: PassengerUi.primary.withValues(alpha: 0.22),
+                width: 1.4,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 10,
+                  offset: Offset(0, 3),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: CircleAvatar(
-          radius: 18,
-          backgroundColor: Colors.white,
-          child: Text(
-            initial,
-            style: const TextStyle(
-              color: Color.fromARGB(255, 0, 0, 0),
-              fontWeight: FontWeight.bold,
+            child: CircleAvatar(
+              radius: compact ? 16 : 18,
+              backgroundColor: PassengerUi.primary.withValues(alpha: 0.10),
+              child: ClipOval(
+                child: FirebaseStorageImage(
+                  imageUrl: profileImageUrl,
+                  width: compact ? 32 : 36,
+                  height: compact ? 32 : 36,
+                  fit: BoxFit.cover,
+                  fallback: _AvatarFallback(initial: initial),
+                ),
+              ),
             ),
           ),
-        ),
+          if (showVerifiedBadge)
+            Positioned(
+              right: compact ? -2 : 0,
+              bottom: -1,
+              child: Container(
+                width: compact ? 14 : 16,
+                height: compact ? 14 : 16,
+                decoration: BoxDecoration(
+                  color: PassengerUi.successText,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: PassengerUi.surface, width: 2),
+                ),
+                child: Icon(
+                  Icons.check_rounded,
+                  size: compact ? 9 : 10,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AvatarFallback extends StatelessWidget {
+  final String initial;
+
+  const _AvatarFallback({required this.initial});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        initial,
+        style: TextStyle(color: PassengerUi.title, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -299,53 +370,59 @@ class _ProfileAvatarMenu extends StatelessWidget {
 class _ActiveStatusToggle extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool compact;
 
   const _ActiveStatusToggle({
     required this.value,
     required this.onChanged,
+    required this.compact,
   });
 
   @override
   Widget build(BuildContext context) {
+    final label = compact ? (value ? 'On' : 'Off') : (value ? 'Active' : 'Off');
+
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      duration: Duration(milliseconds: 220),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 6 : 8,
+        vertical: compact ? 3 : 5,
+      ),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.14),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.20),
-        ),
+        color: PassengerUi.mutedSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: PassengerUi.border),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 9,
-            height: 9,
+            width: compact ? 7 : 8,
+            height: compact ? 7 : 8,
             decoration: BoxDecoration(
-              color: value ? Colors.greenAccent : Colors.white54,
+              color: value ? PassengerUi.secondary : PassengerUi.body,
               shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: compact ? 5 : 6),
           Text(
-            value ? 'Active' : 'Offline',
-            style: const TextStyle(
-              color: Color.fromARGB(255, 0, 0, 0),
+            label,
+            style: TextStyle(
+              color: PassengerUi.title,
               fontWeight: FontWeight.w600,
-              fontSize: 13,
+              fontSize: compact ? 11 : 12,
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: compact ? 1 : 3),
           Transform.scale(
-            scale: 0.85,
+            scale: compact ? 0.62 : 0.74,
             child: Switch(
               value: value,
               onChanged: onChanged,
-              activeColor: const Color.fromARGB(255, 255, 255, 255),
-              activeTrackColor: Colors.greenAccent.withOpacity(0.7),
-              inactiveThumbColor: const Color.fromARGB(255, 132, 91, 91),
-              inactiveTrackColor: Colors.white38,
+              activeColor: Colors.white,
+              activeTrackColor: PassengerUi.secondary.withValues(alpha: 0.7),
+              inactiveThumbColor: PassengerUi.primary,
+              inactiveTrackColor: PassengerUi.body.withValues(alpha: 0.35),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),

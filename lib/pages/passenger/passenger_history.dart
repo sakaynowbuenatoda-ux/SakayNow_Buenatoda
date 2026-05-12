@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../../widgets/passenger_widgets/passenger_recent_trips_section.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
-import 'passenger_data.dart';
 
 class PassengerHistory extends StatelessWidget {
   final String userId;
   final String firstName;
-  final String role;
+  final String passengerType;
 
   const PassengerHistory({
     super.key,
     required this.userId,
     required this.firstName,
-    required this.role,
+    required this.passengerType,
   });
 
   @override
@@ -22,30 +21,21 @@ class PassengerHistory extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('Trip History', style: PassengerUi.sectionTitle.copyWith(fontSize: 22)),
-          const SizedBox(height: 6),
-          Text(
-            'Review completed rides, verified fares, and driver ratings for accountability.',
-            style: PassengerUi.bodyText,
+          PassengerPageHeader(
+            title: 'Trip History',
+            subtitle:
+                'Review completed rides, routes, fares, and ride records.',
+            icon: Icons.history_rounded,
+            accentColor: PassengerUi.secondary,
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 16),
           PassengerRecentTripsSection(
-            trips: PassengerMockData.recentTrips,
-            onViewAllTap: () => _showSnackBar(
-              context,
-              'Showing the latest completed rides.',
-            ),
-            onTripTap: (PassengerTripSummary trip) =>
-                _showSnackBar(context, 'Opened ${trip.destination}.'),
+            passengerId: userId,
+            title: 'Trips',
+            actionLabel: '',
           ),
         ],
       ),
-    );
-  }
-
-  void _showSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
     );
   }
 }

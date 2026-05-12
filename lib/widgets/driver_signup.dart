@@ -1,13 +1,17 @@
 import 'dart:io';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../pages/auth/login_page.dart';
+import '../core/auth/registration_service.dart';
+import '../core/auth/signup_validators.dart';
+import '../pages/auth/auth_gate.dart';
+import '../pages/auth/auth_ui.dart';
+import 'account_creation_success_dialog.dart';
+import 'terms_and_privacy_policy_sheet.dart';
 
 class DriverSignUp extends StatefulWidget {
   const DriverSignUp({super.key});
@@ -30,6 +34,7 @@ class _DriverSignUpState extends State<DriverSignUp> {
   int _currentStep = 0;
   bool _isSubmitting = false;
   bool _agreeToPolicies = false;
+  bool _showValidationErrors = false;
 
   String? _gender;
   File? _nbiFile;
@@ -48,156 +53,113 @@ class _DriverSignUpState extends State<DriverSignUp> {
   }
 
   Future<void> _pickNbi() async {
-    final file = await _picker.pickImage(source: ImageSource.gallery);
-    if (file == null) return;
-    setState(() => _nbiFile = File(file.path));
+    try {
+      final file = await _picker.pickImage(source: ImageSource.gallery);
+      if (!mounted || file == null) return;
+      setState(() => _nbiFile = File(file.path));
+    } on PlatformException {
+      _showMessage('Unable to open gallery. Please check app permissions.');
+    }
   }
 
   Future<void> _pickLicense() async {
-    final file = await _picker.pickImage(source: ImageSource.gallery);
-    if (file == null) return;
-    setState(() => _licenseFile = File(file.path));
+    try {
+      final file = await _picker.pickImage(source: ImageSource.gallery);
+      if (!mounted || file == null) return;
+      setState(() => _licenseFile = File(file.path));
+    } on PlatformException {
+      _showMessage('Unable to open gallery. Please check app permissions.');
+    }
   }
 
   Future<void> _captureSelfie() async {
-    final file = await _picker.pickImage(source: ImageSource.camera);
-    if (file == null) return;
-    setState(() => _selfieFile = File(file.path));
-  }
-
-  Future<String?> _uploadFile({
-    required String uid,
-    required File? file,
-    required String fileName,
-  }) async {
-    if (file == null) return null;
-    final ref = FirebaseStorage.instance.ref('users/$uid/$fileName');
-    await ref.putFile(file);
-    return ref.getDownloadURL();
+    try {
+      final file = await _picker.pickImage(source: ImageSource.camera);
+      if (!mounted || file == null) return;
+      setState(() => _selfieFile = File(file.path));
+    } on PlatformException {
+      _showMessage('Unable to open camera. Please check app permissions.');
+    }
   }
 
   void _showPoliciesSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.72,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 48,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE5E7EB),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  'Terms and Conditions & Privacy Policy',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1E2432),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Expanded(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  child: Text(
-                    '''
-By creating an account, you agree to provide accurate information and valid documents for verification.
+    showTermsAndPrivacyPolicySheet(context);
+  }
 
-Your submitted data, identification documents, and selfie may be collected and stored for account validation, security, fraud prevention, and transport service operations.
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
-SakayNow may review submitted credentials before approving driver registration. False, misleading, or invalid information may result in denial, suspension, or removal of the account.
+  String? _validateGender(String? value) {
+    return value == null ? 'Gender is required' : null;
+  }
 
-Your personal information will be handled with reasonable care and used only for legitimate platform-related purposes in accordance with the app’s privacy practices.
+  bool _validateBasicInfo() {
+    final formState = _formKey.currentState;
+    if (formState != null) {
+      return formState.validate();
+    }
 
-Replace this placeholder with your actual Terms and Conditions and Privacy Policy text.
-                    ''',
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.6,
-                      color: Color(0xFF4B5563),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF5B4BDB),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: const Text(
-                      'Close',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    final validations = <String?>[
+      SignupValidators.email(_emailController.text),
+      SignupValidators.name(_firstNameController.text, fieldName: 'First name'),
+      SignupValidators.name(_lastNameController.text, fieldName: 'Last name'),
+      SignupValidators.age(
+        _ageController.text,
+        minimumAge: SignupValidators.driverMinimumAge,
+      ),
+      _validateGender(_gender),
+      SignupValidators.password(_passwordController.text),
+      SignupValidators.confirmPassword(
+        _confirmPasswordController.text,
+        _passwordController.text,
+      ),
+    ];
+
+    return validations.every((error) => error == null);
+  }
+
+  Future<void> _showSuccessAndNavigate() async {
+    showAccountCreationSuccessDialog(context);
+    await Future<void>.delayed(const Duration(milliseconds: 1550));
+
+    if (!mounted) return;
+
+    Navigator.of(context, rootNavigator: true).pop();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => AuthGate()),
+      (route) => false,
     );
   }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    setState(() => _showValidationErrors = true);
+
+    if (!_validateBasicInfo()) {
       setState(() => _currentStep = 0);
+      _showMessage('Please review the required fields in Basic Information.');
       return;
     }
 
     if (_nbiFile == null || _licenseFile == null) {
       setState(() => _currentStep = 1);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please upload NBI clearance and driver\'s license.',
-          ),
-        ),
-      );
+      _showMessage('Please upload NBI clearance and driver\'s license.');
       return;
     }
 
     if (_selfieFile == null) {
       setState(() => _currentStep = 2);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please capture a live selfie.')),
-      );
+      _showMessage('Please capture a live selfie.');
       return;
     }
 
     if (!_agreeToPolicies) {
       setState(() => _currentStep = 2);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'You must agree to the Terms and Conditions and Privacy Policy.',
-          ),
-        ),
+      _showMessage(
+        'You must agree to the Terms and Conditions and Privacy Policy.',
       );
       return;
     }
@@ -205,62 +167,20 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
     setState(() => _isSubmitting = true);
 
     try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      await RegistrationService.registerDriver(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        age: _ageController.text.trim(),
+        gender: _gender,
+        nbiFile: _nbiFile!,
+        licenseFile: _licenseFile!,
+        selfieFile: _selfieFile!,
       );
-
-      final uid = cred.user!.uid;
-
-      final nbiUrl = await _uploadFile(
-        uid: uid,
-        file: _nbiFile,
-        fileName: 'nbi_clearance.jpg',
-      );
-      final licenseUrl = await _uploadFile(
-        uid: uid,
-        file: _licenseFile,
-        fileName: 'drivers_license.jpg',
-      );
-      final selfieUrl = await _uploadFile(
-        uid: uid,
-        file: _selfieFile,
-        fileName: 'selfie.jpg',
-      );
-
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'user_id': uid,
-        'email': _emailController.text.trim(),
-        'first_name': _firstNameController.text.trim(),
-        'last_name': _lastNameController.text.trim(),
-        'age': int.tryParse(_ageController.text.trim()),
-        'gender': _gender,
-        'role': 'driver',
-        'id_image_url': null,
-        'selfie_url': selfieUrl,
-        'nbi_clearance_url': nbiUrl,
-        'drivers_license_url': licenseUrl,
-        'isVerified': false,
-        'created_at': FieldValue.serverTimestamp(),
-      });
-
-      await cred.user?.sendEmailVerification();
-      await FirebaseAuth.instance.signOut();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Driver account created. Please log in from the login page.',
-          ),
-        ),
-      );
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginPage()),
-        (route) => false,
-      );
+      await _showSuccessAndNavigate();
     } on FirebaseAuthException catch (e) {
       String message = e.message ?? 'Signup failed.';
       if (e.code == 'email-already-in-use') {
@@ -269,20 +189,42 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
         message = 'Password is too weak.';
       } else if (e.code == 'invalid-email') {
         message = 'Please enter a valid email address.';
+      } else if (e.code == 'operation-not-allowed') {
+        message = 'Email and password signup is disabled in Firebase Auth.';
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
+      _showMessage(message);
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      _showMessage(_firebaseErrorMessage(e));
+    } on RegistrationDocumentUploadException {
+      if (!mounted) return;
+      _showMessage(
+        'Account created, but document upload failed. You can update your documents later.',
+      );
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => AuthGate()),
+        (route) => false,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      _showMessage('Error: $e');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  String _firebaseErrorMessage(FirebaseException e) {
+    if (e.code == 'permission-denied') {
+      return 'Unable to save account details. Please check Firebase rules.';
+    }
+
+    if (e.code == 'network-request-failed' || e.code == 'unavailable') {
+      return 'Network error. Please check your connection and try again.';
+    }
+
+    return e.message ?? 'Signup failed. Please try again.';
   }
 
   InputDecoration _inputDecoration({
@@ -291,21 +233,29 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
   }) {
     return InputDecoration(
       labelText: label,
-      prefixIcon: Icon(icon, size: 20),
+      prefixIcon: Icon(icon, size: 20, color: AuthUi.accentBlue),
       filled: true,
-      fillColor: const Color(0xFFF8FAFC),
+      fillColor: AuthUi.mutedSurface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      labelStyle: TextStyle(
+        color: AuthUi.accentBlue,
+        fontWeight: FontWeight.w500,
+      ),
+      floatingLabelStyle: TextStyle(
+        color: AuthUi.primary,
+        fontWeight: FontWeight.w700,
+      ),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: AuthUi.border),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: AuthUi.border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Color(0xFF5B4BDB), width: 1.4),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: AuthUi.primary, width: 1.4),
       ),
     );
   }
@@ -317,16 +267,16 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFEAECEF)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AuthUi.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: Offset(0, 5),
           ),
         ],
       ),
@@ -335,22 +285,13 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1E2432),
+              fontWeight: FontWeight.w500,
+              color: AuthUi.title,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF6B7280),
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 18),
+          SizedBox(height: 14),
           child,
         ],
       ),
@@ -366,11 +307,11 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        color: AuthUi.mutedSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AuthUi.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,30 +322,22 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEEF2FF),
-                  borderRadius: BorderRadius.circular(14),
+                  color: AuthUi.surface,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: const Color(0xFF5B4BDB), size: 22),
+                child: Icon(icon, color: AuthUi.primary, size: 22),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
                         fontSize: 14.5,
-                        color: Color(0xFF1E2432),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF6B7280),
+                        color: AuthUi.title,
                       ),
                     ),
                   ],
@@ -412,25 +345,25 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: onTap,
-              icon: const Icon(Icons.upload_file_rounded),
+              icon: Icon(Icons.upload_file_rounded),
               label: Text(file == null ? 'Choose file' : 'Replace file'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF5B4BDB),
-                side: const BorderSide(color: Color(0xFFD9DDF0)),
+                foregroundColor: AuthUi.primary,
+                side: BorderSide(color: AuthUi.border),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
           ),
           if (file != null) ...[
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Image.file(
@@ -447,79 +380,72 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
   }
 
   Widget _buildStepIndicator() {
-    final steps = [
-      ('1', 'Basic Info'),
-      ('2', 'Credentials'),
-      ('3', 'Selfie'),
-    ];
+    final steps = [('1', 'Basic Info'), ('2', 'Credentials'), ('3', 'Selfie')];
 
-    return Row(
-      children: List.generate(steps.length, (index) {
-        final isActive = _currentStep == index;
-        final isDone = _currentStep > index;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 360;
 
-        return Expanded(
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: List.generate(steps.length, (index) {
+            final isActive = _currentStep == index;
+            final isDone = _currentStep > index;
+            final itemWidth = compact
+                ? (constraints.maxWidth - 10) / 2
+                : (constraints.maxWidth - 20) / 3;
+
+            return SizedBox(
+              width: itemWidth,
+              child: Container(
+                padding: EdgeInsets.symmetric(vertical: compact ? 10 : 12),
+                decoration: BoxDecoration(
+                  color: isActive || isDone
+                      ? AuthUi.title.withValues(alpha: 0.06)
+                      : AuthUi.mutedSurface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
                     color: isActive || isDone
-                        ? const Color(0xFFEEF2FF)
-                        : const Color(0xFFF3F4F6),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isActive || isDone
-                          ? const Color(0xFFC7D2FE)
-                          : const Color(0xFFE5E7EB),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 14,
-                        backgroundColor: isDone
-                            ? const Color(0xFF5B4BDB)
-                            : isActive
-                                ? const Color(0xFF5B4BDB)
-                                : const Color(0xFFD1D5DB),
-                        child: isDone
-                            ? const Icon(
-                                Icons.check,
-                                size: 14,
-                                color: Colors.white,
-                              )
-                            : Text(
-                                steps[index].$1,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                ),
-                              ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        steps[index].$2,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: isActive
-                              ? const Color(0xFF4338CA)
-                              : const Color(0xFF4B5563),
-                        ),
-                      ),
-                    ],
+                        ? AuthUi.title.withValues(alpha: 0.16)
+                        : AuthUi.border,
                   ),
                 ),
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: isDone || isActive
+                          ? AuthUi.primary
+                          : Color(0xFFD1D5DB),
+                      child: isDone
+                          ? Icon(Icons.check, size: 14, color: Colors.white)
+                          : Text(
+                              steps[index].$1,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      steps[index].$2,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: compact ? 12 : 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: isActive ? AuthUi.primary : AuthUi.body,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              if (index != steps.length - 1) const SizedBox(width: 10),
-            ],
-          ),
+            );
+          }),
         );
-      }),
+      },
     );
   }
 
@@ -535,59 +461,56 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
                   ? null
                   : () => setState(() => _currentStep -= 1),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF374151),
-                side: const BorderSide(color: Color(0xFFD1D5DB)),
+                foregroundColor: AuthUi.title,
+                side: BorderSide(color: Color(0xFFD1D5DB)),
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
+              child: Text(
                 'Back',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
           ),
-        if (_currentStep > 0) const SizedBox(width: 12),
+        if (_currentStep > 0) SizedBox(width: 12),
         Expanded(
           flex: 2,
           child: ElevatedButton(
             onPressed: _isSubmitting
                 ? null
-                : isLast && !_agreeToPolicies
-                  ? null
                 : () {
                     if (isLast) {
                       _submit();
                     } else {
-                      if (_currentStep == 0 &&
-                          !(_formKey.currentState?.validate() ?? false)) {
-                        return;
+                      if (_currentStep == 0) {
+                        setState(() => _showValidationErrors = true);
+                        if (!_validateBasicInfo()) {
+                          return;
+                        }
                       }
                       setState(() => _currentStep += 1);
                     }
                   },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF5B4BDB),
+              backgroundColor: AuthUi.primary,
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 15),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
             child: _isSubmitting
-                ? const SizedBox(
+                ? SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(strokeWidth: 2.2),
                   )
                 : Text(
                     isLast ? 'Create Account' : 'Continue',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                   ),
           ),
         ),
@@ -601,111 +524,104 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
       subtitle: 'Please enter your personal details accurately.',
       child: Form(
         key: _formKey,
+        autovalidateMode: _showValidationErrors
+            ? AutovalidateMode.always
+            : AutovalidateMode.disabled,
         child: Column(
           children: [
             TextFormField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autocorrect: false,
               decoration: _inputDecoration(
                 label: 'Email',
                 icon: Icons.email_outlined,
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Email is required';
-                }
-                return null;
-              },
+              validator: SignupValidators.email,
             ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _firstNameController,
-                    decoration: _inputDecoration(
-                      label: 'First Name',
-                      icon: Icons.person_outline,
-                    ),
-                    validator: (value) => value == null || value.trim().isEmpty
-                        ? 'Required'
-                        : null,
-                  ),
+            SizedBox(height: 14),
+            _buildResponsiveFieldRow(
+              first: TextFormField(
+                controller: _firstNameController,
+                textInputAction: TextInputAction.next,
+                decoration: _inputDecoration(
+                  label: 'First Name',
+                  icon: Icons.person_outline,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _lastNameController,
-                    decoration: _inputDecoration(
-                      label: 'Last Name',
-                      icon: Icons.badge_outlined,
-                    ),
-                    validator: (value) => value == null || value.trim().isEmpty
-                        ? 'Required'
-                        : null,
-                  ),
+                validator: (value) =>
+                    SignupValidators.name(value, fieldName: 'First name'),
+              ),
+              second: TextFormField(
+                controller: _lastNameController,
+                textInputAction: TextInputAction.next,
+                decoration: _inputDecoration(
+                  label: 'Last Name',
+                  icon: Icons.badge_outlined,
                 ),
-              ],
+                validator: (value) =>
+                    SignupValidators.name(value, fieldName: 'Last name'),
+              ),
             ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _ageController,
-                    keyboardType: TextInputType.number,
-                    decoration: _inputDecoration(
-                      label: 'Age',
-                      icon: Icons.cake_outlined,
-                    ),
-                    validator: (value) => value == null || value.trim().isEmpty
-                        ? 'Required'
-                        : null,
-                  ),
+            SizedBox(height: 14),
+            _buildResponsiveFieldRow(
+              first: TextFormField(
+                controller: _ageController,
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.next,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: _inputDecoration(
+                  label: 'Age',
+                  icon: Icons.cake_outlined,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _gender,
-                    decoration: _inputDecoration(
-                      label: 'Gender',
-                      icon: Icons.wc_outlined,
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'male', child: Text('Male')),
-                      DropdownMenuItem(value: 'female', child: Text('Female')),
-                      DropdownMenuItem(value: 'other', child: Text('Other')),
-                    ],
-                    onChanged: (value) => setState(() => _gender = value),
-                    validator: (value) =>
-                        value == null ? 'Gender is required' : null,
-                  ),
+                validator: (value) => SignupValidators.age(
+                  value,
+                  minimumAge: SignupValidators.driverMinimumAge,
                 ),
-              ],
+              ),
+              second: DropdownButtonFormField<String>(
+                value: _gender,
+                decoration: _inputDecoration(
+                  label: 'Gender',
+                  icon: Icons.wc_outlined,
+                ),
+                items: [
+                  DropdownMenuItem(value: 'male', child: Text('Male')),
+                  DropdownMenuItem(value: 'female', child: Text('Female')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (value) => setState(() => _gender = value),
+                validator: _validateGender,
+              ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             TextFormField(
               controller: _passwordController,
               obscureText: true,
+              textInputAction: TextInputAction.next,
+              autocorrect: false,
+              enableSuggestions: false,
               decoration: _inputDecoration(
                 label: 'Password',
                 icon: Icons.lock_outline_rounded,
               ),
-              validator: (value) => value == null || value.length < 8
-                  ? 'Password must be at least 8 characters'
-                  : null,
+              validator: SignupValidators.password,
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             TextFormField(
               controller: _confirmPasswordController,
               obscureText: true,
+              textInputAction: TextInputAction.done,
+              autocorrect: false,
+              enableSuggestions: false,
               decoration: _inputDecoration(
                 label: 'Confirm Password',
                 icon: Icons.verified_user_outlined,
               ),
-              validator: (value) => value != _passwordController.text
-                  ? 'Passwords do not match'
-                  : null,
+              validator: (value) => SignupValidators.confirmPassword(
+                value,
+                _passwordController.text,
+              ),
             ),
           ],
         ),
@@ -726,10 +642,10 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
             onTap: _pickNbi,
             file: _nbiFile,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _uploadTile(
-            title: 'Driver’s License',
-            subtitle: 'Upload the front side of your valid driver’s license.',
+            title: 'Driver\'s License',
+            subtitle: 'Upload the front side of your valid driver\'s license.',
             icon: Icons.credit_card_outlined,
             onTap: _pickLicense,
             file: _licenseFile,
@@ -749,16 +665,16 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              color: AuthUi.mutedSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AuthUi.border),
             ),
-            child: const Row(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
                   Icons.info_outline_rounded,
-                  color: Color(0xFF5B4BDB),
+                  color: AuthUi.accentBlue,
                   size: 20,
                 ),
                 SizedBox(width: 10),
@@ -768,35 +684,35 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.4,
-                      color: Color(0xFF4B5563),
+                      color: AuthUi.body,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _captureSelfie,
-              icon: const Icon(Icons.camera_alt_outlined),
-              label: const Text('Capture Selfie'),
+              icon: Icon(Icons.camera_alt_outlined),
+              label: Text('Capture Selfie'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5B4BDB),
+                backgroundColor: AuthUi.primary,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
           ),
           if (_selfieFile != null) ...[
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             ClipRRect(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               child: Image.file(
                 _selfieFile!,
                 height: 210,
@@ -805,39 +721,41 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
               ),
             ),
           ],
-          const SizedBox(height: 18),
+          SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              color: AuthUi.mutedSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AuthUi.border),
             ),
             child: CheckboxListTile(
               value: _agreeToPolicies,
               onChanged: (value) {
                 setState(() => _agreeToPolicies = value ?? false);
               },
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
               controlAffinity: ListTileControlAffinity.leading,
-              activeColor: const Color(0xFF5B4BDB),
+              activeColor: AuthUi.primary,
               title: RichText(
                 text: TextSpan(
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13.5,
                     height: 1.5,
-                    color: Color(0xFF374151),
+                    color: AuthUi.title,
                   ),
                   children: [
-                    const TextSpan(
+                    TextSpan(
                       text:
                           'I agree to the Terms and Conditions and Privacy Policy ',
                     ),
                     TextSpan(
                       text: 'View',
-                      style: const TextStyle(
-                        color: Color(0xFF5B4BDB),
+                      style: TextStyle(
+                        color: AuthUi.primary,
                         fontWeight: FontWeight.w700,
                       ),
                       recognizer: TapGestureRecognizer()
@@ -855,61 +773,71 @@ Replace this placeholder with your actual Terms and Conditions and Privacy Polic
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFCFCFD),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFEAECEF)),
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 760),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Registration',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w500,
+                color: AuthUi.title,
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Driver Registration',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1E2432),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Complete the steps below to create your verified driver account.',
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    color: Color(0xFF6B7280),
-                    height: 1.45,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                _buildStepIndicator(),
-                const SizedBox(height: 20),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: KeyedSubtree(
-                    key: ValueKey(_currentStep),
-                    child: Column(
-                      children: [
-                        if (_currentStep == 0) _buildBasicInfoStep(),
-                        if (_currentStep == 1) _buildCredentialsStep(),
-                        if (_currentStep == 2) _buildSelfieStep(),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                _buildActionButtons(),
-              ],
+            SizedBox(height: 6),
+            Text(
+              'Complete the steps below to create your driver account for admin verification.',
+              style: TextStyle(
+                fontSize: 13.5,
+                color: AuthUi.body,
+                height: 1.45,
+              ),
             ),
-          ),
+            SizedBox(height: 18),
+            _buildStepIndicator(),
+            SizedBox(height: 20),
+            AnimatedSwitcher(
+              duration: Duration(milliseconds: 250),
+              child: KeyedSubtree(
+                key: ValueKey(_currentStep),
+                child: Column(
+                  children: [
+                    if (_currentStep == 0) _buildBasicInfoStep(),
+                    if (_currentStep == 1) _buildCredentialsStep(),
+                    if (_currentStep == 2) _buildSelfieStep(),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 18),
+            _buildActionButtons(),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildResponsiveFieldRow({
+    required Widget first,
+    required Widget second,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 560) {
+          return Column(children: [first, SizedBox(height: 14), second]);
+        }
+
+        return Row(
+          children: [
+            Expanded(child: first),
+            SizedBox(width: 12),
+            Expanded(child: second),
+          ],
+        );
+      },
     );
   }
 }

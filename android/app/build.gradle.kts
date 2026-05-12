@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -8,10 +10,37 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+fun readEnvValue(key: String): String {
+    val candidates = listOf(
+        file("../../.env"),
+        file("../../../.env"),
+        rootProject.file("../.env"),
+        rootProject.file("../../.env")
+    )
+
+    val fromFile = candidates
+        .asSequence()
+        .filter { it.exists() }
+        .mapNotNull { envFile ->
+            envFile.readLines().firstOrNull { line ->
+                val trimmedLine = line.trim()
+                trimmedLine.startsWith("$key=") && !trimmedLine.startsWith("#")
+            }?.substringAfter("=")?.trim()
+        }
+        .firstOrNull()
+        ?.removeSurrounding("\"")
+        ?.removeSurrounding("'")
+
+    return providers.gradleProperty(key).orNull
+        ?: System.getenv(key)
+        ?: fromFile
+        ?: ""
+}
+
 android {
     namespace = "com.example.sakaynow_buenatoda"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "28.0.13004108"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -28,6 +57,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["googleServicesApiKey"] = readEnvValue("GOOGLE_SERVICES_API_KEY")
     }
 
     buildTypes {

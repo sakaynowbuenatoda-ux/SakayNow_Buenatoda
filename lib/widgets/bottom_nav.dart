@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'passenger_widgets/passenger_ui.dart';
 
 class BottomNavWidget extends StatelessWidget {
   final int currentIndex;
@@ -15,91 +15,92 @@ class BottomNavWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double bottomPadding = MediaQuery.of(context).padding.bottom;
+    final bool compact = MediaQuery.sizeOf(context).width < 390;
 
     return SafeArea(
       top: false,
       child: Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(20),
+        margin: EdgeInsets.fromLTRB(
+          compact ? 8 : 10,
+          0,
+          compact ? 8 : 10,
+          compact ? 6 : 8,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+        decoration: BoxDecoration(
+          color: PassengerUi.surface.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(compact ? 16 : 18),
+          border: Border.all(color: PassengerUi.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(
+                alpha: PassengerUi.isDarkMode ? 0.28 : 0.10,
+              ),
+              blurRadius: compact ? 18 : 22,
+              offset: Offset(0, -8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(compact ? 16 : 18),
+          child: NavigationBar(
+            selectedIndex: currentIndex,
+            onDestinationSelected: onTap,
+            labelBehavior: compact
+                ? NavigationDestinationLabelBehavior.onlyShowSelected
+                : NavigationDestinationLabelBehavior.alwaysShow,
+            destinations: isDriver
+                ? const [
+                    NavigationDestination(
+                      icon: Icon(Icons.home_outlined),
+                      selectedIcon: Icon(Icons.home_rounded),
+                      label: 'Home',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.list_alt_outlined),
+                      selectedIcon: Icon(Icons.list_alt_rounded),
+                      label: 'Queue',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.chat_bubble_outline_rounded),
+                      selectedIcon: Icon(Icons.chat_bubble_rounded),
+                      label: 'Messages',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.history_rounded),
+                      selectedIcon: Icon(Icons.history_rounded),
+                      label: 'History',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.dashboard_outlined),
+                      selectedIcon: Icon(Icons.dashboard_rounded),
+                      label: 'Dashboard',
+                    ),
+                  ]
+                : const [
+                    NavigationDestination(
+                      icon: Icon(Icons.home_outlined),
+                      selectedIcon: Icon(Icons.home_rounded),
+                      label: 'Home',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.chat_bubble_outline_rounded),
+                      selectedIcon: Icon(Icons.chat_bubble_rounded),
+                      label: 'Messages',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.history_rounded),
+                      selectedIcon: Icon(Icons.history_rounded),
+                      label: 'History',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.dashboard_outlined),
+                      selectedIcon: Icon(Icons.dashboard_rounded),
+                      label: 'Dashboard',
+                    ),
+                  ],
           ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.only(bottom: bottomPadding),
-        child: BottomNavigationBar(
-          currentIndex: currentIndex,
-          onTap: onTap,
-          type: BottomNavigationBarType.fixed,
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-
-          selectedItemColor: const Color(0xFF4A90E2),
-          unselectedItemColor: Colors.grey.shade500,
-
-          selectedLabelStyle: GoogleFonts.archivoBlack(
-           // fontWeight: FontWeight.w600,
-            fontSize: 12,
-          ),
-          unselectedLabelStyle: GoogleFonts.poppins(
-            fontSize: 11,
-          ),
-
-          iconSize: 26,
-
-          items: isDriver
-              ? const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.home_rounded),
-                    label: 'Home',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.list_alt_rounded),
-                    label: 'Queue',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.chat_bubble_rounded),
-                    label: 'Messages',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.history_rounded),
-                    label: 'History',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.dashboard),
-                    label: 'Dashboard',
-                  ),
-                ]
-              : const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.home_rounded),
-                    label: 'Home',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.chat_bubble_rounded),
-                    label: 'Messages',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.history_rounded),
-                    label: 'History',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.dashboard),
-                    label: 'Dashboard',
-                  ),
-                ],
         ),
       ),
-    )
     );
   }
 }

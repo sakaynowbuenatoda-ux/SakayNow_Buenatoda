@@ -1,0 +1,132 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function signedInUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return signedIn() && signedInUser().role == 'admin';
+    }
+
+    function isVerifiedDriver() {
+      return signedIn()
+        && signedInUser().role == 'driver'
+        && (signedInUser().is_verified == true || signedInUser().isVerified == true)
+        && signedInUser().is_banned != true
+        && signedInUser().isBanned != true;
+    }
+
+    function isRatingAggregateUpdate() {
+      return signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'average_rating',
+          'review_count',
+          'review_rating_total',
+          'driver_average_rating',
+          'driver_review_count',
+          'driver_review_rating_total',
+          'passenger_average_rating',
+          'passenger_review_count',
+          'updated_at'
+        ]);
+    }
+
+    function isValidSignup(userId) {
+      return isSelf(userId)
+        && request.resource.data.user_id == userId
+        && request.resource.data.email is string
+        && request.resource.data.first_name is string
+        && request.resource.data.last_name is string
+        && request.resource.data.role in ['passenger', 'driver']
+        && request.resource.data.is_verified == false
+        && request.resource.data.is_active == false
+        && request.resource.data.is_banned == false
+        && request.resource.data.created_at == request.time
+        && (
+          request.resource.data.role != 'passenger'
+          || request.resource.data.passenger_type in ['regular', 'student']
+        );
+    }
+
+    match /users/{userId} {
+      allow create: if isValidSignup(userId);
+      allow read: if isSelf(userId)
+        || isAdmin()
+        || (
+          signedIn()
+          && resource.data.role == 'driver'
+          && (resource.data.is_verified == true || resource.data.isVerified == true)
+          && resource.data.is_banned != true
+          && resource.data.isBanned != true
+        );
+      allow update: if isSelf(userId)
+        && request.resource.data.user_id == resource.data.user_id
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.is_verified == resource.data.is_verified
+        && request.resource.data.is_active == resource.data.is_active
+        && request.resource.data.is_banned == resource.data.is_banned;
+      allow update: if isRatingAggregateUpdate();
+      allow update, delete: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.passenger_id == request.auth.uid;
+      allow update: if isAdmin()
+        || isVerifiedDriver()
+        || resource.data.passenger_id == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    match /rides/{rideId} {
+      allow read, write: if signedIn();
+    }
+
+    match /driver_locations/{driverId} {
+      allow read: if signedIn();
+      allow create, update: if isSelf(driverId)
+        && request.resource.data.driver_id == driverId
+        && (
+          request.resource.data.is_available != true
+          || isVerifiedDriver()
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.resource.data.reviewer_id == request.auth.uid
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.reviewer_role in ['driver', 'passenger']
+        && request.resource.data.reviewee_role in ['driver', 'passenger'];
+      allow delete: if isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.reporter_id == request.auth.uid)
+        || (signedIn() && resource.data.reported_user_id == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.reporter_id == request.auth.uid
+        && request.resource.data.reporter_role in ['driver', 'passenger']
+        && request.resource.data.reported_user_role in ['driver', 'passenger']
+        && request.resource.data.status == 'open';
+      allow update, delete: if isAdmin();
+    }
+  }
+}

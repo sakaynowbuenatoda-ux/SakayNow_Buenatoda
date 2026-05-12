@@ -5,80 +5,42 @@ import 'passenger_ui.dart';
 
 class PassengerBookingHeroCard extends StatelessWidget {
   final VoidCallback onTap;
+  final Widget content;
+  final String actionLabel;
+  final IconData actionIcon;
 
   const PassengerBookingHeroCard({
     super.key,
     required this.onTap,
+    required this.content,
+    this.actionLabel = 'Book Now',
+    this.actionIcon = Icons.navigation_rounded,
   });
 
   @override
   Widget build(BuildContext context) {
+    final compact = PassengerUi.isCompactWidth(context);
+
     return PassengerSurfaceCard(
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 14 : 16,
+        compact ? 14 : 16,
+        compact ? 14 : 16,
+        compact ? 14 : 16,
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: <Color>[
-                  Color(0xFFE4F4FF),
-                  Color(0xFFEAFBF0),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(
-              children: <Widget>[
-                Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: PassengerUi.surface,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.local_taxi_rounded,
-                    color: PassengerUi.primary,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        'Book a Ride',
-                        style: GoogleFonts.archivoBlack(
-                          fontSize: 22,
-                          color: PassengerUi.title,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Request a nearby tricycle with one tap, clear fares, and real-time trip updates.',
-                        style: PassengerUi.bodyText,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
+          content,
+          SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            height: 54,
+            height: compact ? 50 : 54,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: <Color>[
-                    PassengerUi.primary,
-                    PassengerUi.secondary,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(14),
+                gradient: PassengerUi.darkActionGradient,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: PassengerUi.cardShadow,
               ),
               child: ElevatedButton.icon(
                 onPressed: onTap,
@@ -87,14 +49,14 @@ class PassengerBookingHeroCard extends StatelessWidget {
                   foregroundColor: Colors.white,
                   shadowColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                icon: const Icon(Icons.navigation_rounded, size: 20),
+                icon: Icon(actionIcon, size: 20),
                 label: Text(
-                  'One-Tap Booking',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
+                  actionLabel,
+                  style: GoogleFonts.poppins(
+                    fontSize: compact ? 15 : 16,
                     fontWeight: FontWeight.w800,
                   ),
                 ),

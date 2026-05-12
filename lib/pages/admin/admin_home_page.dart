@@ -1,41 +1,218 @@
 import 'package:flutter/material.dart';
-import '../../widgets/admin_widgets/admin_appbar.dart';
-import '../../core/session/session_service.dart';
 
-class AdminHomePage extends StatelessWidget {
+import '../../core/session/session_service.dart';
+import '../../widgets/animated_tab_switcher.dart';
+import '../../widgets/admin_widgets/admin_appbar.dart';
+import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../profile/profile_page.dart';
+import '../settings/settings_page.dart';
+import 'admin_insights_page.dart';
+import 'admin_operations_page.dart';
+import 'admin_overview_page.dart';
+import 'admin_verification_page.dart';
+
+class AdminHomePage extends StatefulWidget {
   final String userId;
   final String firstName;
-  
-  const AdminHomePage({super.key, required this.userId, required this.firstName});
-  
+
+  const AdminHomePage({
+    super.key,
+    required this.userId,
+    required this.firstName,
+  });
+
+  @override
+  State<AdminHomePage> createState() => _AdminHomePageState();
+}
+
+class _AdminHomePageState extends State<AdminHomePage> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  int _currentIndex = 0;
+
+  late final List<Widget> _pages = <Widget>[
+    AdminOverviewPage(adminId: widget.userId, firstName: widget.firstName),
+    AdminVerificationPage(adminId: widget.userId),
+    AdminOperationsPage(adminId: widget.userId),
+    AdminInsightsPage(adminId: widget.userId),
+  ];
 
   Future<void> _handleLogout(BuildContext context) async {
-    await SessionService.signOut();
+    try {
+      await SessionService.signOut();
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Logout failed: $error')));
+    }
   }
 
-  void _openProfileSettings(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profile settings tapped')),
+  void _openSettings() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => SettingsPage(role: 'admin')));
+  }
+
+  void _openProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ProfilePage(userId: widget.userId)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: PassengerUi.background,
       appBar: AdminAppBar(
-        adminName: 'Admin',
-        appName: 'SakayNow',
-        onMenuTap: () {
-          Scaffold.of(context).openDrawer();
-        },
-        onProfileSettingsTap: () => _openProfileSettings(context),
+        adminName: widget.firstName.isEmpty ? 'Admin' : widget.firstName,
+        appName: 'SakayNow Admin',
+        onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+        onProfileSettingsTap: _openSettings,
         onLogout: _handleLogout,
       ),
-      drawer: const Drawer(
-        child: Center(child: Text('Admin Sidebar')),
+      drawer: _AdminDrawer(
+        firstName: widget.firstName,
+        currentIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          Navigator.of(context).pop();
+          setState(() => _currentIndex = index);
+        },
+        onOpenProfile: () {
+          Navigator.of(context).pop();
+          _openProfile();
+        },
+        onOpenSettings: () {
+          Navigator.of(context).pop();
+          _openSettings();
+        },
       ),
-      body: const Center(
-        child: Text('Admin Dashboard'),
+      body: AnimatedTabSwitcher(index: _currentIndex, children: _pages),
+    );
+  }
+}
+
+class _AdminDrawer extends StatelessWidget {
+  final String firstName;
+  final int currentIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final VoidCallback onOpenProfile;
+  final VoidCallback onOpenSettings;
+
+  const _AdminDrawer({
+    required this.firstName,
+    required this.currentIndex,
+    required this.onDestinationSelected,
+    required this.onOpenProfile,
+    required this.onOpenSettings,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <({IconData icon, String label})>[
+      (icon: Icons.dashboard_customize_rounded, label: 'Overview'),
+      (icon: Icons.fact_check_rounded, label: 'Verification'),
+      (icon: Icons.route_rounded, label: 'Operations'),
+      (icon: Icons.analytics_rounded, label: 'Insights'),
+    ];
+
+    return Drawer(
+      backgroundColor: PassengerUi.surface,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+              decoration: BoxDecoration(gradient: PassengerUi.signalGradient),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: Colors.white.withValues(alpha: 0.18),
+                    child: Text(
+                      firstName.isNotEmpty ? firstName[0].toUpperCase() : 'A',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    'SakayNow Admin',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Hello, ${firstName.isEmpty ? 'Admin' : firstName}',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 8),
+            for (final entry in items.asMap().entries)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: ListTile(
+                  leading: Icon(
+                    entry.value.icon,
+                    color: currentIndex == entry.key
+                        ? PassengerUi.primary
+                        : PassengerUi.body,
+                  ),
+                  title: Text(
+                    entry.value.label,
+                    style: TextStyle(
+                      color: currentIndex == entry.key
+                          ? PassengerUi.primary
+                          : PassengerUi.title,
+                      fontWeight: currentIndex == entry.key
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                    ),
+                  ),
+                  selected: currentIndex == entry.key,
+                  selectedTileColor: PassengerUi.primary.withValues(
+                    alpha: 0.10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  onTap: () => onDestinationSelected(entry.key),
+                ),
+              ),
+            Divider(height: 28),
+            ListTile(
+              leading: Icon(
+                Icons.person_outline_rounded,
+                color: PassengerUi.accentBlue,
+              ),
+              title: Text(
+                'Profile',
+                style: TextStyle(color: PassengerUi.title),
+              ),
+              onTap: onOpenProfile,
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.settings_outlined,
+                color: PassengerUi.accentBlue,
+              ),
+              title: Text(
+                'Settings',
+                style: TextStyle(color: PassengerUi.title),
+              ),
+              onTap: onOpenSettings,
+            ),
+          ],
+        ),
       ),
     );
   }

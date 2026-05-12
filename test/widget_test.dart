@@ -1,30 +1,44 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:sakaynow_buenatoda/main.dart';
+import 'package:sakaynow_buenatoda/core/session/app_user.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('AppUser.fromMap', () {
+    test(
+      'normalizes legacy passenger roles into passenger + passenger_type',
+      () {
+        final user = AppUser.fromMap(<String, dynamic>{
+          'user_id': 'user-1',
+          'first_name': 'Ana',
+          'last_name': 'Santos',
+          'email': 'ana@example.com',
+          'role': 'student',
+          'isVerified': true,
+          'isActive': true,
+          'isBanned': false,
+        }, 'fallback-id');
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+        expect(user.userId, 'user-1');
+        expect(user.role, 'passenger');
+        expect(user.passengerType, 'student');
+        expect(user.userRole, UserRole.passenger);
+        expect(user.roleLabel, 'Student Passenger');
+        expect(user.accessState(), AccountAccessState.active);
+      },
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('allows approved users to continue even if email is not verified', () {
+      final user = AppUser.fromMap(<String, dynamic>{
+        'user_id': 'driver-1',
+        'first_name': 'Juan',
+        'last_name': 'Dela Cruz',
+        'email': 'juan@example.com',
+        'role': 'driver',
+        'isVerified': true,
+        'isActive': true,
+        'isBanned': false,
+      }, 'fallback-id');
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+      expect(user.accessState(), AccountAccessState.active);
+    });
   });
 }

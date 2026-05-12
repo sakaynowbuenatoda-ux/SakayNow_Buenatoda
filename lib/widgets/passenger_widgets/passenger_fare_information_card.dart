@@ -19,15 +19,17 @@ class PassengerFareInformationCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text('Fare Information', style: PassengerUi.cardTitle),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Transparent local fares, student-friendly pricing, and cashless options for safer travel.',
             style: PassengerUi.bodyText,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           ...fareDetails.asMap().entries.map(
             (MapEntry<int, PassengerFareDetail> entry) => Padding(
-              padding: EdgeInsets.only(bottom: entry.key == fareDetails.length - 1 ? 0 : 10),
+              padding: EdgeInsets.only(
+                bottom: entry.key == fareDetails.length - 1 ? 0 : 10,
+              ),
               child: PassengerFareInformationRow(detail: entry.value),
             ),
           ),
@@ -40,25 +42,18 @@ class PassengerFareInformationCard extends StatelessWidget {
 class PassengerFareInformationRow extends StatelessWidget {
   final PassengerFareDetail detail;
 
-  const PassengerFareInformationRow({
-    super.key,
-    required this.detail,
-  });
+  const PassengerFareInformationRow({super.key, required this.detail});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(top: 6),
-          child: Icon(
-            Icons.circle,
-            size: 8,
-            color: PassengerUi.primary,
-          ),
+          child: Icon(Icons.circle, size: 8, color: PassengerUi.accentBlue),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: RichText(
             text: TextSpan(

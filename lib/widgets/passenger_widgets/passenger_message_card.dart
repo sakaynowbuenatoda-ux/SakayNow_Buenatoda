@@ -6,10 +6,7 @@ import 'passenger_ui.dart';
 class PassengerMessageCard extends StatelessWidget {
   final PassengerInboxMessage message;
 
-  const PassengerMessageCard({
-    super.key,
-    required this.message,
-  });
+  const PassengerMessageCard({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -23,9 +20,9 @@ class PassengerMessageCard extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               color: message.isUnread
-                  ? const Color(0xFFE6F3FF)
-                  : const Color(0xFFF4F7FA),
-              borderRadius: BorderRadius.circular(16),
+                  ? PassengerUi.blueSoft
+                  : PassengerUi.mutedSurface,
+              borderRadius: BorderRadius.circular(12),
             ),
             alignment: Alignment.center,
             child: Text(
@@ -33,7 +30,7 @@ class PassengerMessageCard extends StatelessWidget {
               style: PassengerUi.cardTitle,
             ),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -52,17 +49,14 @@ class PassengerMessageCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 PassengerStatusChip(
                   label: message.tag,
-                  textColor: const Color(0xFF1D4ED8),
-                  backgroundColor: const Color(0xFFDBEAFE),
+                  textColor: PassengerUi.accentBlue,
+                  backgroundColor: PassengerUi.blueSoft,
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  message.preview,
-                  style: PassengerUi.bodyText,
-                ),
+                SizedBox(height: 10),
+                Text(message.preview, style: PassengerUi.bodyText),
               ],
             ),
           ),

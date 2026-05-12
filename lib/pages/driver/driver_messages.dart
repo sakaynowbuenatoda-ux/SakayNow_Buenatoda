@@ -17,7 +17,9 @@ class DriverMessagesPage extends StatelessWidget {
             preview: message.preview,
             timeLabel: message.timeLabel,
             isUnread: message.isUnread,
-            tag: message.senderName == 'SakayNow Support' ? 'Support' : 'Passenger',
+            tag: message.senderName == 'SakayNow Support'
+                ? 'Support'
+                : 'Passenger',
           ),
         )
         .toList();
@@ -26,16 +28,19 @@ class DriverMessagesPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('Driver Messages', style: PassengerUi.sectionTitle.copyWith(fontSize: 22)),
-          const SizedBox(height: 6),
-          Text(
-            'Keep passengers updated for smoother pickups and fewer delays.',
-            style: PassengerUi.bodyText,
+          PassengerPageHeader(
+            title: 'Messages',
+            subtitle:
+                'Passenger and support conversations stay organized here.',
+            icon: Icons.chat_bubble_rounded,
+            accentColor: PassengerUi.accentBlue,
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 16),
           ...mappedMessages.asMap().entries.map(
             (MapEntry<int, PassengerInboxMessage> entry) => Padding(
-              padding: EdgeInsets.only(bottom: entry.key == mappedMessages.length - 1 ? 0 : 12),
+              padding: EdgeInsets.only(
+                bottom: entry.key == mappedMessages.length - 1 ? 0 : 12,
+              ),
               child: PassengerMessageCard(message: entry.value),
             ),
           ),

@@ -14,33 +14,55 @@ class SessionService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static Stream<User?> authStateChanges() => _auth.authStateChanges();
+  static Stream<User?> authStateChanges() => _auth.userChanges();
 
-  static Future<AppUser> signIn({
+  static Future<void> signIn({
     required String email,
     required String password,
   }) async {
-    final credential = await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-
-    final AppUser user = await loadUserProfile(credential.user!.uid);
-    await saveUserSession(user);
-    return user;
+    await _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 
   static Future<AppUser> loadUserProfile(String uid) async {
-    final userDoc = await _firestore.collection('users').doc(uid).get();
+    try {
+      final userDoc = await _firestore.collection('users').doc(uid).get();
 
-    if (!userDoc.exists) {
-      throw StateError('User record not found in Firestore.');
+      if (!userDoc.exists) {
+        throw StateError('User record not found in Firestore.');
+      }
+
+      final AppUser user = AppUser.fromMap(
+        userDoc.data() ?? <String, dynamic>{},
+        uid,
+      );
+      await saveUserSession(user);
+      return user;
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        throw StateError(
+          'Firestore denied access to your user profile. Check your Firestore rules for users/$uid.',
+        );
+      }
+
+      throw StateError('Failed to load user profile: ${e.message ?? e.code}');
     }
+  }
 
-    final AppUser user =
-        AppUser.fromMap(userDoc.data() ?? <String, dynamic>{}, uid);
-    await saveUserSession(user);
-    return user;
+  static Stream<AppUser> watchUserProfile(String uid) {
+    return _firestore.collection('users').doc(uid).snapshots().asyncMap((
+      userDoc,
+    ) async {
+      if (!userDoc.exists) {
+        throw StateError('User record not found in Firestore.');
+      }
+
+      final AppUser user = AppUser.fromMap(
+        userDoc.data() ?? <String, dynamic>{},
+        uid,
+      );
+      await saveUserSession(user);
+      return user;
+    });
   }
 
   static Future<void> saveUserSession(AppUser user) async {
@@ -50,6 +72,7 @@ class SessionService {
     await prefs.setString('last_name', user.lastName);
     await prefs.setString('email', user.email);
     await prefs.setString('role', user.role);
+    await prefs.setString('passenger_type', user.passengerType);
   }
 
   static Future<void> clearUserSession() async {
@@ -59,6 +82,7 @@ class SessionService {
     await prefs.remove('last_name');
     await prefs.remove('email');
     await prefs.remove('role');
+    await prefs.remove('passenger_type');
   }
 
   static Future<void> signOut() async {
@@ -66,23 +90,32 @@ class SessionService {
     await _auth.signOut();
   }
 
+  static Future<void> sendEmailVerification() async {
+    await _auth.currentUser?.sendEmailVerification();
+  }
+
+  static Future<void> reloadCurrentUser() async {
+    await _auth.currentUser?.reload();
+  }
+
   static Widget buildHomeForUser(AppUser user) {
     switch (user.userRole) {
       case UserRole.admin:
-        return AdminHomePage(
-          userId: user.userId,
-          firstName: user.firstName,
-        );
+        return AdminHomePage(userId: user.userId, firstName: user.firstName);
       case UserRole.driver:
         return DriverShell(
           userId: user.userId,
           firstName: user.firstName,
+          isVerified: user.isVerified,
+          profileImageUrl: user.profileImageUrl,
         );
       case UserRole.passenger:
         return PassengerShell(
           userId: user.userId,
           firstName: user.firstName,
-          role: user.role,
+          passengerType: user.passengerType,
+          isVerified: user.isVerified,
+          profileImageUrl: user.profileImageUrl,
         );
     }
   }

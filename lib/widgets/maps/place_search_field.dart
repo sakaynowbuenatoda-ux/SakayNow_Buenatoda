@@ -10,6 +10,7 @@ import 'map_text_styles.dart';
 class PlaceSearchField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
+  final String? hintText;
   final IconData icon;
   final Color iconColor;
   final bool isLoading;
@@ -23,6 +24,7 @@ class PlaceSearchField extends StatefulWidget {
     super.key,
     required this.controller,
     required this.label,
+    this.hintText,
     required this.icon,
     required this.iconColor,
     required this.isLoading,
@@ -63,6 +65,7 @@ class _PlaceSearchFieldState extends State<PlaceSearchField> {
                   onChanged: _handleChanged,
                   decoration: InputDecoration(
                     labelText: widget.label,
+                    hintText: widget.hintText,
                     border: InputBorder.none,
                     labelStyle: MapTextStyles.body,
                   ),

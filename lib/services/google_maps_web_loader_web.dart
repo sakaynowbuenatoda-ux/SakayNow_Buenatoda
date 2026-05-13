@@ -30,7 +30,7 @@ Future<void> ensureGoogleMapsWebSdkLoaded(String apiKey) {
     ..async = true
     ..defer = true
     ..src =
-        'https://maps.googleapis.com/maps/api/js?key=${Uri.encodeQueryComponent(trimmedKey)}';
+        'https://maps.googleapis.com/maps/api/js?key=${Uri.encodeQueryComponent(trimmedKey)}&libraries=places';
 
   script.addEventListener(
     'load',
@@ -64,5 +64,10 @@ bool get _hasGoogleMapsSdk {
   }
 
   final google = web.window.getProperty<JSObject?>('google'.toJS);
-  return google != null && google.hasProperty('maps'.toJS) == true.toJS;
+  if (google == null || google.hasProperty('maps'.toJS) != true.toJS) {
+    return false;
+  }
+
+  final maps = google.getProperty<JSObject?>('maps'.toJS);
+  return maps != null && maps.hasProperty('places'.toJS) == true.toJS;
 }

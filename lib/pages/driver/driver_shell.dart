@@ -45,8 +45,11 @@ class _DriverShellState extends State<DriverShell> {
     } else if (value == 'settings') {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) =>
-              SettingsPage(role: 'driver', isVerified: widget.isVerified),
+          builder: (_) => SettingsPage(
+            userId: widget.userId,
+            role: 'driver',
+            isVerified: widget.isVerified,
+          ),
         ),
       );
     } else if (value == 'home') {

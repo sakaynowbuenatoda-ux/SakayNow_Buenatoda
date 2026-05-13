@@ -26,29 +26,21 @@ class PassengerQuickDestinationsSection extends StatelessWidget {
           onActionTap: onSeeAllTap,
         ),
         SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: destinations
-                .asMap()
-                .entries
-                .map(
-                  (MapEntry<int, PassengerQuickDestination> entry) => Padding(
-                    padding: EdgeInsets.only(
-                      right: entry.key == destinations.length - 1 ? 0 : 10,
-                    ),
-                    child: SizedBox(
-                      width: _quickDestinationCardWidth(context),
-                      child: PassengerQuickDestinationCard(
-                        destination: entry.value,
-                        onTap: () => onDestinationTap(entry.value),
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
+        if (destinations.isEmpty)
+          InkWell(
+            borderRadius: PassengerUi.cardRadius,
+            onTap: onSeeAllTap,
+            child: const PassengerEmptyState(
+              icon: Icons.bookmark_add_outlined,
+              title: 'No saved destinations',
+              description: 'Tap to add pickup and drop-off places.',
+            ),
+          )
+        else
+          PassengerQuickDestinationList(
+            destinations: destinations,
+            onDestinationTap: onDestinationTap,
           ),
-        ),
       ],
     );
   }
@@ -66,6 +58,14 @@ class PassengerQuickDestinationList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (destinations.isEmpty) {
+      return const PassengerEmptyState(
+        icon: Icons.bookmark_add_outlined,
+        title: 'No saved destinations',
+        description: 'Add a place to use it as a quick destination.',
+      );
+    }
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(

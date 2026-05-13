@@ -74,7 +74,7 @@ class RideTrackingController extends ChangeNotifier {
         Marker(
           markerId: const MarkerId('pickup_location'),
           position: pickup,
-          infoWindow: InfoWindow(title: activeRide.pickupLocation.address),
+          infoWindow: InfoWindow(title: activeRide.pickupLocation.displayLabel),
           icon: BitmapDescriptor.defaultMarkerWithHue(
             BitmapDescriptor.hueGreen,
           ),
@@ -87,7 +87,9 @@ class RideTrackingController extends ChangeNotifier {
         Marker(
           markerId: const MarkerId('dropoff_location'),
           position: dropoff,
-          infoWindow: InfoWindow(title: activeRide.dropoffLocation.address),
+          infoWindow: InfoWindow(
+            title: activeRide.dropoffLocation.displayLabel,
+          ),
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
       );

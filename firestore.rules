@@ -18,12 +18,22 @@ service cloud.firestore {
       return signedIn() && signedInUser().role == 'admin';
     }
 
+    function isVerifiedUser(userData) {
+      return userData.is_verified == true
+        || userData.isVerified == true
+        || userData.isVerrified == true;
+    }
+
+    function isNotBanned(userData) {
+      return userData.is_banned != true
+        && userData.isBanned != true;
+    }
+
     function isVerifiedDriver() {
       return signedIn()
         && signedInUser().role == 'driver'
-        && (signedInUser().is_verified == true || signedInUser().isVerified == true)
-        && signedInUser().is_banned != true
-        && signedInUser().isBanned != true;
+        && isVerifiedUser(signedInUser())
+        && isNotBanned(signedInUser());
     }
 
     function isRatingAggregateUpdate() {
@@ -65,9 +75,13 @@ service cloud.firestore {
         || (
           signedIn()
           && resource.data.role == 'driver'
-          && (resource.data.is_verified == true || resource.data.isVerified == true)
-          && resource.data.is_banned != true
-          && resource.data.isBanned != true
+          && isVerifiedUser(resource.data)
+          && isNotBanned(resource.data)
+        )
+        || (
+          signedIn()
+          && resource.data.role == 'passenger'
+          && isVerifiedDriver()
         );
       allow update: if isSelf(userId)
         && request.resource.data.user_id == resource.data.user_id

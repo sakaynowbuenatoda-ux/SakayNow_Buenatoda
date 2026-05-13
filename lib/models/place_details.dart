@@ -1,3 +1,5 @@
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 import 'ride_location.dart';
 
 class PlaceDetails {
@@ -14,6 +16,8 @@ class PlaceDetails {
     required this.latitude,
     required this.longitude,
   });
+
+  LatLng get latLng => LatLng(latitude, longitude);
 
   RideLocation toRideLocation() {
     return RideLocation(

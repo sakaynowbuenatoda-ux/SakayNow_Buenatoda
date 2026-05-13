@@ -67,7 +67,7 @@ class ProfileHeroCard extends StatelessWidget {
                 final isTight = constraints.maxWidth < 340;
                 final cardWidth = isTight
                     ? constraints.maxWidth
-                    : (constraints.maxWidth - 24) / 3;
+                    : (constraints.maxWidth - 12) / 2;
 
                 return Wrap(
                   spacing: 12,
@@ -76,25 +76,17 @@ class ProfileHeroCard extends StatelessWidget {
                     SizedBox(
                       width: cardWidth,
                       child: _MainInfoItem(
-                        icon: Icons.badge_outlined,
-                        label: 'Role',
-                        value: profile.roleLabel,
+                        icon: Icons.star_rounded,
+                        label: 'Average Rating',
+                        value: profile.ratingLabel,
                       ),
                     ),
                     SizedBox(
                       width: cardWidth,
                       child: _MainInfoItem(
-                        icon: Icons.cake_outlined,
-                        label: 'Age',
-                        value: profile.ageLabel,
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: _MainInfoItem(
-                        icon: Icons.wc_outlined,
-                        label: 'Gender',
-                        value: profile.genderLabel,
+                        icon: Icons.reviews_outlined,
+                        label: 'Reviews',
+                        value: profile.reviewCount.toString(),
                       ),
                     ),
                   ],
@@ -147,14 +139,13 @@ class _HeroDetails extends StatelessWidget {
           ),
         ),
         SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            _HeroChip(label: profile.roleLabel),
-            _HeroChip(label: profile.genderLabel),
-            _HeroChip(label: profile.ageLabel),
-          ],
+        Text(
+          profile.roleLabel,
+          style: TextStyle(
+            fontSize: compact ? 12.5 : 13,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
         ),
       ],
     );
@@ -251,31 +242,6 @@ class _AvatarFallback extends StatelessWidget {
         style: TextStyle(
           fontSize: compact ? 24 : 28,
           fontWeight: FontWeight.w800,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroChip extends StatelessWidget {
-  final String label;
-
-  const _HeroChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12.5,
-          fontWeight: FontWeight.w700,
           color: Colors.white,
         ),
       ),

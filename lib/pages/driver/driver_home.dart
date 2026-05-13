@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../config/map_config.dart';
+import '../../controllers/ride_tracking_controller.dart';
 import '../../models/ride_driver_location.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
@@ -11,6 +12,8 @@ import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/time_ago_text.dart';
+import '../rides/ride_monitoring_page.dart';
+import 'widgets/driver_ride_request_card.dart';
 
 class DriverHomePage extends StatelessWidget {
   final String userId;
@@ -59,7 +62,7 @@ class DriverHomePage extends StatelessWidget {
           SizedBox(height: 12),
           _LiveIncomingRequestsPreview(
             driverId: userId,
-            onOpenQueue: onOpenQueue,
+            isVerified: isVerified,
           ),
           SizedBox(height: 20),
           PassengerSectionHeader(title: 'Recent Trips'),
@@ -304,7 +307,7 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
           position: pickup,
           infoWindow: InfoWindow(
             title: isPreferred ? 'Requested you' : 'Open request',
-            snippet: ride.pickupLocation.name ?? ride.pickupLocation.address,
+            snippet: ride.pickupLocation.displayLabel,
           ),
           icon: BitmapDescriptor.defaultMarkerWithHue(
             isPreferred ? BitmapDescriptor.hueViolet : BitmapDescriptor.hueRed,
@@ -415,19 +418,29 @@ class _DriverMapStatusPill extends StatelessWidget {
   }
 }
 
-class _LiveIncomingRequestsPreview extends StatelessWidget {
+class _LiveIncomingRequestsPreview extends StatefulWidget {
   final String driverId;
-  final VoidCallback onOpenQueue;
+  final bool isVerified;
 
   const _LiveIncomingRequestsPreview({
     required this.driverId,
-    required this.onOpenQueue,
+    required this.isVerified,
   });
+
+  @override
+  State<_LiveIncomingRequestsPreview> createState() =>
+      _LiveIncomingRequestsPreviewState();
+}
+
+class _LiveIncomingRequestsPreviewState
+    extends State<_LiveIncomingRequestsPreview> {
+  final RideTrackingService _rideTrackingService = RideTrackingService();
+  String? _acceptingBookingId;
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Ride>>(
-      stream: RideTrackingService().watchOpenBookings(driverId: driverId),
+      stream: _rideTrackingService.watchOpenBookings(driverId: widget.driverId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const PassengerSurfaceCard(
@@ -463,9 +476,11 @@ class _LiveIncomingRequestsPreview extends StatelessWidget {
                   padding: EdgeInsets.only(
                     bottom: entry.key == previewRides.length - 1 ? 0 : 12,
                   ),
-                  child: _IncomingRequestCard(
+                  child: DriverRideRequestCard(
                     ride: entry.value,
-                    onOpenQueue: onOpenQueue,
+                    isAccepting: _acceptingBookingId == entry.value.bookingId,
+                    rideTrackingService: _rideTrackingService,
+                    onAccept: () => _acceptRide(entry.value),
                   ),
                 ),
               )
@@ -474,57 +489,53 @@ class _LiveIncomingRequestsPreview extends StatelessWidget {
       },
     );
   }
-}
 
-class _IncomingRequestCard extends StatelessWidget {
-  final Ride ride;
-  final VoidCallback onOpenQueue;
+  Future<void> _acceptRide(Ride ride) async {
+    if (!widget.isVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Admin verification is required before accepting bookings.',
+          ),
+        ),
+      );
+      return;
+    }
 
-  const _IncomingRequestCard({required this.ride, required this.onOpenQueue});
+    setState(() => _acceptingBookingId = ride.bookingId);
 
-  @override
-  Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text('Passenger request', style: PassengerUi.cardTitle),
-              ),
-              PassengerStatusChip(
-                label: ride.status.label,
-                textColor: PassengerUi.highlightAmber,
-                backgroundColor: PassengerUi.warningSoft,
-              ),
-            ],
+    try {
+      await _rideTrackingService.acceptBooking(
+        bookingId: ride.bookingId,
+        driverId: widget.driverId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RideMonitoringPage(
+            bookingId: ride.bookingId,
+            userId: widget.driverId,
+            viewerRole: RideViewerRole.driver,
           ),
-          SizedBox(height: 12),
-          Text(
-            'Pickup: ${ride.pickupLocation.address}',
-            style: PassengerUi.bodyText,
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Drop-off: ${ride.dropoffLocation.address}',
-            style: PassengerUi.bodyText,
-          ),
-          SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  '${ride.etaLabel} estimate',
-                  style: PassengerUi.bodyText.copyWith(fontSize: 13),
-                ),
-              ),
-              TextButton(onPressed: onOpenQueue, child: const Text('Review')),
-            ],
-          ),
-        ],
-      ),
-    );
+        ),
+      );
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) {
+        setState(() => _acceptingBookingId = null);
+      }
+    }
   }
 }
 
@@ -566,21 +577,23 @@ class DriverRecentTripsSection extends StatelessWidget {
           );
         }
 
-        return SizedBox(
-          height: 132,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: trips.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              return DriverRecentTripCard(
-                trip: trips[index],
-                driverId: driverId,
-                rideTrackingService: rideTrackingService,
-              );
-            },
-          ),
+        return Column(
+          children: trips
+              .asMap()
+              .entries
+              .map(
+                (entry) => Padding(
+                  padding: EdgeInsets.only(
+                    bottom: entry.key == trips.length - 1 ? 0 : 12,
+                  ),
+                  child: DriverRecentTripCard(
+                    trip: entry.value,
+                    driverId: driverId,
+                    rideTrackingService: rideTrackingService,
+                  ),
+                ),
+              )
+              .toList(),
         );
       },
     );
@@ -605,126 +618,114 @@ class DriverRecentTripCard extends StatelessWidget {
     final passenger = trip.passenger;
     final rating = ride.driverPassengerReviewRating;
 
-    return SizedBox(
-      width: 330,
-      child: PassengerSurfaceCard(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: <Widget>[
-            _PassengerAvatar(profile: passenger),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          passenger.fullName,
-                          style: PassengerUi.cardTitle.copyWith(fontSize: 14),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (passenger.isVerified) ...[
-                        const SizedBox(width: 6),
-                        _MiniVerifiedBadge(),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    passenger.roleLabel,
-                    style: PassengerUi.bodyText.copyWith(fontSize: 12),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _tripRouteLabel(ride),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: PassengerUi.bodyText.copyWith(fontSize: 12),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: <Widget>[
-                      Text(
-                        ride.fareLabel ?? 'Fare pending',
-                        style: PassengerUi.valueText.copyWith(fontSize: 12.5),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TimeAgoText(
-                          dateTime: ride.updatedAt ?? ride.createdAt,
-                          style: PassengerUi.bodyText.copyWith(fontSize: 12),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
+    return PassengerSurfaceCard(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: <Widget>[
+          _PassengerAvatar(profile: passenger),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                PassengerStatusChip(
-                  label: ride.status.label,
-                  textColor: ride.status == RideStatus.completed
-                      ? PassengerUi.successText
-                      : PassengerUi.primary,
-                  backgroundColor: ride.status == RideStatus.completed
-                      ? PassengerUi.successBackground
-                      : PassengerUi.dangerSoft,
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        passenger.fullName,
+                        style: PassengerUi.cardTitle.copyWith(fontSize: 14.5),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (passenger.isVerified) ...[
+                      const SizedBox(width: 6),
+                      _MiniVerifiedBadge(),
+                    ],
+                    const SizedBox(width: 8),
+                    PassengerStatusChip(
+                      label: ride.status.label,
+                      textColor: ride.status == RideStatus.completed
+                          ? PassengerUi.successText
+                          : PassengerUi.primary,
+                      backgroundColor: ride.status == RideStatus.completed
+                          ? PassengerUi.successBackground
+                          : PassengerUi.dangerSoft,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 14),
-                InkWell(
-                  borderRadius: BorderRadius.circular(999),
-                  onTap: () => _showRatingChoices(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 7,
+                const SizedBox(height: 5),
+                Text(
+                  passenger.roleLabel,
+                  style: PassengerUi.bodyText.copyWith(fontSize: 12),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _tripRouteLabel(ride),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: PassengerUi.bodyText.copyWith(fontSize: 12),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: <Widget>[
+                    Text(
+                      ride.fareLabel ?? 'Fare pending',
+                      style: PassengerUi.valueText.copyWith(fontSize: 12.5),
                     ),
-                    decoration: BoxDecoration(
-                      color: PassengerUi.mutedSurface,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: PassengerUi.border),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TimeAgoText(
+                        dateTime: ride.updatedAt ?? ride.createdAt,
+                        style: PassengerUi.bodyText.copyWith(fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Icon(
-                          rating == null
-                              ? Icons.star_border_rounded
-                              : Icons.star_rounded,
-                          size: 18,
-                          color: rating == null
-                              ? PassengerUi.body
-                              : PassengerUi.highlightAmber,
-                        ),
-                        if (rating != null) ...[
-                          const SizedBox(width: 4),
-                          Text(
-                            rating.toString(),
-                            style: PassengerUi.valueText.copyWith(
-                              fontSize: 12.5,
-                              color: PassengerUi.highlightAmber,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+          InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: () => _showRatingChoices(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: PassengerUi.mutedSurface,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: PassengerUi.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(
+                    rating == null
+                        ? Icons.star_border_rounded
+                        : Icons.star_rounded,
+                    size: 18,
+                    color: rating == null
+                        ? PassengerUi.body
+                        : PassengerUi.highlightAmber,
+                  ),
+                  if (rating != null) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      rating.toString(),
+                      style: PassengerUi.valueText.copyWith(
+                        fontSize: 12.5,
+                        color: PassengerUi.highlightAmber,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -770,12 +771,8 @@ class DriverRecentTripCard extends StatelessWidget {
   }
 
   String _tripRouteLabel(Ride ride) {
-    final pickup = ride.pickupLocation.name?.trim().isNotEmpty == true
-        ? ride.pickupLocation.name!
-        : ride.pickupLocation.address;
-    final dropoff = ride.dropoffLocation.name?.trim().isNotEmpty == true
-        ? ride.dropoffLocation.name!
-        : ride.dropoffLocation.address;
+    final pickup = ride.pickupLocation.displayLabel;
+    final dropoff = ride.dropoffLocation.displayLabel;
 
     if (ride.distanceLabel != 'Calculating') {
       return '${ride.distanceLabel} - $pickup to $dropoff';

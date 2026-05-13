@@ -14,9 +14,9 @@ import '../../widgets/maps/location_pin_picker_sheet.dart';
 import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/passenger_widgets/passenger_booking_hero_card.dart';
-import '../../widgets/passenger_widgets/passenger_fare_information_card.dart';
 import '../../widgets/passenger_widgets/passenger_quick_destinations_section.dart';
 import '../../widgets/passenger_widgets/passenger_recent_trips_section.dart';
+import '../../widgets/passenger_widgets/ride_status_strip.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../rides/ride_monitoring_page.dart';
 import 'passenger_data.dart';
@@ -131,33 +131,9 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
               'Open the History tab to see all trips.',
             ),
           ),
-          SizedBox(height: 20),
-          PassengerFareInformationCard(fareDetails: _buildFareDetails()),
         ],
       ),
     );
-  }
-
-  List<PassengerFareDetail> _buildFareDetails() {
-    final isStudentPassenger =
-        widget.passengerType.trim().toLowerCase() == 'student';
-    if (!isStudentPassenger || widget.isVerified) {
-      return PassengerMockData.fareDetails;
-    }
-
-    return PassengerMockData.fareDetails
-        .map((detail) {
-          if (detail.label.toLowerCase() != 'student discount') {
-            return detail;
-          }
-
-          return PassengerFareDetail(
-            label: detail.label,
-            value: 'Locked until verified',
-            valueColor: PassengerUi.primary,
-          );
-        })
-        .toList(growable: false);
   }
 
   void _showSnackBar(BuildContext context, String message) {
@@ -277,12 +253,7 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
   }
 
   String _locationDisplayText(RideLocation location) {
-    final name = location.name?.trim();
-    if (name != null && name.isNotEmpty && name != 'Pinned location') {
-      return name;
-    }
-
-    return location.address;
+    return location.displayLabel;
   }
 
   void _openQuickDestinationsPage() {
@@ -427,7 +398,6 @@ class _RideMonitoringPreview extends StatelessWidget {
                 ],
               ),
             ),
-            _RideStatusBadge(status: ride.status),
           ],
         ),
         const SizedBox(height: 12),
@@ -444,6 +414,8 @@ class _RideMonitoringPreview extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 8),
+        RideStatusStripForRide(ride: ride),
         const SizedBox(height: 12),
         Row(
           children: <Widget>[
@@ -469,9 +441,7 @@ class _RideMonitoringPreview extends StatelessWidget {
   }
 
   static String _subtitleFor(Ride ride) {
-    final destination = ride.dropoffLocation.name?.isNotEmpty == true
-        ? ride.dropoffLocation.name!
-        : ride.dropoffLocation.address;
+    final destination = ride.dropoffLocation.displayLabel;
     return '${ride.status.label} to $destination';
   }
 
@@ -622,30 +592,6 @@ class _MapOverlayPill extends StatelessWidget {
               Text(text, style: MapTextStyles.value.copyWith(fontSize: 12)),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RideStatusBadge extends StatelessWidget {
-  final RideStatus status;
-
-  const _RideStatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: PassengerUi.accentBlue.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        status.label,
-        style: MapTextStyles.value.copyWith(
-          color: PassengerUi.accentBlue,
-          fontSize: 12,
         ),
       ),
     );

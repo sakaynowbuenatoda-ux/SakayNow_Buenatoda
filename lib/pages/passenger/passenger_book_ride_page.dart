@@ -6,6 +6,7 @@ import '../../controllers/booking_map_controller.dart';
 import '../../controllers/ride_tracking_controller.dart';
 import '../../models/place_prediction.dart';
 import '../../models/ride_location.dart';
+import '../../models/ride_status.dart';
 import '../../services/geofencing_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/firebase_storage_image.dart';
@@ -16,6 +17,7 @@ import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/maps/map_marker_icons.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../../widgets/passenger_widgets/ride_status_strip.dart';
 import '../rides/ride_monitoring_page.dart';
 import 'passenger_data.dart';
 
@@ -105,6 +107,7 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
                                     circles: _controller.circles,
                                     myLocationEnabled:
                                         _controller.currentLatLng != null,
+                                    preferInitialCameraTarget: true,
                                     onTap: _selectLocationFromMapTap,
                                   ),
                                 ),
@@ -135,6 +138,7 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
                   PlaceSearchField(
                     controller: _pickupController,
                     label: 'Pickup location',
+                    hintText: 'Search places in Buenavista, Inabanga, Getafe',
                     icon: Icons.my_location_rounded,
                     iconColor: PassengerUi.secondary,
                     isLoading: _controller.isPickupSearching,
@@ -149,6 +153,7 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
                   PlaceSearchField(
                     controller: _destinationController,
                     label: 'Drop-off location',
+                    hintText: 'Search places in Buenavista, Inabanga, Getafe',
                     icon: Icons.location_on_rounded,
                     iconColor: PassengerUi.primary,
                     isLoading: _controller.isDropoffSearching,
@@ -249,7 +254,7 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
       return;
     }
 
-    _pickupController.text = _locationDisplayText(pickup);
+    _pickupController.text = _pickupDisplayText(pickup);
     final initialDropoff = widget.initialDropoffDestination;
     if (initialDropoff?.hasCoordinates == true) {
       await _applyDestinationToTarget(
@@ -262,20 +267,44 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
   Future<void> _useCurrentLocationAsPickup() async {
     final location = await _controller.useCurrentLocationAsPickup();
     if (location != null) {
-      _pickupController.text = _locationDisplayText(location);
+      _pickupController.text = _pickupDisplayText(location);
       setState(() => _activeMapTarget = BookingLocationTarget.dropoff);
     }
   }
 
   Future<void> _selectPickup(PlacePrediction prediction) async {
-    final location = await _controller.selectPickup(prediction);
-    _pickupController.text = _locationDisplayText(location);
-    setState(() => _activeMapTarget = BookingLocationTarget.dropoff);
+    try {
+      final location = await _controller.selectPickup(prediction);
+      if (!mounted) {
+        return;
+      }
+
+      _pickupController.text = _pickupDisplayText(location);
+      setState(() => _activeMapTarget = BookingLocationTarget.dropoff);
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showSnackBar(error.toString());
+    }
   }
 
   Future<void> _selectDropoff(PlacePrediction prediction) async {
-    final location = await _controller.selectDropoff(prediction);
-    _destinationController.text = _locationDisplayText(location);
+    try {
+      final location = await _controller.selectDropoff(prediction);
+      if (!mounted) {
+        return;
+      }
+
+      _destinationController.text = _locationDisplayText(location);
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showSnackBar(error.toString());
+    }
   }
 
   Future<void> _pickLocationOnMap(BookingLocationTarget target) async {
@@ -307,15 +336,26 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
       return;
     }
 
-    final selectedPlace = selected.googlePlace;
-    final location = selectedPlace != null
-        ? await _controller.selectResolvedLocation(
-            target: target,
-            location: selectedPlace,
-          )
-        : target == BookingLocationTarget.pickup
-        ? await _controller.selectPickupFromPin(selected.location)
-        : await _controller.selectDropoffFromPin(selected.location);
+    late final RideLocation location;
+    try {
+      final selectedPlace = selected.googlePlace;
+      location = selectedPlace != null
+          ? await _controller.selectResolvedLocation(
+              target: target,
+              location: selectedPlace,
+            )
+          : target == BookingLocationTarget.pickup
+          ? await _controller.selectPickupFromPin(selected.location)
+          : await _controller.selectDropoffFromPin(selected.location);
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showSnackBar(error.toString());
+      return;
+    }
+
     if (!mounted) {
       return;
     }
@@ -327,9 +367,19 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
 
   Future<void> _selectLocationFromMapTap(LatLng location) async {
     final target = _activeMapTarget;
-    final rideLocation = target == BookingLocationTarget.pickup
-        ? await _controller.selectPickupFromPin(location)
-        : await _controller.selectDropoffFromPin(location);
+    late final RideLocation rideLocation;
+    try {
+      rideLocation = target == BookingLocationTarget.pickup
+          ? await _controller.selectPickupFromPin(location)
+          : await _controller.selectDropoffFromPin(location);
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showSnackBar(error.toString());
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -428,12 +478,15 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
   }
 
   String _locationDisplayText(RideLocation location) {
-    final name = location.name?.trim();
-    if (name != null && name.isNotEmpty && name != 'Pinned location') {
-      return name;
+    return location.displayLabel;
+  }
+
+  String _pickupDisplayText(RideLocation location) {
+    if (_controller.isPickupCurrentLocation) {
+      return 'Current location';
     }
 
-    return location.address;
+    return _locationDisplayText(location);
   }
 
   void _showSnackBar(String message) {
@@ -446,7 +499,7 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
     final pickup = _controller.pickupLocation;
     final dropoff = _controller.dropoffLocation;
     if (pickup != null) {
-      _pickupController.text = _locationDisplayText(pickup);
+      _pickupController.text = _pickupDisplayText(pickup);
     }
     if (dropoff != null) {
       _destinationController.text = _locationDisplayText(dropoff);
@@ -601,6 +654,7 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
             nearbyDrivers,
           );
           final mapHeight = _isExpanded ? sheetHeight * 0.52 : 220.0;
+          final selectedDriver = _selectedBookingDriver(sortedDrivers);
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -670,6 +724,22 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
                   ),
                 ),
               ),
+              if (_bookingDriverId != null) ...<Widget>[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: RideStatusStrip(
+                    status: RideStatus.searching,
+                    isPendingDriver: selectedDriver != null,
+                    driverName: selectedDriver?.fullName,
+                    driverImageUrl: selectedDriver?.profileImageUrl,
+                    driverRatingLabel: selectedDriver?.rating.toStringAsFixed(
+                      1,
+                    ),
+                    isDriverVerified: selectedDriver?.isVerified ?? false,
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
               Expanded(
                 child: Padding(
@@ -701,6 +771,21 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
         },
       ),
     );
+  }
+
+  AvailableDriver? _selectedBookingDriver(List<AvailableDriver> drivers) {
+    final bookingDriverId = _bookingDriverId;
+    if (bookingDriverId == null || bookingDriverId == 'any') {
+      return null;
+    }
+
+    for (final driver in drivers) {
+      if (driver.driverId == bookingDriverId) {
+        return driver;
+      }
+    }
+
+    return null;
   }
 
   List<AvailableDriver> _sortDrivers(

@@ -320,10 +320,25 @@ class RideTrackingService {
     });
   }
 
+  Stream<PassengerReviewProfile> watchPassengerProfile(String passengerId) {
+    return _users.doc(passengerId).snapshots().map((snapshot) {
+      if (!snapshot.exists) {
+        throw StateError('Passenger profile not found.');
+      }
+
+      final data = snapshot.data() ?? <String, dynamic>{};
+      return PassengerReviewProfile.fromData(userId: passengerId, data: data);
+    });
+  }
+
   Stream<List<DriverReviewRecord>> watchDriverReviews(String driverId) {
+    return watchUserReviews(driverId);
+  }
+
+  Stream<List<DriverReviewRecord>> watchUserReviews(String userId) {
     return _firestore
         .collection('reviews')
-        .where('reviewee_id', isEqualTo: driverId)
+        .where('reviewee_id', isEqualTo: userId)
         .snapshots()
         .asyncMap((snapshot) async {
           final reviews = <DriverReviewRecord>[];
@@ -928,6 +943,8 @@ class PassengerReviewProfile {
   final String passengerType;
   final bool isVerified;
   final String? profileImageUrl;
+  final double averageRating;
+  final int reviewCount;
 
   const PassengerReviewProfile({
     required this.userId,
@@ -935,6 +952,8 @@ class PassengerReviewProfile {
     required this.passengerType,
     required this.isVerified,
     required this.profileImageUrl,
+    required this.averageRating,
+    required this.reviewCount,
   });
 
   factory PassengerReviewProfile.fromData({
@@ -953,6 +972,20 @@ class PassengerReviewProfile {
         : rawRole == 'student'
         ? 'student'
         : 'regular';
+    final reviewCount =
+        RideTrackingService._readInt(
+          data['passenger_review_count'] ?? data['review_count'],
+        ) ??
+        0;
+    final ratingTotal = RideTrackingService._readDouble(
+      data['passenger_review_rating_total'] ?? data['review_rating_total'],
+    );
+    final averageRating = RideTrackingService._readDouble(
+      data['passenger_average_rating'] ??
+          data['average_rating'] ??
+          data['rating'] ??
+          data['ratings'],
+    );
 
     return PassengerReviewProfile(
       userId: userId,
@@ -964,10 +997,19 @@ class PassengerReviewProfile {
       profileImageUrl: _readNullableString(
         data['selfie_url'] ?? data['id_image_url'],
       ),
+      averageRating: averageRating > 0
+          ? averageRating
+          : reviewCount == 0
+          ? 0
+          : ratingTotal / reviewCount,
+      reviewCount: reviewCount,
     );
   }
 
   String get roleLabel => passengerType == 'student' ? 'Student' : 'Regular';
+
+  String get ratingLabel =>
+      reviewCount == 0 ? 'No ratings yet' : averageRating.toStringAsFixed(1);
 
   static String? _readNullableString(Object? value) {
     final text = value?.toString().trim() ?? '';

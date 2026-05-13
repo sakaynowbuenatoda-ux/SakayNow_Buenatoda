@@ -1,17 +1,22 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../profile/profile_details.dart';
 import 'app_preferences_page.dart';
+import 'change_password_page.dart';
 import 'settings_placeholder_page.dart';
 import 'widgets/settings_section_card.dart';
 
 class SettingsPage extends StatelessWidget {
+  final String? userId;
   final String role;
   final bool isVerified;
   final String passengerType;
 
   const SettingsPage({
     super.key,
+    this.userId,
     required this.role,
     this.isVerified = false,
     this.passengerType = 'regular',
@@ -38,30 +43,23 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final normalizedRole = role.trim().toLowerCase();
     final isAdmin = normalizedRole == 'admin';
-    final canEditProfile = isAdmin || isVerified;
-    final isStudentPassenger =
-        normalizedRole == 'passenger' &&
-        passengerType.trim().toLowerCase() == 'student';
+    final currentUserId = userId ?? FirebaseAuth.instance.currentUser?.uid;
+    final canOpenProfile = currentUserId != null && currentUserId.isNotEmpty;
 
     final accountItems = <SettingsTileData>[
       SettingsTileData(
         title: 'Profile Information',
-        subtitle: canEditProfile
-            ? 'Review and update your account details and public profile.'
-            : 'Profile editing unlocks after your account is verified by admin.',
+        subtitle: 'Review your personal account details.',
         icon: Icons.person_outline_rounded,
         accentColor: PassengerUi.primary,
-        isEnabled: canEditProfile,
-        statusLabel: canEditProfile
-            ? (!isAdmin && isVerified ? 'Verified' : null)
-            : 'Locked',
-        onTap: canEditProfile
-            ? () => _openPlaceholder(
-                context,
-                title: 'Profile Information',
-                description:
-                    'This page will let users manage their profile information and account data.',
-                icon: Icons.person_outline_rounded,
+        isEnabled: canOpenProfile,
+        statusLabel: !isAdmin && isVerified ? 'Verified' : null,
+        onTap: canOpenProfile
+            ? () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      ProfileDetailsLoaderPage(userId: currentUserId),
+                ),
               )
             : null,
       ),
@@ -70,13 +68,9 @@ class SettingsPage extends StatelessWidget {
         subtitle: 'Manage login credentials and password recovery options.',
         icon: Icons.lock_outline_rounded,
         accentColor: PassengerUi.accentBlue,
-        onTap: () => _openPlaceholder(
+        onTap: () => Navigator.of(
           context,
-          title: 'Change Password',
-          description:
-              'This section will handle secure password updates and credential management.',
-          icon: Icons.lock_outline_rounded,
-        ),
+        ).push(MaterialPageRoute(builder: (_) => const ChangePasswordPage())),
       ),
     ];
 
@@ -215,37 +209,6 @@ class SettingsPage extends StatelessWidget {
               accentColor: PassengerUi.primary,
             ),
             SizedBox(height: 16),
-            if (!isAdmin) ...[
-              PassengerSurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text('Account Verification', style: PassengerUi.cardTitle),
-                    SizedBox(height: 10),
-                    PassengerStatusChip(
-                      label: isVerified
-                          ? 'Verified account'
-                          : 'Pending verification',
-                      textColor: isVerified
-                          ? PassengerUi.successText
-                          : PassengerUi.primary,
-                      backgroundColor: isVerified
-                          ? PassengerUi.successBackground
-                          : PassengerUi.dangerSoft,
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      _verificationMessage(
-                        isVerified: isVerified,
-                        isStudentPassenger: isStudentPassenger,
-                      ),
-                      style: PassengerUi.bodyText,
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 14),
-            ],
             SettingsSectionCard(title: 'Account Settings', items: accountItems),
             SizedBox(height: 14),
             SettingsSectionCard(title: 'App Settings', items: appItems),
@@ -260,24 +223,5 @@ class SettingsPage extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _verificationMessage({
-    required bool isVerified,
-    required bool isStudentPassenger,
-  }) {
-    if (isVerified && isStudentPassenger) {
-      return 'Your account is verified. Profile editing is available and your student discount can now be honored in supported ride flows.';
-    }
-
-    if (isVerified) {
-      return 'Your account is verified and profile editing is now available.';
-    }
-
-    if (isStudentPassenger) {
-      return 'You can continue using the app, but profile editing and the student discount stay locked until an admin verifies your submitted documents.';
-    }
-
-    return 'You can continue using the app, but profile editing stays locked until an admin verifies your account.';
   }
 }

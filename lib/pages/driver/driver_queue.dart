@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../controllers/ride_tracking_controller.dart';
 import '../../models/ride.dart';
-import '../../models/ride_status.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../rides/ride_monitoring_page.dart';
+import 'widgets/driver_ride_request_card.dart';
 
 class DriverQueuePage extends StatefulWidget {
   final String driverId;
@@ -75,10 +75,11 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
                         padding: EdgeInsets.only(
                           bottom: entry.key == rides.length - 1 ? 0 : 12,
                         ),
-                        child: _DriverRideRequestCard(
+                        child: DriverRideRequestCard(
                           ride: entry.value,
                           isAccepting:
                               _acceptingBookingId == entry.value.bookingId,
+                          rideTrackingService: _rideTrackingService,
                           onAccept: () => _acceptRide(entry.value),
                         ),
                       ),
@@ -142,120 +143,5 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
         });
       }
     }
-  }
-}
-
-class _DriverRideRequestCard extends StatelessWidget {
-  final Ride ride;
-  final bool isAccepting;
-  final VoidCallback onAccept;
-
-  const _DriverRideRequestCard({
-    required this.ride,
-    required this.isAccepting,
-    required this.onAccept,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text('Passenger request', style: PassengerUi.cardTitle),
-              ),
-              PassengerStatusChip(
-                label: ride.status.label,
-                textColor: PassengerUi.highlightAmber,
-                backgroundColor: PassengerUi.warningSoft,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _RouteLine(
-            icon: Icons.my_location_rounded,
-            iconColor: PassengerUi.secondary,
-            label: 'Pickup',
-            value: ride.pickupLocation.address,
-          ),
-          const SizedBox(height: 10),
-          _RouteLine(
-            icon: Icons.location_on_rounded,
-            iconColor: PassengerUi.primary,
-            label: 'Drop-off',
-            value: ride.dropoffLocation.address,
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: <Widget>[
-              Icon(
-                Icons.access_time_rounded,
-                size: 18,
-                color: PassengerUi.accentBlue,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  '${ride.etaLabel} estimate',
-                  style: PassengerUi.bodyText,
-                ),
-              ),
-              ElevatedButton.icon(
-                onPressed: isAccepting ? null : onAccept,
-                icon: isAccepting
-                    ? SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.check_rounded),
-                label: const Text('Accept'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RouteLine extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String label;
-  final String value;
-
-  const _RouteLine({
-    required this.icon,
-    required this.iconColor,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Icon(icon, color: iconColor, size: 20),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(label, style: PassengerUi.bodyText.copyWith(fontSize: 12)),
-              const SizedBox(height: 2),
-              Text(value, style: PassengerUi.valueText),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 }

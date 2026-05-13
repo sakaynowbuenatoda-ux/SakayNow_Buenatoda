@@ -27,21 +27,17 @@ class QuickDestinationsController extends ChangeNotifier {
     notifyListeners();
 
     final localDestinations = await _loadLocal();
-    destinations =
-        localDestinations ??
-        List<PassengerQuickDestination>.from(
-          PassengerMockData.quickDestinations,
-        );
+    destinations = _withoutPlaceholderDestinations(
+      localDestinations ?? <PassengerQuickDestination>[],
+    );
 
-    _ensureDefaultDestinations();
     isLoading = false;
     notifyListeners();
 
     try {
       final remoteDestinations = await _loadRemote();
       if (remoteDestinations != null) {
-        destinations = remoteDestinations;
-        _ensureDefaultDestinations();
+        destinations = _withoutPlaceholderDestinations(remoteDestinations);
         notifyListeners();
       }
     } on Exception {
@@ -67,11 +63,6 @@ class QuickDestinationsController extends ChangeNotifier {
   }
 
   Future<void> remove(PassengerQuickDestination destination) async {
-    if (destination.isDefault) {
-      await upsert(destination.copyWith(clearLocation: true));
-      return;
-    }
-
     destinations = destinations
         .where((entry) => entry.id != destination.id)
         .toList(growable: true);
@@ -96,39 +87,6 @@ class QuickDestinationsController extends ChangeNotifier {
       latitude: latitude,
       longitude: longitude,
     );
-  }
-
-  void _ensureDefaultDestinations() {
-    final merged = <PassengerQuickDestination>[];
-    for (final defaultDestination in PassengerMockData.quickDestinations) {
-      final existing = _findById(defaultDestination.id);
-      merged.add(
-        existing == null
-            ? defaultDestination
-            : _clearLegacyDefaultLocation(existing),
-      );
-    }
-
-    for (final destination in destinations) {
-      if (!destination.isDefault) {
-        merged.add(destination);
-      }
-    }
-
-    destinations = merged;
-  }
-
-  PassengerQuickDestination _clearLegacyDefaultLocation(
-    PassengerQuickDestination destination,
-  ) {
-    final legacyLocation = _legacyDefaultLocations[destination.id];
-    if (legacyLocation == null ||
-        !_sameLocation(destination, legacyLocation) ||
-        destination.address != legacyLocation.address) {
-      return destination;
-    }
-
-    return destination.copyWith(clearLocation: true);
   }
 
   Future<void> _save() async {
@@ -193,14 +151,19 @@ class QuickDestinationsController extends ChangeNotifier {
     }, SetOptions(merge: true));
   }
 
-  PassengerQuickDestination? _findById(String id) {
-    for (final destination in destinations) {
-      if (destination.id == id) {
-        return destination;
-      }
-    }
+  List<PassengerQuickDestination> _withoutPlaceholderDestinations(
+    List<PassengerQuickDestination> items,
+  ) {
+    return items
+        .where((destination) {
+          if (!destination.isDefault) {
+            return true;
+          }
 
-    return null;
+          return destination.hasCoordinates &&
+              !_matchesLegacyPlaceholder(destination);
+        })
+        .toList(growable: true);
   }
 
   String _toJson(PassengerQuickDestination destination) {
@@ -344,6 +307,16 @@ bool _sameLocation(
 
   return (lat - legacyLat).abs() < tolerance &&
       (lng - legacyLng).abs() < tolerance;
+}
+
+bool _matchesLegacyPlaceholder(PassengerQuickDestination destination) {
+  final legacyLocation = _legacyDefaultLocations[destination.id];
+  if (legacyLocation == null) {
+    return false;
+  }
+
+  return destination.address == legacyLocation.address &&
+      _sameLocation(destination, legacyLocation);
 }
 
 const List<Color> _customColors = <Color>[

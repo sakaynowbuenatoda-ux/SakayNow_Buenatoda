@@ -50,6 +50,7 @@ class BookingMapController extends ChangeNotifier {
   Position? currentPosition;
   RideLocation? pickupLocation;
   RideLocation? dropoffLocation;
+  LatLng? cameraTarget;
   RouteResult? route;
   DistanceMatrixResult? estimate;
   MapMarkerIcons? markerIcons;
@@ -58,9 +59,15 @@ class BookingMapController extends ChangeNotifier {
 
   int _pickupSearchToken = 0;
   int _dropoffSearchToken = 0;
+  bool _isPickupCurrentLocation = false;
+
+  bool get isPickupCurrentLocation => _isPickupCurrentLocation;
 
   LatLng get initialCameraTarget =>
-      currentLatLng ?? pickupLocation?.latLng ?? MapConfig.buenavistaCenter;
+      cameraTarget ??
+      currentLatLng ??
+      pickupLocation?.latLng ??
+      MapConfig.buenavistaCenter;
 
   LatLng? get currentLatLng {
     final position = currentPosition;
@@ -178,11 +185,9 @@ class BookingMapController extends ChangeNotifier {
 
     try {
       currentPosition = await _locationService.getCurrentPosition();
-      pickupLocation = RideLocation(
-        address: 'Current location',
-        latitude: currentPosition!.latitude,
-        longitude: currentPosition!.longitude,
-      );
+      pickupLocation = await _resolveCurrentPositionLocation();
+      _isPickupCurrentLocation = true;
+      cameraTarget = pickupLocation!.latLng;
       locationMessage = null;
     } on Exception catch (error) {
       locationMessage = error.toString();
@@ -200,15 +205,14 @@ class BookingMapController extends ChangeNotifier {
   Future<RideLocation?> useCurrentLocationAsPickup() async {
     try {
       currentPosition = await _locationService.getCurrentPosition();
-      pickupLocation = RideLocation(
-        address: 'Current location',
-        latitude: currentPosition!.latitude,
-        longitude: currentPosition!.longitude,
-      );
+      final location = await _resolveCurrentPositionLocation();
       locationMessage = null;
       errorMessage = null;
-      await refreshRoute();
-      notifyListeners();
+      await _setLocation(
+        target: BookingLocationTarget.pickup,
+        location: location,
+        isCurrentPickup: true,
+      );
       return pickupLocation;
     } on Exception catch (error) {
       locationMessage = error.toString();
@@ -273,22 +277,22 @@ class BookingMapController extends ChangeNotifier {
 
   Future<RideLocation> selectPickup(PlacePrediction prediction) async {
     final details = await _placesService.fetchDetails(prediction.placeId);
-    pickupLocation = details.toRideLocation();
-    pickupPredictions = <PlacePrediction>[];
-    errorMessage = null;
-    await refreshRoute();
-    notifyListeners();
-    return pickupLocation!;
+    final location = details.toRideLocation();
+    await _setLocation(
+      target: BookingLocationTarget.pickup,
+      location: location,
+    );
+    return location;
   }
 
   Future<RideLocation> selectDropoff(PlacePrediction prediction) async {
     final details = await _placesService.fetchDetails(prediction.placeId);
-    dropoffLocation = details.toRideLocation();
-    dropoffPredictions = <PlacePrediction>[];
-    errorMessage = null;
-    await refreshRoute();
-    notifyListeners();
-    return dropoffLocation!;
+    final location = details.toRideLocation();
+    await _setLocation(
+      target: BookingLocationTarget.dropoff,
+      location: location,
+    );
+    return location;
   }
 
   Future<RideLocation> selectPickupFromPin(LatLng location) {
@@ -321,6 +325,13 @@ class BookingMapController extends ChangeNotifier {
     double? longitude,
   }) async {
     if (latitude != null && longitude != null) {
+      final latLng = LatLng(latitude, longitude);
+      if (!_placesService.isWithinSupportedServiceArea(latLng)) {
+        throw StateError(
+          'Select a location in ${MapConfig.supportedServiceAreaLabel} only.',
+        );
+      }
+
       final location = RideLocation(
         address: address,
         name: label,
@@ -359,6 +370,7 @@ class BookingMapController extends ChangeNotifier {
           target: BookingLocationTarget.pickup,
           location: pickup,
           refresh: false,
+          isCurrentPickup: _isCurrentLocationText(pickupText),
         );
       }
 
@@ -384,6 +396,12 @@ class BookingMapController extends ChangeNotifier {
     required BookingLocationTarget target,
     required LatLng location,
   }) async {
+    if (!_placesService.isWithinSupportedServiceArea(location)) {
+      throw StateError(
+        'Select a location in ${MapConfig.supportedServiceAreaLabel} only.',
+      );
+    }
+
     String address;
     RideLocation? knownPlace;
     try {
@@ -433,11 +451,7 @@ class BookingMapController extends ChangeNotifier {
 
     if (normalized.toLowerCase() == 'current location' &&
         currentPosition != null) {
-      return RideLocation(
-        address: 'Current location',
-        latitude: currentPosition!.latitude,
-        longitude: currentPosition!.longitude,
-      );
+      return _resolveCurrentPositionLocation();
     }
 
     final results = await _placesService.autocomplete(
@@ -456,14 +470,18 @@ class BookingMapController extends ChangeNotifier {
     required BookingLocationTarget target,
     required RideLocation location,
     bool refresh = true,
+    bool isCurrentPickup = false,
   }) async {
     if (target == BookingLocationTarget.pickup) {
       pickupLocation = location;
       pickupPredictions = <PlacePrediction>[];
+      _isPickupCurrentLocation = isCurrentPickup;
     } else {
       dropoffLocation = location;
       dropoffPredictions = <PlacePrediction>[];
     }
+
+    cameraTarget = location.latLng ?? cameraTarget;
 
     errorMessage = null;
     if (refresh) {
@@ -483,7 +501,19 @@ class BookingMapController extends ChangeNotifier {
       return true;
     }
 
-    return current!.address.trim().toLowerCase() != normalized.toLowerCase();
+    if (_isPickupCurrentLocation && _isCurrentLocationText(normalized)) {
+      return false;
+    }
+
+    final typed = normalized.toLowerCase();
+    final address = current!.address.trim().toLowerCase();
+    final name = current.name?.trim().toLowerCase();
+
+    return address != typed && name != typed;
+  }
+
+  bool _isCurrentLocationText(String value) {
+    return value.trim().toLowerCase() == 'current location';
   }
 
   void clearPickupPredictions() {
@@ -494,6 +524,52 @@ class BookingMapController extends ChangeNotifier {
   void clearDropoffPredictions() {
     dropoffPredictions = <PlacePrediction>[];
     notifyListeners();
+  }
+
+  Future<RideLocation> _resolveCurrentPositionLocation() async {
+    final position = currentPosition;
+    if (position == null) {
+      throw StateError('Current location is not available yet.');
+    }
+
+    final location = LatLng(position.latitude, position.longitude);
+    if (!_placesService.isWithinSupportedServiceArea(location)) {
+      throw StateError(
+        'Current location must be in ${MapConfig.supportedServiceAreaLabel}.',
+      );
+    }
+
+    try {
+      final knownPlace = await _placesService.nearestKnownPlace(location);
+      if (knownPlace != null) {
+        return RideLocation(
+          address: knownPlace.address,
+          name: knownPlace.name,
+          placeId: knownPlace.placeId,
+          latitude: location.latitude,
+          longitude: location.longitude,
+        );
+      }
+    } on Exception {
+      // Fall back to reverse geocoding below.
+    }
+
+    String address;
+    try {
+      address = await _placesService.reverseGeocode(location);
+    } on Exception {
+      address =
+          '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}';
+    }
+
+    final normalizedAddress = address.trim();
+    return RideLocation(
+      address: normalizedAddress.isEmpty
+          ? '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}'
+          : normalizedAddress,
+      latitude: location.latitude,
+      longitude: location.longitude,
+    );
   }
 
   Future<void> refreshRoute() async {

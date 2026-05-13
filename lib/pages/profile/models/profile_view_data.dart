@@ -59,6 +59,17 @@ class ProfileViewData {
             _ => 'regular',
           };
 
+    final averageRating = _readDouble(
+      normalizedRole == 'driver'
+          ? data['driver_average_rating'] ?? data['average_rating']
+          : data['passenger_average_rating'] ?? data['average_rating'],
+    );
+    final reviewCount = _readInt(
+      normalizedRole == 'driver'
+          ? data['driver_review_count'] ?? data['review_count']
+          : data['passenger_review_count'] ?? data['review_count'],
+    );
+
     return ProfileViewData(
       userId: (data['user_id'] ?? fallbackUserId).toString(),
       firstName: (data['first_name'] ?? '').toString().trim(),
@@ -79,12 +90,8 @@ class ProfileViewData {
       nbiClearanceUrl: _normalizeOptional(data['nbi_clearance_url']),
       driversLicenseUrl: _normalizeOptional(data['drivers_license_url']),
       createdAt: data['created_at'] as Timestamp?,
-      averageRating: _readDouble(
-        data['passenger_average_rating'] ?? data['average_rating'],
-      ),
-      reviewCount: _readInt(
-        data['passenger_review_count'] ?? data['review_count'],
-      ),
+      averageRating: averageRating,
+      reviewCount: reviewCount,
     );
   }
 
@@ -169,7 +176,7 @@ class ProfileViewData {
       ? 'Developer-managed admin account'
       : (isVerified ? 'Verified' : 'Pending verification');
 
-  String get createdAtLabel {
+  String get joinedAtLabel {
     if (createdAt == null) {
       return 'Not available';
     }
@@ -177,6 +184,9 @@ class ProfileViewData {
     final date = createdAt!.toDate();
     return '${_monthName(date.month)} ${date.day}, ${date.year}';
   }
+
+  String get ratingLabel =>
+      reviewCount == 0 ? 'No ratings yet' : averageRating.toStringAsFixed(1);
 
   String? get profileImageUrl => selfieUrl ?? idImageUrl;
 

@@ -42,6 +42,7 @@ class _PassengerShellState extends State<PassengerShell> {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => SettingsPage(
+            userId: widget.userId,
             role: 'passenger',
             isVerified: widget.isVerified,
             passengerType: widget.passengerType,

@@ -10,6 +10,7 @@ import '../models/place_details.dart';
 import '../models/place_prediction.dart';
 import '../models/ride_location.dart';
 import 'google_maps_api_exception.dart';
+import 'google_places_web_api.dart' as web_places;
 
 class GooglePlacesService {
   final http.Client _client;
@@ -27,17 +28,58 @@ class GooglePlacesService {
     }
 
     final apiKey = _requireApiKey();
+    final requests = MapConfig.mentionsSupportedServiceArea(query)
+        ? <_PlacesAutocompleteRequest>[
+            _PlacesAutocompleteRequest(
+              input: query,
+              locationBias: locationBias ?? MapConfig.serviceAreaCenter,
+              radiusMeters: _serviceAreaRadiusMeters,
+            ),
+          ]
+        : MapConfig.supportedServiceAreas
+              .map(
+                (area) => _PlacesAutocompleteRequest(
+                  input: '$query ${area.name} Bohol',
+                  locationBias: area.center,
+                  radiusMeters: area.searchRadiusMeters,
+                ),
+              )
+              .toList(growable: false);
+
+    final predictionGroups = await Future.wait(
+      requests.map((request) => _fetchAutocomplete(apiKey, request)),
+    );
+
+    return _dedupePredictions(
+      predictionGroups.expand((predictions) => predictions),
+    );
+  }
+
+  Future<List<PlacePrediction>> _fetchAutocomplete(
+    String apiKey,
+    _PlacesAutocompleteRequest request,
+  ) async {
+    if (web_places.googlePlacesWebApiSupported) {
+      return web_places.autocompleteWithGooglePlacesWeb(
+        input: request.input,
+        locationBias: request.locationBias,
+        radiusMeters: request.radiusMeters,
+      );
+    }
+
     final parameters = <String, String>{
-      'input': query,
+      'input': request.input,
       'key': apiKey,
       'components': 'country:ph',
       'types': 'geocode|establishment',
+      'strictbounds': 'true',
     };
 
+    final locationBias = request.locationBias;
     if (locationBias != null) {
       parameters['location'] =
           '${locationBias.latitude},${locationBias.longitude}';
-      parameters['radius'] = '25000';
+      parameters['radius'] = request.radiusMeters.toString();
     }
 
     final uri = Uri.https(
@@ -70,6 +112,14 @@ class GooglePlacesService {
   }
 
   Future<PlaceDetails> fetchDetails(String placeId) async {
+    if (web_places.googlePlacesWebApiSupported) {
+      final details = await web_places.fetchPlaceDetailsWithGooglePlacesWeb(
+        placeId,
+      );
+      _validateSupportedServiceArea(details.latLng);
+      return details;
+    }
+
     final apiKey = _requireApiKey();
     final uri = Uri.https(
       MapConfig.googleApisHost,
@@ -93,12 +143,18 @@ class GooglePlacesService {
       );
     }
 
-    return PlaceDetails.fromJson(
+    final details = PlaceDetails.fromJson(
       payload['result'] as Map<String, dynamic>? ?? <String, dynamic>{},
     );
+    _validateSupportedServiceArea(details.latLng);
+    return details;
   }
 
   Future<String> reverseGeocode(LatLng location) async {
+    if (web_places.googlePlacesWebApiSupported) {
+      return web_places.reverseGeocodeWithGoogleMapsWeb(location);
+    }
+
     final apiKey = _requireApiKey();
     final uri = Uri.https(
       MapConfig.googleApisHost,
@@ -134,6 +190,12 @@ class GooglePlacesService {
   }
 
   Future<RideLocation?> nearestKnownPlace(LatLng location) async {
+    _validateSupportedServiceArea(location);
+
+    if (web_places.googlePlacesWebApiSupported) {
+      return web_places.nearestKnownPlaceWithGooglePlacesWeb(location);
+    }
+
     final apiKey = _requireApiKey();
     final uri = Uri.https(
       MapConfig.googleApisHost,
@@ -193,6 +255,22 @@ class GooglePlacesService {
     );
   }
 
+  bool isWithinSupportedServiceArea(LatLng location) {
+    for (final area in MapConfig.supportedServiceAreas) {
+      final distance = Geolocator.distanceBetween(
+        location.latitude,
+        location.longitude,
+        area.center.latitude,
+        area.center.longitude,
+      );
+      if (distance <= area.searchRadiusMeters) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   Map<String, dynamic>? _closestPlace(List<dynamic> results, LatLng location) {
     Map<String, dynamic>? closest;
     double? closestDistance;
@@ -241,4 +319,48 @@ class GooglePlacesService {
 
     return apiKey;
   }
+
+  List<PlacePrediction> _dedupePredictions(
+    Iterable<PlacePrediction> predictions,
+  ) {
+    final byId = <String, PlacePrediction>{};
+    for (final prediction in predictions) {
+      byId.putIfAbsent(prediction.placeId, () => prediction);
+    }
+
+    return byId.values.take(8).toList(growable: false);
+  }
+
+  void _validateSupportedServiceArea(LatLng location) {
+    if (isWithinSupportedServiceArea(location)) {
+      return;
+    }
+
+    throw GoogleMapsApiException(
+      'Select a location in ${MapConfig.supportedServiceAreaLabel} only.',
+    );
+  }
+
+  int get _serviceAreaRadiusMeters {
+    var radius = 0;
+    for (final area in MapConfig.supportedServiceAreas) {
+      if (area.searchRadiusMeters > radius) {
+        radius = area.searchRadiusMeters;
+      }
+    }
+
+    return radius * 2;
+  }
+}
+
+class _PlacesAutocompleteRequest {
+  final String input;
+  final LatLng? locationBias;
+  final int radiusMeters;
+
+  const _PlacesAutocompleteRequest({
+    required this.input,
+    required this.locationBias,
+    required this.radiusMeters,
+  });
 }

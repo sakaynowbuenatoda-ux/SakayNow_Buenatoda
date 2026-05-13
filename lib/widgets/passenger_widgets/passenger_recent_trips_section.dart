@@ -248,12 +248,8 @@ class PassengerTripCard extends StatelessWidget {
   }
 
   String _routeLabel(Ride ride) {
-    final pickup = ride.pickupLocation.name?.trim().isNotEmpty == true
-        ? ride.pickupLocation.name!
-        : ride.pickupLocation.address;
-    final dropoff = ride.dropoffLocation.name?.trim().isNotEmpty == true
-        ? ride.dropoffLocation.name!
-        : ride.dropoffLocation.address;
+    final pickup = ride.pickupLocation.displayLabel;
+    final dropoff = ride.dropoffLocation.displayLabel;
 
     if (ride.distanceLabel != 'Calculating') {
       return '${ride.distanceLabel} - $pickup to $dropoff';

@@ -6,6 +6,7 @@ import '../../models/ride_status.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../../widgets/passenger_widgets/ride_status_strip.dart';
 
 class RideMonitoringPage extends StatefulWidget {
   final String bookingId;
@@ -102,6 +103,8 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  RideStatusStripForRide(ride: ride),
                   const SizedBox(height: 16),
                   _RideEtaCard(ride: ride),
                   const SizedBox(height: 16),
@@ -239,14 +242,14 @@ class _RideRouteCard extends StatelessWidget {
             icon: Icons.my_location_rounded,
             iconColor: PassengerUi.secondary,
             label: 'Pickup',
-            value: ride.pickupLocation.address,
+            value: ride.pickupLocation.displayLabel,
           ),
           const SizedBox(height: 12),
           _LocationRow(
             icon: Icons.location_on_rounded,
             iconColor: PassengerUi.primary,
             label: 'Drop-off',
-            value: ride.dropoffLocation.address,
+            value: ride.dropoffLocation.displayLabel,
           ),
         ],
       ),

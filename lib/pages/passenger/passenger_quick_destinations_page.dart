@@ -35,11 +35,22 @@ class _PassengerQuickDestinationsPageState
         surfaceTintColor: PassengerUi.background,
         title: Text('Quick Destinations', style: MapTextStyles.title),
         actions: <Widget>[
-          IconButton(
-            tooltip: 'Add destination',
+          TextButton.icon(
             onPressed: () => _editDestination(),
-            icon: const Icon(Icons.add_rounded),
+            icon: Icon(
+              Icons.add_circle_rounded,
+              color: PassengerUi.secondary,
+              size: 24,
+            ),
+            label: Text(
+              'Add',
+              style: TextStyle(
+                color: PassengerUi.secondary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: AnimatedBuilder(
@@ -47,6 +58,20 @@ class _PassengerQuickDestinationsPageState
         builder: (context, _) {
           if (widget.controller.isLoading) {
             return const Center(child: CircularProgressIndicator());
+          }
+
+          if (widget.controller.destinations.isEmpty) {
+            return ListView(
+              padding: PassengerUi.pagePadding(context),
+              children: const <Widget>[
+                PassengerEmptyState(
+                  icon: Icons.bookmark_add_outlined,
+                  title: 'No quick destinations saved yet',
+                  description:
+                      'Tap Add to save places you use often for faster booking.',
+                ),
+              ],
+            );
           }
 
           return ListView.separated(

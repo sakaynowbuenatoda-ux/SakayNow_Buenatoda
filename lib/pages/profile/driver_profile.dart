@@ -170,181 +170,21 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
   }
 
   Future<_ReviewDraft?> _showReviewSheet(DriverReviewProfile driver) async {
-    final controller = TextEditingController();
-    var selectedRating = 5;
-
-    try {
-      return showModalBottomSheet<_ReviewDraft>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setSheetState) {
-              return _ActionSheetFrame(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'Review ${driver.fullName}',
-                      style: PassengerUi.sectionTitle.copyWith(fontSize: 18),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(5, (index) {
-                        final rating = index + 1;
-                        final isSelected = rating <= selectedRating;
-
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(14),
-                          onTap: () {
-                            setSheetState(() => selectedRating = rating);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Icon(
-                              isSelected
-                                  ? Icons.star_rounded
-                                  : Icons.star_border_rounded,
-                              size: 34,
-                              color: PassengerUi.highlightAmber,
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: controller,
-                      maxLines: 4,
-                      maxLength: 600,
-                      decoration: InputDecoration(
-                        labelText: 'Recent review',
-                        hintText:
-                            'Share what went well or what needs improvement.',
-                        filled: true,
-                        fillColor: PassengerUi.mutedSurface,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: PassengerUi.border),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => Navigator.of(context).pop(
-                          _ReviewDraft(
-                            rating: selectedRating,
-                            comment: controller.text,
-                          ),
-                        ),
-                        icon: const Icon(Icons.check_rounded),
-                        label: const Text('Save Review'),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      );
-    } finally {
-      controller.dispose();
-    }
+    return showModalBottomSheet<_ReviewDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ReviewSheet(driver: driver),
+    );
   }
 
   Future<_ReportDraft?> _showReportSheet(DriverReviewProfile driver) async {
-    final controller = TextEditingController();
-    var selectedReason = _reportReasons.first;
-
-    try {
-      return showModalBottomSheet<_ReportDraft>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setSheetState) {
-              return _ActionSheetFrame(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'Report ${driver.fullName}',
-                      style: PassengerUi.sectionTitle.copyWith(fontSize: 18),
-                    ),
-                    const SizedBox(height: 14),
-                    DropdownButtonFormField<String>(
-                      value: selectedReason,
-                      decoration: InputDecoration(
-                        labelText: 'Reason',
-                        filled: true,
-                        fillColor: PassengerUi.mutedSurface,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: PassengerUi.border),
-                        ),
-                      ),
-                      items: _reportReasons
-                          .map(
-                            (reason) => DropdownMenuItem<String>(
-                              value: reason,
-                              child: Text(reason),
-                            ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setSheetState(() => selectedReason = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: controller,
-                      maxLines: 4,
-                      maxLength: 800,
-                      decoration: InputDecoration(
-                        labelText: 'Details',
-                        hintText: 'Add context for the admin team.',
-                        filled: true,
-                        fillColor: PassengerUi.mutedSurface,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: PassengerUi.border),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => Navigator.of(context).pop(
-                          _ReportDraft(
-                            reason: selectedReason,
-                            details: controller.text,
-                          ),
-                        ),
-                        icon: const Icon(Icons.report_gmailerrorred_rounded),
-                        label: const Text('Submit Report'),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      );
-    } finally {
-      controller.dispose();
-    }
+    return showModalBottomSheet<_ReportDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ReportSheet(driver: driver),
+    );
   }
 
   void _showSnackBar(String message) {
@@ -363,6 +203,8 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
 }
 
 class _DriverHero extends StatelessWidget {
+  static const String _coverAssetPath = 'assets/images/full_logo.jpg';
+
   final DriverReviewProfile driver;
 
   const _DriverHero({required this.driver});
@@ -374,20 +216,16 @@ class _DriverHero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
-            height: 132,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: <Color>[
-                  PassengerUi.primary,
-                  PassengerUi.accentBlue,
-                  PassengerUi.secondary,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: SizedBox(
+              height: 132,
+              width: double.infinity,
+              child: Image.asset(
+                _coverAssetPath,
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                filterQuality: FilterQuality.medium,
               ),
             ),
           ),
@@ -729,6 +567,185 @@ class _ReviewCard extends StatelessWidget {
   }
 }
 
+class _ReviewSheet extends StatefulWidget {
+  final DriverReviewProfile driver;
+
+  const _ReviewSheet({required this.driver});
+
+  @override
+  State<_ReviewSheet> createState() => _ReviewSheetState();
+}
+
+class _ReviewSheetState extends State<_ReviewSheet> {
+  final TextEditingController _controller = TextEditingController();
+  int _selectedRating = 5;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ActionSheetFrame(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Review ${widget.driver.fullName}',
+            style: PassengerUi.sectionTitle.copyWith(fontSize: 18),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(5, (index) {
+              final rating = index + 1;
+              final isSelected = rating <= _selectedRating;
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => setState(() => _selectedRating = rating),
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(
+                    isSelected ? Icons.star_rounded : Icons.star_border_rounded,
+                    size: 34,
+                    color: PassengerUi.highlightAmber,
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _controller,
+            maxLines: 4,
+            maxLength: 600,
+            decoration: InputDecoration(
+              labelText: 'Recent review',
+              hintText: 'Share what went well or what needs improvement.',
+              filled: true,
+              fillColor: PassengerUi.mutedSurface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: PassengerUi.border),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).pop(
+                _ReviewDraft(
+                  rating: _selectedRating,
+                  comment: _controller.text.trim(),
+                ),
+              ),
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('Save Review'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReportSheet extends StatefulWidget {
+  final DriverReviewProfile driver;
+
+  const _ReportSheet({required this.driver});
+
+  @override
+  State<_ReportSheet> createState() => _ReportSheetState();
+}
+
+class _ReportSheetState extends State<_ReportSheet> {
+  final TextEditingController _controller = TextEditingController();
+  String _selectedReason = _DriverProfilePageState._reportReasons.first;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ActionSheetFrame(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Report ${widget.driver.fullName}',
+            style: PassengerUi.sectionTitle.copyWith(fontSize: 18),
+          ),
+          const SizedBox(height: 14),
+          DropdownButtonFormField<String>(
+            value: _selectedReason,
+            decoration: InputDecoration(
+              labelText: 'Reason',
+              filled: true,
+              fillColor: PassengerUi.mutedSurface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: PassengerUi.border),
+              ),
+            ),
+            items: _DriverProfilePageState._reportReasons
+                .map(
+                  (reason) => DropdownMenuItem<String>(
+                    value: reason,
+                    child: Text(reason),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _selectedReason = value);
+              }
+            },
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _controller,
+            maxLines: 4,
+            maxLength: 800,
+            decoration: InputDecoration(
+              labelText: 'Details',
+              hintText: 'Add context for the admin team.',
+              filled: true,
+              fillColor: PassengerUi.mutedSurface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: PassengerUi.border),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).pop(
+                _ReportDraft(
+                  reason: _selectedReason,
+                  details: _controller.text.trim(),
+                ),
+              ),
+              icon: const Icon(Icons.report_gmailerrorred_rounded),
+              label: const Text('Submit Report'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ActionSheetFrame extends StatelessWidget {
   final Widget child;
 
@@ -743,15 +760,17 @@ class _ActionSheetFrame extends StatelessWidget {
           right: 12,
           bottom: MediaQuery.viewInsetsOf(context).bottom + 12,
         ),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-          decoration: BoxDecoration(
-            color: PassengerUi.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: PassengerUi.border),
-            boxShadow: PassengerUi.cardShadow,
+        child: SingleChildScrollView(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+            decoration: BoxDecoration(
+              color: PassengerUi.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: PassengerUi.border),
+              boxShadow: PassengerUi.cardShadow,
+            ),
+            child: child,
           ),
-          child: child,
         ),
       ),
     );

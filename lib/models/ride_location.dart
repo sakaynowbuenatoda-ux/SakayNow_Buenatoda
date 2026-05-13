@@ -18,6 +18,17 @@ class RideLocation {
 
   bool get hasCoordinates => latitude != null && longitude != null;
 
+  String get displayLabel {
+    final trimmedName = name?.trim();
+    if (trimmedName != null &&
+        trimmedName.isNotEmpty &&
+        trimmedName != 'Pinned location') {
+      return trimmedName;
+    }
+
+    return address;
+  }
+
   LatLng? get latLng {
     final lat = latitude;
     final lng = longitude;

@@ -8,7 +8,8 @@ class MapConfig {
   static const double defaultZoom = 14.5;
   static const double routeZoom = 15;
 
-  static const double pickupRadiusMeters = 360;
+  static const double bookingGeofenceRadiusMeters = 3500;
+  static const double pickupRadiusMeters = bookingGeofenceRadiusMeters;
   static const double driverNearPickupRadiusMeters = 240;
   static const double destinationArrivalRadiusMeters = 270;
   static const double passengerPickupRadiusMeters = 450;

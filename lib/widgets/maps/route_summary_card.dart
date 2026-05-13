@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/distance_matrix_result.dart';
+import '../../models/fare_estimate.dart';
 import '../../models/route_result.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'map_text_styles.dart';
@@ -8,6 +9,8 @@ import 'map_text_styles.dart';
 class RouteSummaryCard extends StatelessWidget {
   final RouteResult? route;
   final DistanceMatrixResult? estimate;
+  final FareEstimate? fareEstimate;
+  final String? fareNotice;
   final bool isLoading;
   final String? errorMessage;
 
@@ -15,6 +18,8 @@ class RouteSummaryCard extends StatelessWidget {
     super.key,
     required this.route,
     required this.estimate,
+    this.fareEstimate,
+    this.fareNotice,
     required this.isLoading,
     required this.errorMessage,
   });
@@ -80,21 +85,48 @@ class RouteSummaryCard extends StatelessWidget {
     final durationText = activeEstimate?.durationText.isNotEmpty == true
         ? activeEstimate!.durationText
         : activeRoute.durationText;
+    final activeFare = fareEstimate;
+    final notice = fareNotice?.trim();
 
     return PassengerSurfaceCard(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          _MetricTile(
-            icon: Icons.route_rounded,
-            label: 'Distance',
-            value: distanceText.isEmpty ? 'Calculating' : distanceText,
+          Row(
+            children: <Widget>[
+              _MetricTile(
+                icon: Icons.route_rounded,
+                label: 'Distance',
+                value: distanceText.isEmpty ? 'Calculating' : distanceText,
+              ),
+              Container(width: 1, height: 44, color: PassengerUi.border),
+              _MetricTile(
+                icon: Icons.access_time_rounded,
+                label: 'ETA',
+                value: durationText.isEmpty ? 'Calculating' : durationText,
+              ),
+              Container(width: 1, height: 44, color: PassengerUi.border),
+              _MetricTile(
+                icon: Icons.payments_rounded,
+                label: activeFare?.hasDiscount == true
+                    ? 'Student Fare'
+                    : 'Fare',
+                value: activeFare?.amountLabel ?? 'Pending',
+              ),
+            ],
           ),
-          Container(width: 1, height: 44, color: PassengerUi.border),
-          _MetricTile(
-            icon: Icons.access_time_rounded,
-            label: 'ETA',
-            value: durationText.isEmpty ? 'Calculating' : durationText,
-          ),
+          if (notice != null && notice.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
+            Text(
+              notice,
+              style: MapTextStyles.body.copyWith(
+                fontSize: 12,
+                color: activeFare?.hasDiscount == true
+                    ? PassengerUi.successText
+                    : PassengerUi.body,
+              ),
+            ),
+          ],
         ],
       ),
     );

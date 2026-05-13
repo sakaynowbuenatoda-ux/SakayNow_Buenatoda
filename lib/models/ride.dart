@@ -27,6 +27,13 @@ class Ride {
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final String? fareLabel;
+  final int? fareAmount;
+  final String? fareRuleLabel;
+  final String paymentMethod;
+  final String? paymentMethodLabel;
+  final String paymentProvider;
+  final String paymentStatus;
+  final String? payMongoCheckoutUrl;
   final int? driverPassengerReviewRating;
   final int? passengerDriverReviewRating;
   final String? passengerDriverReviewComment;
@@ -50,6 +57,13 @@ class Ride {
     required this.createdAt,
     required this.updatedAt,
     required this.fareLabel,
+    required this.fareAmount,
+    required this.fareRuleLabel,
+    required this.paymentMethod,
+    required this.paymentMethodLabel,
+    required this.paymentProvider,
+    required this.paymentStatus,
+    required this.payMongoCheckoutUrl,
     required this.driverPassengerReviewRating,
     required this.passengerDriverReviewRating,
     required this.passengerDriverReviewComment,
@@ -151,6 +165,16 @@ class Ride {
       createdAt: _readDate(data['created_at'] ?? data['timestamp']),
       updatedAt: _readDate(data['updated_at']),
       fareLabel: _readFare(data),
+      fareAmount: _readFareAmount(data),
+      fareRuleLabel: _readNullableString(
+        data['fare_rule'] ?? data['fare_rule_label'],
+      ),
+      paymentMethod: _readNullableString(data['payment_method']) ?? 'cash',
+      paymentMethodLabel: _readNullableString(data['payment_method_label']),
+      paymentProvider: _readNullableString(data['payment_provider']) ?? 'cash',
+      paymentStatus:
+          _readNullableString(data['payment_status']) ?? 'cash_pending',
+      payMongoCheckoutUrl: _readNullableString(data['paymongo_checkout_url']),
       driverPassengerReviewRating: _readReviewRating(
         data['driver_passenger_review'],
       ),
@@ -224,6 +248,63 @@ class Ride {
 
     return null;
   }
+
+  static int? _readFareAmount(Map<String, dynamic> data) {
+    final candidates = <Object?>[
+      data['final_fare'],
+      data['estimated_fare_amount'],
+      data['estimated_fare'],
+      data['fare_amount'],
+      data['fare'],
+    ];
+
+    for (final candidate in candidates) {
+      if (candidate is num) {
+        return candidate.round();
+      }
+
+      final text = candidate?.toString().trim() ?? '';
+      if (text.isEmpty) {
+        continue;
+      }
+
+      final amount = int.tryParse(text.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (amount != null) {
+        return amount;
+      }
+    }
+
+    return null;
+  }
+
+  String get paymentMethodDisplayLabel {
+    final label = paymentMethodLabel?.trim();
+    if (label != null && label.isNotEmpty) {
+      return label;
+    }
+
+    return switch (paymentMethod) {
+      'gcash' => 'GCash',
+      'maya' || 'paymaya' => 'Maya',
+      'card' => 'Card',
+      _ => 'Cash',
+    };
+  }
+
+  String get paymentStatusLabel {
+    return switch (paymentStatus) {
+      'paid' => 'Paid',
+      'cash_collected' => 'Cash collected',
+      'checkout_pending' => 'Checkout pending',
+      'checkout_failed' => 'Checkout failed',
+      'cash_pending' => 'Cash pending',
+      _ => paymentStatus.replaceAll('_', ' '),
+    };
+  }
+
+  bool get usesPayMongo => paymentProvider == 'paymongo';
+  bool get isPaymentPaid =>
+      paymentStatus == 'paid' || paymentStatus == 'cash_collected';
 
   static DateTime? _readDate(Object? value) {
     if (value is Timestamp) {

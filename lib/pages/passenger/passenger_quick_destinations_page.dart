@@ -152,108 +152,24 @@ class _PassengerQuickDestinationsPageState
   Future<void> _editDestination({
     PassengerQuickDestination? destination,
   }) async {
-    final labelController = TextEditingController(text: destination?.label);
-    RideLocation? selectedLocation;
-
-    final saved = await showModalBottomSheet<PassengerQuickDestination>(
+    final saved = await showDialog<PassengerQuickDestination>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-
-            return Container(
-              padding: EdgeInsets.fromLTRB(18, 18, 18, 18 + bottomInset),
-              decoration: BoxDecoration(
-                color: PassengerUi.surface,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    destination == null
-                        ? 'Add Destination'
-                        : 'Edit Destination',
-                    style: MapTextStyles.title,
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: labelController,
-                    decoration: const InputDecoration(labelText: 'Label'),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final picked = await _pickLocation(
-                        destination: destination,
-                        title: 'Pin Destination',
-                      );
-                      if (picked != null) {
-                        setSheetState(() => selectedLocation = picked);
-                      }
-                    },
-                    icon: const Icon(Icons.push_pin_outlined),
-                    label: Text(
-                      selectedLocation?.address ??
-                          destination?.address ??
-                          'Set location',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        final label = labelController.text.trim();
-                        final location = selectedLocation;
-                        final existing = destination;
-                        if (label.isEmpty) {
-                          return;
-                        }
-
-                        Navigator.of(context).pop(
-                          PassengerQuickDestination(
-                            id:
-                                existing?.id ??
-                                'custom_${DateTime.now().microsecondsSinceEpoch}',
-                            label: label,
-                            address: location?.address ?? existing?.address,
-                            icon: existing?.icon ?? Icons.place_rounded,
-                            accentColor:
-                                existing?.accentColor ?? PassengerUi.accentBlue,
-                            backgroundColor:
-                                existing?.backgroundColor ??
-                                PassengerUi.blueSoft,
-                            latitude: location?.latitude ?? existing?.latitude,
-                            longitude:
-                                location?.longitude ?? existing?.longitude,
-                            isDefault: existing?.isDefault ?? false,
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.save_rounded),
-                      label: const Text('Save'),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+      barrierDismissible: true,
+      builder: (context) => _QuickDestinationFormDialog(
+        destination: destination,
+        onPickLocation: (pickerContext) => _pickLocation(
+          destination: destination,
+          title: 'Pin Destination',
+          pickerContext: pickerContext,
+        ),
+      ),
     );
 
-    labelController.dispose();
-
-    if (saved != null) {
-      await widget.controller.upsert(saved);
+    if (!mounted || saved == null) {
+      return;
     }
+
+    await _saveDestination(saved);
   }
 
   Future<void> _setDestinationLocation(
@@ -267,7 +183,7 @@ class _PassengerQuickDestinationsPageState
       return;
     }
 
-    await widget.controller.upsert(
+    await _saveDestination(
       destination.copyWith(
         address: _locationDisplayText(picked),
         latitude: picked.latitude,
@@ -279,6 +195,7 @@ class _PassengerQuickDestinationsPageState
   Future<RideLocation?> _pickLocation({
     PassengerQuickDestination? destination,
     required String title,
+    BuildContext? pickerContext,
   }) async {
     final pickerTarget = await _quickDestinationPickerTarget(destination);
     if (!mounted) {
@@ -286,9 +203,10 @@ class _PassengerQuickDestinationsPageState
     }
 
     final selected = await showModalBottomSheet<LocationPinPickResult>(
-      context: context,
+      context: pickerContext ?? context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      useRootNavigator: true,
       builder: (_) => LocationPinPickerSheet(
         title: title,
         actionLabel: 'Save Location',
@@ -309,13 +227,10 @@ class _PassengerQuickDestinationsPageState
 
     final location = selected.location;
     try {
-      final knownPlace = await _placesService.nearestKnownPlace(location);
-      if (knownPlace != null) {
-        return knownPlace;
-      }
       final address = await _placesService.reverseGeocode(location);
       return RideLocation(
         address: address,
+        name: 'Pinned location',
         latitude: location.latitude,
         longitude: location.longitude,
       );
@@ -323,6 +238,7 @@ class _PassengerQuickDestinationsPageState
       return RideLocation(
         address:
             '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}',
+        name: 'Pinned location',
         latitude: location.latitude,
         longitude: location.longitude,
       );
@@ -360,6 +276,189 @@ class _PassengerQuickDestinationsPageState
     }
 
     return location.address;
+  }
+
+  Future<void> _saveDestination(PassengerQuickDestination destination) async {
+    try {
+      await widget.controller.upsert(destination);
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to save destination: $error')),
+      );
+    }
+  }
+}
+
+class _QuickDestinationFormDialog extends StatefulWidget {
+  final PassengerQuickDestination? destination;
+  final Future<RideLocation?> Function(BuildContext context) onPickLocation;
+
+  const _QuickDestinationFormDialog({
+    required this.destination,
+    required this.onPickLocation,
+  });
+
+  @override
+  State<_QuickDestinationFormDialog> createState() =>
+      _QuickDestinationFormDialogState();
+}
+
+class _QuickDestinationFormDialogState
+    extends State<_QuickDestinationFormDialog> {
+  late final TextEditingController _labelController;
+  RideLocation? _selectedLocation;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _labelController = TextEditingController(
+      text: widget.destination?.label ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _labelController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Dialog(
+      insetPadding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 430),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: PassengerUi.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: PassengerUi.border),
+            boxShadow: PassengerUi.cardShadow,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  widget.destination == null
+                      ? 'Add Destination'
+                      : 'Edit Destination',
+                  style: MapTextStyles.title,
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _labelController,
+                  textInputAction: TextInputAction.done,
+                  onChanged: (_) {
+                    if (_errorMessage != null) {
+                      setState(() => _errorMessage = null);
+                    }
+                  },
+                  decoration: const InputDecoration(labelText: 'Label'),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _pickLocation,
+                    icon: const Icon(Icons.push_pin_outlined),
+                    label: Text(
+                      _selectedLocation?.address ??
+                          widget.destination?.address ??
+                          'Set location',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                if (_errorMessage != null) ...<Widget>[
+                  const SizedBox(height: 10),
+                  Text(
+                    _errorMessage!,
+                    style: PassengerUi.bodyText.copyWith(
+                      color: PassengerUi.primary,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _save,
+                        icon: const Icon(Icons.save_rounded),
+                        label: const Text('Save'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickLocation() async {
+    FocusScope.of(context).unfocus();
+    final picked = await widget.onPickLocation(context);
+    if (!mounted || picked == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedLocation = picked;
+      _errorMessage = null;
+    });
+  }
+
+  void _save() {
+    final label = _labelController.text.trim();
+    if (label.isEmpty) {
+      setState(() => _errorMessage = 'Enter a destination label.');
+      return;
+    }
+
+    if (_selectedLocation == null &&
+        widget.destination?.hasCoordinates != true) {
+      setState(() => _errorMessage = 'Set a pin before saving.');
+      return;
+    }
+
+    final location = _selectedLocation;
+    final existing = widget.destination;
+
+    Navigator.of(context).pop(
+      PassengerQuickDestination(
+        id: existing?.id ?? 'custom_${DateTime.now().microsecondsSinceEpoch}',
+        label: label,
+        address: location?.address ?? existing?.address,
+        icon: existing?.icon ?? Icons.place_rounded,
+        accentColor: existing?.accentColor ?? PassengerUi.accentBlue,
+        backgroundColor: existing?.backgroundColor ?? PassengerUi.blueSoft,
+        latitude: location?.latitude ?? existing?.latitude,
+        longitude: location?.longitude ?? existing?.longitude,
+        isDefault: existing?.isDefault ?? false,
+      ),
+    );
   }
 }
 

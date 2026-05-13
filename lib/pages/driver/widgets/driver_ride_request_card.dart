@@ -62,6 +62,24 @@ class DriverRideRequestCard extends StatelessWidget {
               const SizedBox(height: 12),
               Row(
                 children: <Widget>[
+                  Expanded(
+                    child: _RideValuePill(
+                      icon: Icons.payments_rounded,
+                      label: ride.fareLabel ?? 'Fare pending',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _RideValuePill(
+                      icon: Icons.account_balance_wallet_rounded,
+                      label: ride.paymentMethodDisplayLabel,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
                   Icon(
                     Icons.access_time_rounded,
                     size: 18,
@@ -97,6 +115,39 @@ class DriverRideRequestCard extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _RideValuePill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _RideValuePill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: PassengerUi.mutedSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: PassengerUi.border),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, size: 17, color: PassengerUi.accentBlue),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: PassengerUi.valueText.copyWith(fontSize: 12.5),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../pages/admin/admin_home_page.dart';
 import '../../pages/driver/driver_shell.dart';
 import '../../pages/passenger/passenger_shell.dart';
+import '../../services/notification_service.dart';
+import '../../services/ride_tracking_service.dart';
 import 'app_user.dart';
 
 class SessionService {
@@ -86,8 +88,31 @@ class SessionService {
   }
 
   static Future<void> signOut() async {
+    await _markCurrentDriverUnavailable();
+    await NotificationService.instance.unregisterCurrentDevice();
     await clearUserSession();
     await _auth.signOut();
+  }
+
+  static Future<void> _markCurrentDriverUnavailable() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final role = prefs.getString('role')?.trim().toLowerCase();
+      if (role != 'driver') {
+        return;
+      }
+
+      await RideTrackingService().markDriverUnavailable(
+        driverId: currentUser.uid,
+      );
+    } on Exception {
+      // Continue signing out even if the availability write cannot complete.
+    }
   }
 
   static Future<void> sendEmailVerification() async {

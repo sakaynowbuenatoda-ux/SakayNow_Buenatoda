@@ -2,10 +2,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../driver/driver_payout_accounts_page.dart';
+import '../passenger/passenger_payment_methods_page.dart';
 import '../profile/profile_details.dart';
 import 'app_preferences_page.dart';
 import 'change_password_page.dart';
+import 'developers.dart';
+import 'help_and_support.dart';
+import 'privacy_policy.dart';
 import 'settings_placeholder_page.dart';
+import 'terms_and_conditions.dart';
+import 'version_page.dart';
 import 'widgets/settings_section_card.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -43,6 +50,11 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final normalizedRole = role.trim().toLowerCase();
     final isAdmin = normalizedRole == 'admin';
+    final isDriver = normalizedRole == 'driver';
+    final isPassenger =
+        normalizedRole == 'passenger' ||
+        normalizedRole == 'regular' ||
+        normalizedRole == 'student';
     final currentUserId = userId ?? FirebaseAuth.instance.currentUser?.uid;
     final canOpenProfile = currentUserId != null && currentUserId.isNotEmpty;
 
@@ -72,6 +84,24 @@ class SettingsPage extends StatelessWidget {
           context,
         ).push(MaterialPageRoute(builder: (_) => const ChangePasswordPage())),
       ),
+      if ((isDriver || isPassenger) && canOpenProfile)
+        SettingsTileData(
+          title: isDriver ? 'Payout Account' : 'Payment Methods',
+          subtitle: isDriver
+              ? 'Add or update where you receive online ride payments.'
+              : 'Manage Cash, GCash, Maya, and card payment options.',
+          icon: isDriver
+              ? Icons.account_balance_rounded
+              : Icons.account_balance_wallet_rounded,
+          accentColor: PassengerUi.accentBlue,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => isDriver
+                  ? DriverPayoutAccountsPage(driverId: currentUserId)
+                  : PassengerPaymentMethodsPage(userId: currentUserId),
+            ),
+          ),
+        ),
     ];
 
     final appItems = <SettingsTileData>[
@@ -124,38 +154,26 @@ class SettingsPage extends StatelessWidget {
         subtitle: 'See project and development information.',
         icon: Icons.code_rounded,
         accentColor: PassengerUi.accentBlue,
-        onTap: () => _openPlaceholder(
+        onTap: () => Navigator.of(
           context,
-          title: 'Developers',
-          description:
-              'Developer information and team details will be shown here.',
-          icon: Icons.code_rounded,
-        ),
+        ).push(MaterialPageRoute(builder: (_) => const DevelopersPage())),
       ),
       SettingsTileData(
         title: 'Help and Support',
         subtitle: 'Get assistance for account, ride, or app-related concerns.',
         icon: Icons.help_outline_rounded,
         accentColor: PassengerUi.secondary,
-        onTap: () => _openPlaceholder(
+        onTap: () => Navigator.of(
           context,
-          title: 'Help and Support',
-          description:
-              'Support resources, FAQs, and contact options will appear here.',
-          icon: Icons.help_outline_rounded,
-        ),
+        ).push(MaterialPageRoute(builder: (_) => const HelpAndSupportPage())),
       ),
       SettingsTileData(
         title: 'Terms and Conditions',
         subtitle: 'Review your rights, responsibilities, and service rules.',
         icon: Icons.gavel_rounded,
         accentColor: PassengerUi.primary,
-        onTap: () => _openPlaceholder(
-          context,
-          title: 'Terms and Conditions',
-          description:
-              'The full terms and conditions page can be expanded here later.',
-          icon: Icons.gavel_rounded,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const TermsAndConditionsPage()),
         ),
       ),
       SettingsTileData(
@@ -163,25 +181,18 @@ class SettingsPage extends StatelessWidget {
         subtitle: 'Understand how your personal data is collected and handled.',
         icon: Icons.privacy_tip_outlined,
         accentColor: PassengerUi.highlightAmber,
-        onTap: () => _openPlaceholder(
+        onTap: () => Navigator.of(
           context,
-          title: 'Privacy Policy',
-          description: 'The full privacy policy page can be added here later.',
-          icon: Icons.privacy_tip_outlined,
-        ),
+        ).push(MaterialPageRoute(builder: (_) => const PrivacyPolicyPage())),
       ),
       SettingsTileData(
         title: 'Version',
         subtitle: 'View the current app version and release information.',
         icon: Icons.info_outline_rounded,
         accentColor: PassengerUi.body,
-        onTap: () => _openPlaceholder(
+        onTap: () => Navigator.of(
           context,
-          title: 'Version',
-          description:
-              'App version details and release notes can be shown here.',
-          icon: Icons.info_outline_rounded,
-        ),
+        ).push(MaterialPageRoute(builder: (_) => const VersionPage())),
       ),
     ];
 

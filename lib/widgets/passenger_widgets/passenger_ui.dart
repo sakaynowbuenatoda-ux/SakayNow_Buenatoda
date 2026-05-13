@@ -255,24 +255,27 @@ class PassengerPageHeader extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(dense ? 10 : 14),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 10 : 12,
+        vertical: dense ? 7 : 9,
+      ),
       decoration: BoxDecoration(
-        gradient: PassengerUi.neutralHeroGradient,
-        borderRadius: BorderRadius.circular(12),
+        color: PassengerUi.surface,
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: PassengerUi.border),
       ),
       child: Row(
         children: [
           Container(
-            width: dense ? 36 : 44,
-            height: dense ? 36 : 44,
+            width: dense ? 30 : 34,
+            height: dense ? 30 : 34,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: color, size: dense ? 20 : 24),
+            child: Icon(icon, color: color, size: dense ? 18 : 20),
           ),
-          SizedBox(width: dense ? 10 : 14),
+          SizedBox(width: dense ? 9 : 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -282,7 +285,7 @@ class PassengerPageHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: PassengerUi.sectionTitle.copyWith(
-                    fontSize: dense ? 17 : 20,
+                    fontSize: dense ? 16 : 18,
                   ),
                 ),
               ],

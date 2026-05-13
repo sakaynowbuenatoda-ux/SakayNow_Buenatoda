@@ -259,13 +259,14 @@ class PassengerMockData {
   ];
 
   static const List<PassengerFareDetail> fareDetails = <PassengerFareDetail>[
-    PassengerFareDetail(label: 'LGU base fare', value: 'PHP 20'),
-    PassengerFareDetail(label: 'Extended route fare', value: 'PHP 30'),
+    PassengerFareDetail(label: '1 barangay fare', value: 'PHP 20'),
+    PassengerFareDetail(label: 'Up to 5 barangays', value: 'PHP 30'),
+    PassengerFareDetail(label: 'Extended route fare', value: 'PHP 30-100'),
     PassengerFareDetail(
-      label: 'Student discount',
-      value: '20% OFF',
+      label: 'Buenavista barangays',
+      value: '35',
       valueColor: Color(0xFF174A36),
     ),
-    PassengerFareDetail(label: 'Cashless payment', value: 'GCash and Maya'),
+    PassengerFareDetail(label: 'Cashless payment', value: 'PayMongo checkout'),
   ];
 }

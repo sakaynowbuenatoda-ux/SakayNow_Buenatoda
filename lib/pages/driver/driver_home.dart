@@ -38,7 +38,7 @@ class DriverHomePage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           PassengerPageHeader(
-            title: 'Home',
+            title: 'Welcome, $firstName',
             subtitle:
                 'Manage availability and respond to nearby booking requests.',
             icon: Icons.electric_rickshaw_rounded,
@@ -53,6 +53,7 @@ class DriverHomePage extends StatelessWidget {
                   isActive: isActive,
                   isVerified: isVerified,
                 ),
+          DriverActiveRideShortcut(driverId: userId),
           SizedBox(height: 20),
           PassengerSectionHeader(
             title: 'Incoming Requests',
@@ -69,6 +70,180 @@ class DriverHomePage extends StatelessWidget {
           SizedBox(height: 12),
           DriverRecentTripsSection(driverId: userId),
         ],
+      ),
+    );
+  }
+}
+
+class DriverActiveRideShortcut extends StatelessWidget {
+  final String driverId;
+  final RideTrackingService rideTrackingService;
+
+  DriverActiveRideShortcut({
+    super.key,
+    required this.driverId,
+    RideTrackingService? rideTrackingService,
+  }) : rideTrackingService = rideTrackingService ?? RideTrackingService();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Ride>>(
+      stream: rideTrackingService.watchDriverActiveRides(driverId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: PassengerSurfaceCard(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    Icons.error_outline_rounded,
+                    color: PassengerUi.highlightAmber,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Unable to check active rides.',
+                      style: PassengerUi.bodyText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final activeRides = _sortedActiveRides(snapshot.data ?? const <Ride>[]);
+        if (activeRides.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final ride = activeRides.first;
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: PassengerSurfaceCard(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: PassengerUi.successBackground,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.route_rounded,
+                        color: PassengerUi.successText,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            activeRides.length == 1
+                                ? 'Active ride'
+                                : '${activeRides.length} active rides',
+                            style: PassengerUi.cardTitle.copyWith(
+                              fontSize: 15.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            _routeLabel(ride),
+                            style: PassengerUi.bodyText.copyWith(
+                              fontSize: 12.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    PassengerStatusChip(
+                      label: ride.status.label,
+                      textColor: PassengerUi.successText,
+                      backgroundColor: PassengerUi.successBackground,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.access_time_rounded,
+                      size: 17,
+                      color: PassengerUi.accentBlue,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: TimeAgoText(
+                        dateTime: ride.updatedAt ?? ride.createdAt,
+                        style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      onPressed: () => _openRideMonitoring(context, ride),
+                      icon: const Icon(Icons.near_me_rounded, size: 18),
+                      label: const Text('Ride Monitoring'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<Ride> _sortedActiveRides(List<Ride> rides) {
+    final activeRides = rides
+        .where((ride) => !ride.status.isTerminal)
+        .toList(growable: false);
+    activeRides.sort(
+      (a, b) => _latestActivity(b).compareTo(_latestActivity(a)),
+    );
+    return activeRides;
+  }
+
+  DateTime _latestActivity(Ride ride) {
+    return ride.updatedAt ??
+        ride.createdAt ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  String _routeLabel(Ride ride) {
+    final pickup = ride.pickupLocation.displayLabel;
+    final dropoff = ride.dropoffLocation.displayLabel;
+    return '$pickup to $dropoff';
+  }
+
+  void _openRideMonitoring(BuildContext context, Ride ride) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RideMonitoringPage(
+          bookingId: ride.bookingId,
+          userId: driverId,
+          viewerRole: RideViewerRole.driver,
+        ),
       ),
     );
   }
@@ -114,7 +289,7 @@ class DriverStatusHeroCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Welcome, $firstName',
+                      'Current status',
                       style: PassengerUi.cardTitle.copyWith(fontSize: 16),
                     ),
                     SizedBox(height: 3),

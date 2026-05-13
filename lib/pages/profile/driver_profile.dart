@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../pages/messages/chat_page.dart';
+import '../../services/chat_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
@@ -9,12 +11,14 @@ class DriverProfilePage extends StatefulWidget {
   final String driverId;
   final String passengerId;
   final String? bookingId;
+  final bool openReviewOnLoad;
 
   const DriverProfilePage({
     super.key,
     required this.driverId,
     required this.passengerId,
     this.bookingId,
+    this.openReviewOnLoad = false,
   });
 
   @override
@@ -25,6 +29,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
   final RideTrackingService _rideTrackingService = RideTrackingService();
   bool _reviewsExpanded = false;
   bool _isSaving = false;
+  bool _openedInitialReview = false;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +73,8 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
             );
           }
 
+          _openInitialReviewIfNeeded(driver);
+
           return PassengerPageContainer(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,6 +85,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                 const SizedBox(height: 14),
                 _DriverActions(
                   isSaving: _isSaving,
+                  onMessage: () => _handleMessage(driver),
                   onAddReview: () => _handleAddReview(driver),
                   onReport: () => _handleReport(driver),
                 ),
@@ -131,6 +139,51 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
         setState(() => _isSaving = false);
       }
     }
+  }
+
+  Future<void> _handleMessage(DriverReviewProfile driver) async {
+    final bookingId = widget.bookingId;
+    if (bookingId == null || bookingId.trim().isEmpty) {
+      _showSnackBar('Open this profile from a trip to message the driver.');
+      return;
+    }
+
+    try {
+      final conversationId = await ChatService()
+          .createRideConversationFromBooking(bookingId);
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatPage(
+            conversationId: conversationId,
+            currentUserId: widget.passengerId,
+            currentUserRole: 'passenger',
+            title: driver.fullName,
+            subtitle: 'Driver',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        _showSnackBar('Unable to open driver chat: $error');
+      }
+    }
+  }
+
+  void _openInitialReviewIfNeeded(DriverReviewProfile driver) {
+    if (!widget.openReviewOnLoad || _openedInitialReview) {
+      return;
+    }
+
+    _openedInitialReview = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _handleAddReview(driver);
+      }
+    });
   }
 
   Future<void> _handleReport(DriverReviewProfile driver) async {
@@ -418,11 +471,13 @@ class _StatCard extends StatelessWidget {
 
 class _DriverActions extends StatelessWidget {
   final bool isSaving;
+  final VoidCallback onMessage;
   final VoidCallback onAddReview;
   final VoidCallback onReport;
 
   const _DriverActions({
     required this.isSaving,
+    required this.onMessage,
     required this.onAddReview,
     required this.onReport,
   });
@@ -435,6 +490,11 @@ class _DriverActions extends StatelessWidget {
         runSpacing: 10,
         children: <Widget>[
           ElevatedButton.icon(
+            onPressed: isSaving ? null : onMessage,
+            icon: const Icon(Icons.chat_bubble_rounded, size: 18),
+            label: const Text('Message'),
+          ),
+          OutlinedButton.icon(
             onPressed: isSaving ? null : onAddReview,
             icon: const Icon(Icons.rate_review_rounded, size: 18),
             label: const Text('Add Review'),

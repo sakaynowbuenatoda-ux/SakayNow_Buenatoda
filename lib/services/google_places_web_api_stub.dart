@@ -33,3 +33,12 @@ Future<RideLocation?> nearestKnownPlaceWithGooglePlacesWeb(LatLng location) {
     'Google Places JavaScript API is only available on web.',
   );
 }
+
+Future<List<RideLocation>> nearbyKnownPlacesWithGooglePlacesWeb(
+  LatLng location, {
+  int limit = 5,
+}) {
+  throw UnsupportedError(
+    'Google Places JavaScript API is only available on web.',
+  );
+}

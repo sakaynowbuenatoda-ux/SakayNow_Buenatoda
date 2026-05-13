@@ -17,7 +17,7 @@ void main() {
           'isBanned': false,
         }, 'fallback-id');
 
-        expect(user.userId, 'user-1');
+        expect(user.userId, 'fallback-id');
         expect(user.role, 'passenger');
         expect(user.passengerType, 'student');
         expect(user.userRole, UserRole.passenger);

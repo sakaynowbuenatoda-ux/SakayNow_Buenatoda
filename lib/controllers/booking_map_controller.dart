@@ -5,11 +5,14 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../config/map_config.dart';
 import '../models/distance_matrix_result.dart';
+import '../models/fare_estimate.dart';
+import '../models/passenger_payment_method.dart';
 import '../models/place_prediction.dart';
 import '../models/ride.dart';
 import '../models/ride_location.dart';
 import '../models/route_result.dart';
 import '../services/distance_matrix_service.dart';
+import '../services/fare_service.dart';
 import '../services/google_directions_service.dart';
 import '../services/google_places_service.dart';
 import '../services/location_service.dart';
@@ -21,17 +24,32 @@ enum BookingLocationTarget { pickup, dropoff }
 class BookingMapController extends ChangeNotifier {
   BookingMapController({
     required this.passengerId,
+    String? passengerType,
+    bool? isPassengerVerified,
     LocationService? locationService,
     GooglePlacesService? placesService,
     GoogleDirectionsService? directionsService,
     DistanceMatrixService? distanceMatrixService,
     RideTrackingService? rideTrackingService,
+    FareService? fareService,
   }) : _locationService = locationService ?? const LocationService(),
        _placesService = placesService ?? GooglePlacesService(),
        _directionsService = directionsService ?? GoogleDirectionsService(),
        _distanceMatrixService =
            distanceMatrixService ?? DistanceMatrixService(),
-       _rideTrackingService = rideTrackingService ?? RideTrackingService();
+       _rideTrackingService = rideTrackingService ?? RideTrackingService(),
+       _fareService = fareService ?? const FareService() {
+    if (passengerType != null || isPassengerVerified != null) {
+      final normalizedPassengerType = passengerType?.trim().toLowerCase();
+      passengerFareProfile = PassengerFareProfile(
+        userId: passengerId,
+        passengerType: normalizedPassengerType == 'student'
+            ? 'student'
+            : 'regular',
+        isVerified: isPassengerVerified == true,
+      );
+    }
+  }
 
   final String passengerId;
   final LocationService _locationService;
@@ -39,6 +57,7 @@ class BookingMapController extends ChangeNotifier {
   final GoogleDirectionsService _directionsService;
   final DistanceMatrixService _distanceMatrixService;
   final RideTrackingService _rideTrackingService;
+  final FareService _fareService;
 
   bool isInitializing = true;
   bool isPickupSearching = false;
@@ -53,6 +72,8 @@ class BookingMapController extends ChangeNotifier {
   LatLng? cameraTarget;
   RouteResult? route;
   DistanceMatrixResult? estimate;
+  FareEstimate? fareEstimate;
+  PassengerFareProfile? passengerFareProfile;
   MapMarkerIcons? markerIcons;
   List<PlacePrediction> pickupPredictions = <PlacePrediction>[];
   List<PlacePrediction> dropoffPredictions = <PlacePrediction>[];
@@ -62,6 +83,23 @@ class BookingMapController extends ChangeNotifier {
   bool _isPickupCurrentLocation = false;
 
   bool get isPickupCurrentLocation => _isPickupCurrentLocation;
+  bool get isStudentDiscountEligible =>
+      passengerFareProfile?.isVerifiedStudent ?? false;
+
+  String? get fareNotice {
+    final activeFare = fareEstimate;
+    final profile = passengerFareProfile;
+    if (activeFare?.hasDiscount == true) {
+      final label = activeFare!.discountLabel ?? 'Student discount';
+      return '$label applied. Saved ${activeFare.discountAmountLabel} from ${activeFare.baseAmountLabel}.';
+    }
+
+    if (profile?.isStudent == true && profile?.isVerified != true) {
+      return 'Student discount unlocks after account verification.';
+    }
+
+    return null;
+  }
 
   LatLng get initialCameraTarget =>
       cameraTarget ??
@@ -184,6 +222,7 @@ class BookingMapController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await _loadPassengerFareProfileIfNeeded();
       currentPosition = await _locationService.getCurrentPosition();
       pickupLocation = await _resolveCurrentPositionLocation();
       _isPickupCurrentLocation = true;
@@ -194,6 +233,19 @@ class BookingMapController extends ChangeNotifier {
     } finally {
       isInitializing = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> _loadPassengerFareProfileIfNeeded() async {
+    if (passengerFareProfile != null || passengerId.isEmpty) {
+      return;
+    }
+
+    try {
+      passengerFareProfile = await _rideTrackingService
+          .loadPassengerFareProfile(passengerId);
+    } on Exception {
+      passengerFareProfile = null;
     }
   }
 
@@ -403,18 +455,6 @@ class BookingMapController extends ChangeNotifier {
     }
 
     String address;
-    RideLocation? knownPlace;
-    try {
-      knownPlace = await _placesService.nearestKnownPlace(location);
-    } on Exception {
-      knownPlace = null;
-    }
-
-    if (knownPlace != null) {
-      await _setLocation(target: target, location: knownPlace);
-      return knownPlace;
-    }
-
     try {
       address = await _placesService.reverseGeocode(location);
     } on Exception {
@@ -578,6 +618,7 @@ class BookingMapController extends ChangeNotifier {
     if (pickup == null || dropoff == null) {
       route = null;
       estimate = null;
+      fareEstimate = null;
       notifyListeners();
       return;
     }
@@ -601,31 +642,47 @@ class BookingMapController extends ChangeNotifier {
         estimate = null;
       }
 
+      fareEstimate = _estimateFare(
+        distanceMeters: estimate?.distanceMeters ?? fetchedRoute.distanceMeters,
+      );
       errorMessage = null;
     } on Exception catch (error) {
       if (kIsWeb) {
         route = _buildApproximateRoute(origin: pickup, destination: dropoff);
+        fareEstimate = _estimateFare(distanceMeters: route!.distanceMeters);
         estimate = null;
         errorMessage = null;
       } else {
         route = null;
         estimate = null;
+        fareEstimate = null;
         errorMessage = error.toString();
       }
     } catch (error) {
       if (kIsWeb) {
         route = _buildApproximateRoute(origin: pickup, destination: dropoff);
+        fareEstimate = _estimateFare(distanceMeters: route!.distanceMeters);
         estimate = null;
         errorMessage = null;
       } else {
         route = null;
         estimate = null;
+        fareEstimate = null;
         errorMessage = error.toString();
       }
     } finally {
       isRouteLoading = false;
       notifyListeners();
     }
+  }
+
+  FareEstimate _estimateFare({required int distanceMeters}) {
+    return _fareService.estimateFare(
+      pickupLocation: pickupLocation!,
+      dropoffLocation: dropoffLocation!,
+      distanceMeters: distanceMeters,
+      studentDiscountEligible: isStudentDiscountEligible,
+    );
   }
 
   RouteResult _buildApproximateRoute({
@@ -684,7 +741,10 @@ class BookingMapController extends ChangeNotifier {
     return _rideTrackingService.findPassengerActiveRide(passengerId);
   }
 
-  Future<String?> createBooking({String? preferredDriverId}) async {
+  Future<String?> createBooking({
+    String? preferredDriverId,
+    PassengerPaymentMethod? paymentMethod,
+  }) async {
     final pickup = pickupLocation;
     final dropoff = dropoffLocation;
     final selectedRoute = route;
@@ -713,6 +773,9 @@ class BookingMapController extends ChangeNotifier {
         dropoffLocation: dropoff,
         route: selectedRoute,
         estimate: estimate,
+        fareEstimate: fareEstimate,
+        paymentMethod:
+            paymentMethod ?? PassengerPaymentMethod.cash(userId: passengerId),
         preferredDriverId: preferredDriverId,
       );
       errorMessage = null;

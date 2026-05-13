@@ -150,22 +150,30 @@ Future<String> reverseGeocodeWithGoogleMapsWeb(LatLng location) async {
 Future<RideLocation?> nearestKnownPlaceWithGooglePlacesWeb(
   LatLng location,
 ) async {
+  final places = await nearbyKnownPlacesWithGooglePlacesWeb(location, limit: 1);
+  return places.isEmpty ? null : places.first;
+}
+
+Future<List<RideLocation>> nearbyKnownPlacesWithGooglePlacesWeb(
+  LatLng location, {
+  int limit = 5,
+}) async {
   await ensureGoogleMapsWebSdkLoaded(AppEnvironment.googleServicesApiKey);
 
   final service = js_util.callConstructor<Object>(
     _placesConstructor('PlacesService'),
     <Object>[web.document.createElement('div')],
   );
-  final completer = Completer<RideLocation?>();
+  final completer = Completer<List<RideLocation>>();
   js_util.callMethod<void>(service, 'nearbySearch', <Object?>[
     js_util.jsify(<String, Object?>{
       'location': _latLng(location),
-      'radius': 75,
+      'radius': 250,
     }),
     js.allowInterop((Object? results, Object? status, Object? _) {
       final statusText = _statusText(status);
       if (statusText == 'ZERO_RESULTS') {
-        completer.complete(null);
+        completer.complete(<RideLocation>[]);
         return;
       }
 
@@ -180,7 +188,12 @@ Future<RideLocation?> nearestKnownPlaceWithGooglePlacesWeb(
       }
 
       final resultList = js_util.dartify(results) as List<dynamic>?;
-      completer.complete(_closestPlace(resultList ?? <dynamic>[], location));
+      completer.complete(
+        _placesFromResults(
+          resultList ?? <dynamic>[],
+          location,
+        ).take(limit).toList(),
+      );
     }),
   ]);
 
@@ -214,9 +227,8 @@ PlaceDetails _placeDetailsFromWeb(Object place) {
   );
 }
 
-RideLocation? _closestPlace(List<dynamic> results, LatLng location) {
-  Map<dynamic, dynamic>? closest;
-  double? closestDistance;
+List<RideLocation> _placesFromResults(List<dynamic> results, LatLng location) {
+  final candidates = <_NearbyPlaceCandidate>[];
 
   for (final result in results) {
     if (result is! Map<dynamic, dynamic>) {
@@ -228,6 +240,11 @@ RideLocation? _closestPlace(List<dynamic> results, LatLng location) {
       continue;
     }
 
+    final name = (result['name'] ?? '').toString().trim();
+    if (name.isEmpty) {
+      continue;
+    }
+
     final distance = Geolocator.distanceBetween(
       location.latitude,
       location.longitude,
@@ -235,29 +252,33 @@ RideLocation? _closestPlace(List<dynamic> results, LatLng location) {
       latLng.longitude,
     );
 
-    if (closestDistance == null || distance < closestDistance) {
-      closest = result;
-      closestDistance = distance;
-    }
+    candidates.add(
+      _NearbyPlaceCandidate(
+        distanceMeters: distance,
+        place: RideLocation(
+          address: (result['vicinity'] ?? name).toString().trim(),
+          name: name,
+          placeId: (result['place_id'] ?? '').toString(),
+          latitude: latLng.latitude,
+          longitude: latLng.longitude,
+        ),
+      ),
+    );
   }
 
-  if (closest == null) {
-    return null;
-  }
+  candidates.sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
 
-  final latLng = _mapPlaceLocation(closest);
-  final name = (closest['name'] ?? '').toString().trim();
-  if (latLng == null || name.isEmpty) {
-    return null;
-  }
+  return candidates.map((candidate) => candidate.place).toList();
+}
 
-  return RideLocation(
-    address: (closest['vicinity'] ?? name).toString().trim(),
-    name: name,
-    placeId: (closest['place_id'] ?? '').toString(),
-    latitude: latLng.latitude,
-    longitude: latLng.longitude,
-  );
+class _NearbyPlaceCandidate {
+  final double distanceMeters;
+  final RideLocation place;
+
+  const _NearbyPlaceCandidate({
+    required this.distanceMeters,
+    required this.place,
+  });
 }
 
 LatLng? _mapPlaceLocation(Map<dynamic, dynamic> place) {

@@ -20,12 +20,6 @@ class PassengerQuickDestinationsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        PassengerSectionHeader(
-          title: 'Quick Destinations',
-          actionLabel: 'See all',
-          onActionTap: onSeeAllTap,
-        ),
-        SizedBox(height: 12),
         if (destinations.isEmpty)
           InkWell(
             borderRadius: PassengerUi.cardRadius,

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_assets.dart';
 import '../core/session/session_service.dart';
-import 'firebase_storage_image.dart';
 import 'passenger_widgets/passenger_ui.dart';
 
 class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
@@ -316,11 +316,10 @@ class _ProfileAvatarMenu extends StatelessWidget {
               radius: compact ? 16 : 18,
               backgroundColor: PassengerUi.primary.withValues(alpha: 0.10),
               child: ClipOval(
-                child: FirebaseStorageImage(
+                child: _StableProfileAvatarImage(
                   imageUrl: profileImageUrl,
                   width: compact ? 32 : 36,
                   height: compact ? 32 : 36,
-                  fit: BoxFit.cover,
                   fallback: _AvatarFallback(initial: initial),
                 ),
               ),
@@ -348,6 +347,112 @@ class _ProfileAvatarMenu extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _StableProfileAvatarImage extends StatefulWidget {
+  final String? imageUrl;
+  final double width;
+  final double height;
+  final Widget fallback;
+
+  const _StableProfileAvatarImage({
+    required this.imageUrl,
+    required this.width,
+    required this.height,
+    required this.fallback,
+  });
+
+  @override
+  State<_StableProfileAvatarImage> createState() =>
+      _StableProfileAvatarImageState();
+}
+
+class _StableProfileAvatarImageState extends State<_StableProfileAvatarImage> {
+  String? _source;
+  Future<String>? _downloadUrlFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateSource();
+  }
+
+  @override
+  void didUpdateWidget(covariant _StableProfileAvatarImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.imageUrl != widget.imageUrl) {
+      _updateSource();
+    }
+  }
+
+  void _updateSource() {
+    final nextSource = widget.imageUrl?.trim();
+    if (nextSource == null || nextSource.isEmpty || nextSource == 'null') {
+      _source = null;
+      _downloadUrlFuture = null;
+      return;
+    }
+
+    _source = nextSource;
+    _downloadUrlFuture = _downloadUrlFor(nextSource);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final source = _source;
+    final downloadUrlFuture = _downloadUrlFuture;
+
+    if (source == null || downloadUrlFuture == null) {
+      return widget.fallback;
+    }
+
+    return FutureBuilder<String>(
+      future: downloadUrlFuture,
+      builder: (context, snapshot) {
+        final resolvedUrl = snapshot.data;
+        if (resolvedUrl == null || resolvedUrl.isEmpty || snapshot.hasError) {
+          return widget.fallback;
+        }
+
+        return Image.network(
+          resolvedUrl,
+          width: widget.width,
+          height: widget.height,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+          errorBuilder: (context, error, stackTrace) => widget.fallback,
+        );
+      },
+    );
+  }
+
+  static Future<String> _downloadUrlFor(String source) async {
+    if (_isNetworkUrl(source)) {
+      return source;
+    }
+
+    if (source.startsWith('gs://')) {
+      return FirebaseStorage.instance.refFromURL(source).getDownloadURL();
+    }
+
+    if (_isLikelyStoragePath(source)) {
+      return FirebaseStorage.instance.ref(source).getDownloadURL();
+    }
+
+    return source;
+  }
+
+  static bool _isNetworkUrl(String value) {
+    return value.startsWith('http://') ||
+        value.startsWith('https://') ||
+        value.startsWith('data:');
+  }
+
+  static bool _isLikelyStoragePath(String value) {
+    return !value.startsWith('gs://') && !_isNetworkUrl(value);
   }
 }
 

@@ -2,6 +2,10 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 
 class FirebaseStorageImage extends StatelessWidget {
+  static final Map<String, String> _resolvedUrlCache = <String, String>{};
+  static final Map<String, Future<String>> _downloadFutureCache =
+      <String, Future<String>>{};
+
   final String? imageUrl;
   final double? width;
   final double? height;
@@ -24,8 +28,13 @@ class FirebaseStorageImage extends StatelessWidget {
       return fallback;
     }
 
+    final cachedUrl = _resolvedUrlCache[source];
+    if (cachedUrl != null && cachedUrl.isNotEmpty) {
+      return _networkImage(cachedUrl);
+    }
+
     return FutureBuilder<String>(
-      future: _downloadUrlFor(source),
+      future: _cachedDownloadUrlFor(source),
       builder: (context, snapshot) {
         final resolvedUrl = snapshot.data;
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -36,16 +45,34 @@ class FirebaseStorageImage extends StatelessWidget {
           return fallback;
         }
 
-        return Image.network(
-          resolvedUrl,
-          width: width,
-          height: height,
-          fit: fit,
-          webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
-          errorBuilder: (context, error, stackTrace) => fallback,
-        );
+        return _networkImage(resolvedUrl);
       },
     );
+  }
+
+  Widget _networkImage(String resolvedUrl) {
+    return Image.network(
+      resolvedUrl,
+      width: width,
+      height: height,
+      fit: fit,
+      gaplessPlayback: true,
+      webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+      errorBuilder: (context, error, stackTrace) => fallback,
+    );
+  }
+
+  static Future<String> _cachedDownloadUrlFor(String source) {
+    final cachedUrl = _resolvedUrlCache[source];
+    if (cachedUrl != null) {
+      return Future<String>.value(cachedUrl);
+    }
+
+    return _downloadFutureCache.putIfAbsent(source, () async {
+      final resolvedUrl = await _downloadUrlFor(source);
+      _resolvedUrlCache[source] = resolvedUrl;
+      return resolvedUrl;
+    });
   }
 
   static Future<String> _downloadUrlFor(String source) async {

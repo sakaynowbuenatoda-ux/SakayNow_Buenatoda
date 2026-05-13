@@ -1,0 +1,244 @@
+import 'dart:math' as math;
+
+import '../config/map_config.dart';
+import '../models/fare_estimate.dart';
+import '../models/ride_location.dart';
+
+class FareService {
+  const FareService();
+
+  static const int oneBarangayFare = 20;
+  static const int buenavistaFiveBarangayFare = 30;
+  static const int outsideBuenavistaMinFare = 30;
+  static const int outsideBuenavistaMaxFare = 100;
+  static const double barangayHopDistanceMeters = 1700;
+
+  static const List<String> buenavistaBarangays = <String>[
+    'Anonang',
+    'Asinan',
+    'Bago',
+    'Baluarte',
+    'Bantuan',
+    'Bato',
+    'Bonotbonot',
+    'Bugaong',
+    'Cambuhat',
+    'Cambus-oc',
+    'Cangawa',
+    'Cantomugcad',
+    'Cantores',
+    'Cantuba',
+    'Catigbian',
+    'Cawag',
+    'Cruz',
+    'Dait',
+    'Eastern Cabul-an',
+    'Hunan',
+    'Lapacan Norte',
+    'Lapacan Sur',
+    'Lubang',
+    'Lusong',
+    'Magkaya',
+    'Merryland',
+    'Nueva Granada',
+    'Nueva Montana',
+    'Overland',
+    'Panghagban',
+    'Poblacion',
+    'Puting Bato',
+    'Rufo Hill',
+    'Sweetland',
+    'Western Cabul-an',
+  ];
+
+  FareEstimate estimateFare({
+    required RideLocation pickupLocation,
+    required RideLocation dropoffLocation,
+    required int distanceMeters,
+    bool studentDiscountEligible = false,
+  }) {
+    final normalizedDistance = distanceMeters < 0 ? 0 : distanceMeters;
+    final pickupBarangay = detectBuenavistaBarangay(pickupLocation);
+    final dropoffBarangay = detectBuenavistaBarangay(dropoffLocation);
+    final outsideBuenavista =
+        !_isBuenavistaLocation(pickupLocation, pickupBarangay) ||
+        !_isBuenavistaLocation(dropoffLocation, dropoffBarangay);
+    final hopEstimate = _estimateBarangayHops(
+      distanceMeters: normalizedDistance,
+      pickupBarangay: pickupBarangay,
+      dropoffBarangay: dropoffBarangay,
+      outsideBuenavista: outsideBuenavista,
+    );
+
+    if (!outsideBuenavista && hopEstimate <= 1) {
+      return _applyDiscounts(
+        FareEstimate(
+          amount: oneBarangayFare,
+          ruleCode: 'buenavista_one_barangay',
+          ruleLabel: 'Buenavista 1 barangay',
+          distanceMeters: normalizedDistance,
+          barangayHopEstimate: hopEstimate,
+          isOutsideBuenavista: false,
+          pickupBarangay: pickupBarangay,
+          dropoffBarangay: dropoffBarangay,
+        ),
+        studentDiscountEligible: studentDiscountEligible,
+      );
+    }
+
+    if (!outsideBuenavista && hopEstimate <= 5) {
+      return _applyDiscounts(
+        FareEstimate(
+          amount: buenavistaFiveBarangayFare,
+          ruleCode: 'buenavista_up_to_five_barangays',
+          ruleLabel: 'Buenavista up to 5 barangays',
+          distanceMeters: normalizedDistance,
+          barangayHopEstimate: hopEstimate,
+          isOutsideBuenavista: false,
+          pickupBarangay: pickupBarangay,
+          dropoffBarangay: dropoffBarangay,
+        ),
+        studentDiscountEligible: studentDiscountEligible,
+      );
+    }
+
+    return _applyDiscounts(
+      FareEstimate(
+        amount: _distanceFare(normalizedDistance),
+        ruleCode: outsideBuenavista
+            ? 'outside_buenavista_distance'
+            : 'buenavista_extended_distance',
+        ruleLabel: outsideBuenavista
+            ? 'Outside Buenavista distance fare'
+            : 'Buenavista extended distance fare',
+        distanceMeters: normalizedDistance,
+        barangayHopEstimate: hopEstimate,
+        isOutsideBuenavista: outsideBuenavista,
+        pickupBarangay: pickupBarangay,
+        dropoffBarangay: dropoffBarangay,
+      ),
+      studentDiscountEligible: studentDiscountEligible,
+    );
+  }
+
+  FareEstimate _applyDiscounts(
+    FareEstimate estimate, {
+    required bool studentDiscountEligible,
+  }) {
+    return estimate.applyStudentDiscount(isEligible: studentDiscountEligible);
+  }
+
+  String? detectBuenavistaBarangay(RideLocation location) {
+    final searchable = <String>[
+      location.name ?? '',
+      location.address,
+      location.displayLabel,
+    ].join(' ').toLowerCase();
+
+    for (final barangay in buenavistaBarangays) {
+      if (searchable.contains(_normalize(barangay))) {
+        return barangay;
+      }
+    }
+
+    return null;
+  }
+
+  bool _isBuenavistaLocation(RideLocation location, String? barangay) {
+    if (barangay != null) {
+      return true;
+    }
+
+    final label = '${location.name ?? ''} ${location.address}'.toLowerCase();
+    if (label.contains('buenavista')) {
+      return true;
+    }
+
+    final coordinates = location.latLng;
+    if (coordinates == null) {
+      return false;
+    }
+
+    return MapConfig.supportedServiceAreas
+        .where((area) => area.name.toLowerCase() == 'buenavista')
+        .any(
+          (area) =>
+              _distanceBetweenMeters(
+                coordinates.latitude,
+                coordinates.longitude,
+                area.center.latitude,
+                area.center.longitude,
+              ) <=
+              area.searchRadiusMeters,
+        );
+  }
+
+  int _estimateBarangayHops({
+    required int distanceMeters,
+    required String? pickupBarangay,
+    required String? dropoffBarangay,
+    required bool outsideBuenavista,
+  }) {
+    if (!outsideBuenavista &&
+        pickupBarangay != null &&
+        pickupBarangay == dropoffBarangay) {
+      return 1;
+    }
+
+    if (distanceMeters <= 2500) {
+      return 1;
+    }
+
+    return (distanceMeters / barangayHopDistanceMeters).ceil().clamp(1, 99);
+  }
+
+  int _distanceFare(int distanceMeters) {
+    if (distanceMeters <= 6000) {
+      return outsideBuenavistaMinFare;
+    }
+
+    if (distanceMeters <= 9000) {
+      return 40;
+    }
+
+    if (distanceMeters <= 12000) {
+      return 60;
+    }
+
+    if (distanceMeters <= 16000) {
+      return 80;
+    }
+
+    return outsideBuenavistaMaxFare;
+  }
+
+  String _normalize(String value) {
+    return value.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  double _distanceBetweenMeters(
+    double startLatitude,
+    double startLongitude,
+    double endLatitude,
+    double endLongitude,
+  ) {
+    const earthRadiusMeters = 6371000.0;
+    final startLat = _degreesToRadians(startLatitude);
+    final endLat = _degreesToRadians(endLatitude);
+    final latitudeDelta = _degreesToRadians(endLatitude - startLatitude);
+    final longitudeDelta = _degreesToRadians(endLongitude - startLongitude);
+    final haversine =
+        math.sin(latitudeDelta / 2) * math.sin(latitudeDelta / 2) +
+        math.cos(startLat) *
+            math.cos(endLat) *
+            math.sin(longitudeDelta / 2) *
+            math.sin(longitudeDelta / 2);
+    final centralAngle =
+        2 * math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine));
+    return earthRadiusMeters * centralAngle;
+  }
+
+  double _degreesToRadians(double degrees) {
+    return degrees * math.pi / 180;
+  }
+}

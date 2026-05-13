@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../config/map_config.dart';
+import '../../controllers/booking_map_controller.dart';
 import '../../controllers/quick_destinations_controller.dart';
 import '../../controllers/ride_tracking_controller.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../models/ride_location.dart';
+import '../../services/geofencing_service.dart';
 import '../../services/google_places_service.dart';
 import '../../services/location_service.dart';
 import '../../services/ride_tracking_service.dart';
@@ -18,6 +20,7 @@ import '../../widgets/passenger_widgets/passenger_quick_destinations_section.dar
 import '../../widgets/passenger_widgets/passenger_recent_trips_section.dart';
 import '../../widgets/passenger_widgets/ride_status_strip.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../messages/ride_chat_navigation.dart';
 import '../rides/ride_monitoring_page.dart';
 import 'passenger_data.dart';
 import 'passenger_book_ride_page.dart';
@@ -45,6 +48,8 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
   late final QuickDestinationsController _quickDestinationsController;
   final GooglePlacesService _placesService = GooglePlacesService();
   final LocationService _locationService = const LocationService();
+  final RideTrackingService _rideTrackingService = RideTrackingService();
+  final GeofencingService _geofencingService = const GeofencingService();
 
   @override
   void initState() {
@@ -67,7 +72,7 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           PassengerPageHeader(
-            title: 'Welcome back, ${widget.firstName}',
+            title: 'Welcome, ${widget.firstName}',
             subtitle:
                 'Book faster with saved places, fair fares, and verified drivers.',
             icon: Icons.waving_hand_rounded,
@@ -85,6 +90,11 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
                 return PassengerBookingHeroCard(
                   actionLabel: 'Continue Monitoring',
                   actionIcon: Icons.near_me_rounded,
+                  onSecondaryAction: ride.hasDriver && !ride.status.isTerminal
+                      ? () => _openRideChat(ride)
+                      : null,
+                  secondaryActionLabel: 'Message',
+                  secondaryActionIcon: Icons.chat_bubble_rounded,
                   content: _RideMonitoringPreview(ride: ride),
                   onTap: () => Navigator.push(
                     context,
@@ -104,23 +114,40 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        PassengerBookRidePage(passengerId: widget.userId),
+                    builder: (_) => PassengerBookRidePage(
+                      passengerId: widget.userId,
+                      passengerType: widget.passengerType,
+                      isVerified: widget.isVerified,
+                    ),
                   ),
                 ),
               );
             },
           ),
           SizedBox(height: 24),
-          AnimatedBuilder(
-            animation: _quickDestinationsController,
-            builder: (context, _) {
-              return PassengerQuickDestinationsSection(
-                destinations: _quickDestinationsController.destinations,
-                onSeeAllTap: _openQuickDestinationsPage,
-                onDestinationTap: _handleQuickDestinationTap,
-              );
-            },
+          PassengerSurfaceCard(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                PassengerSectionHeader(
+                  title: 'One-tap booking',
+                  actionLabel: 'See all',
+                  onActionTap: _openQuickDestinationsPage,
+                ),
+                SizedBox(height: 12),
+                AnimatedBuilder(
+                  animation: _quickDestinationsController,
+                  builder: (context, _) {
+                    return PassengerQuickDestinationsSection(
+                      destinations: _quickDestinationsController.destinations,
+                      onSeeAllTap: _openQuickDestinationsPage,
+                      onDestinationTap: _handleQuickDestinationTap,
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
           SizedBox(height: 24),
           PassengerRecentTripsSection(
@@ -131,6 +158,8 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
               'Open the History tab to see all trips.',
             ),
           ),
+          SizedBox(height: 24),
+          const _PassengerInformationKeySection(),
         ],
       ),
     );
@@ -142,35 +171,167 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _openRideChat(Ride ride) {
+    return openRideChat(
+      context: context,
+      ride: ride,
+      currentUserId: widget.userId,
+      currentUserRole: 'passenger',
+    );
+  }
+
   Future<void> _handleQuickDestinationTap(
     PassengerQuickDestination destination,
   ) async {
     if (!destination.hasCoordinates) {
-      await _setQuickDestinationLocation(destination);
+      final savedDestination = await _setQuickDestinationLocation(destination);
+      if (savedDestination != null) {
+        await _requestOneTapRide(savedDestination);
+      }
       return;
     }
 
+    await _requestOneTapRide(destination);
+  }
+
+  Future<void> _requestOneTapRide(PassengerQuickDestination destination) async {
     if (!mounted) {
       return;
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PassengerBookRidePage(
-          passengerId: widget.userId,
-          initialDropoffDestination: destination,
-        ),
-      ),
+    var dialogShown = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withValues(alpha: 0.18),
+      builder: (_) => const _OneTapBookingProcessingDialog(),
     );
+
+    try {
+      final bookingId = await _createOneTapBooking(destination);
+      if (!mounted) {
+        return;
+      }
+
+      if (dialogShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogShown = false;
+      }
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RideMonitoringPage(
+            bookingId: bookingId,
+            userId: widget.userId,
+            viewerRole: RideViewerRole.passenger,
+          ),
+        ),
+      );
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      if (dialogShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogShown = false;
+      }
+
+      _showSnackBar(context, 'Unable to book destination: $error');
+    }
   }
 
-  Future<void> _setQuickDestinationLocation(
+  Future<String> _createOneTapBooking(
+    PassengerQuickDestination destination,
+  ) async {
+    final bookingController = BookingMapController(
+      passengerId: widget.userId,
+      passengerType: widget.passengerType,
+      isPassengerVerified: widget.isVerified,
+    );
+
+    try {
+      await bookingController.initialize();
+      final pickup = bookingController.pickupLocation?.latLng;
+      if (pickup == null) {
+        throw StateError('Current location is required for one-tap booking.');
+      }
+
+      await bookingController.selectKnownLocation(
+        target: BookingLocationTarget.dropoff,
+        label: destination.label,
+        address: destination.address ?? destination.label,
+        latitude: destination.latitude,
+        longitude: destination.longitude,
+      );
+
+      final preferredDriver = await _bestDriverForPickup(pickup);
+      final bookingId = await bookingController.createBooking(
+        preferredDriverId: preferredDriver?.driverId,
+      );
+
+      if (bookingId == null) {
+        throw StateError(
+          bookingController.errorMessage ?? 'Unable to create booking.',
+        );
+      }
+
+      return bookingId;
+    } finally {
+      bookingController.dispose();
+    }
+  }
+
+  Future<AvailableDriver?> _bestDriverForPickup(LatLng pickup) async {
+    final drivers = await _rideTrackingService
+        .watchAvailableDrivers()
+        .first
+        .timeout(
+          const Duration(seconds: 6),
+          onTimeout: () => <AvailableDriver>[],
+        );
+
+    final eligibleDrivers = drivers
+        .where(
+          (driver) => _geofencingService.isDriverInsideBookingGeofence(
+            driverLocation: driver.location.latLng,
+            pickupLocation: pickup,
+          ),
+        )
+        .toList();
+
+    if (eligibleDrivers.isEmpty) {
+      return null;
+    }
+
+    eligibleDrivers.sort((a, b) {
+      final aScore = _driverMatchScore(a, pickup);
+      final bScore = _driverMatchScore(b, pickup);
+      return bScore.compareTo(aScore);
+    });
+
+    return eligibleDrivers.first;
+  }
+
+  double _driverMatchScore(AvailableDriver driver, LatLng pickup) {
+    final distance = _geofencingService.distanceBetweenMeters(
+      driver.location.latLng,
+      pickup,
+    );
+    final ratingScore = (driver.rating.clamp(0, 5) / 5) * 0.65;
+    final distanceScore =
+        (1 - (distance / MapConfig.bookingGeofenceRadiusMeters).clamp(0, 1)) *
+        0.35;
+
+    return ratingScore + distanceScore;
+  }
+
+  Future<PassengerQuickDestination?> _setQuickDestinationLocation(
     PassengerQuickDestination destination,
   ) async {
     final pickerTarget = await _quickDestinationPickerTarget(destination);
     if (!mounted) {
-      return;
+      return null;
     }
 
     final selected = await showModalBottomSheet<LocationPinPickResult>(
@@ -187,17 +348,24 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
     );
 
     if (selected == null) {
-      return;
+      return null;
     }
 
     final location = await _locationFromPin(selected);
-    await _quickDestinationsController.upsert(
-      destination.copyWith(
-        address: _locationDisplayText(location),
-        latitude: location.latitude,
-        longitude: location.longitude,
-      ),
+    final savedDestination = destination.copyWith(
+      address: _locationDisplayText(location),
+      latitude: location.latitude,
+      longitude: location.longitude,
     );
+    try {
+      await _quickDestinationsController.upsert(savedDestination);
+      return savedDestination;
+    } on Exception catch (error) {
+      if (mounted) {
+        _showSnackBar(context, 'Unable to save destination: $error');
+      }
+      return null;
+    }
   }
 
   Future<RideLocation> _locationFromPin(LocationPinPickResult selected) async {
@@ -208,13 +376,10 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
 
     final location = selected.location;
     try {
-      final knownPlace = await _placesService.nearestKnownPlace(location);
-      if (knownPlace != null) {
-        return knownPlace;
-      }
       final address = await _placesService.reverseGeocode(location);
       return RideLocation(
         address: address,
+        name: 'Pinned location',
         latitude: location.latitude,
         longitude: location.longitude,
       );
@@ -222,6 +387,7 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
       return RideLocation(
         address:
             '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}',
+        name: 'Pinned location',
         latitude: location.latitude,
         longitude: location.longitude,
       );
@@ -268,6 +434,118 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
   }
 }
 
+class _PassengerInformationKeySection extends StatelessWidget {
+  const _PassengerInformationKeySection();
+
+  static const List<_InformationKeyItem> _items = <_InformationKeyItem>[
+    _InformationKeyItem(
+      icon: Icons.receipt_long_rounded,
+      title: 'Local LGU fare guide',
+      description:
+          'Base fare starts at PHP 20, up to 5 barangays is PHP 30, and extended routes are PHP 30-100.',
+    ),
+    _InformationKeyItem(
+      icon: Icons.payments_rounded,
+      title: 'Approved payment methods',
+      description:
+          'Cash, GCash, Maya, and PayMongo checkout are supported when available.',
+    ),
+    _InformationKeyItem(
+      icon: Icons.school_rounded,
+      title: 'Student discount',
+      description: 'Verified students always receive 15% off eligible rides.',
+    ),
+    _InformationKeyItem(
+      icon: Icons.local_offer_rounded,
+      title: 'Current discounts',
+      description:
+          'Active promos and special discounts are applied before checkout.',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return PassengerSurfaceCard(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Information Key',
+            style: PassengerUi.sectionTitle.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Helpful fare, payment, and discount details before you ride.',
+            style: PassengerUi.bodyText,
+          ),
+          SizedBox(height: 14),
+          ..._items.asMap().entries.map(
+            (MapEntry<int, _InformationKeyItem> entry) => Padding(
+              padding: EdgeInsets.only(
+                bottom: entry.key == _items.length - 1 ? 0 : 12,
+              ),
+              child: _InformationKeyTile(item: entry.value),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InformationKeyItem {
+  final IconData icon;
+  final String title;
+  final String description;
+
+  const _InformationKeyItem({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+}
+
+class _InformationKeyTile extends StatelessWidget {
+  final _InformationKeyItem item;
+
+  const _InformationKeyTile({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: PassengerUi.blueSoft,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(item.icon, color: PassengerUi.accentBlue, size: 20),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                item.title,
+                style: PassengerUi.cardTitle.copyWith(fontSize: 14),
+              ),
+              SizedBox(height: 2),
+              Text(item.description, style: PassengerUi.bodyText),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _PickerTarget {
   final LatLng location;
   final bool usesCurrentLocation;
@@ -276,6 +554,50 @@ class _PickerTarget {
     required this.location,
     required this.usesCurrentLocation,
   });
+}
+
+class _OneTapBookingProcessingDialog extends StatelessWidget {
+  const _OneTapBookingProcessingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: PassengerUi.surface.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: PassengerUi.border),
+            boxShadow: PassengerUi.cardShadow,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(
+                  'Finding a driver',
+                  style: PassengerUi.sectionTitle.copyWith(fontSize: 18),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Preparing your ride request...',
+                  style: PassengerUi.bodyText,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _LiveBookingMapPreview extends StatefulWidget {

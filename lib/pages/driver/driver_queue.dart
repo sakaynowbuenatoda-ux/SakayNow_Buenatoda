@@ -32,7 +32,7 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           PassengerPageHeader(
-            title: 'Booking Queue',
+            title: 'Queue',
             subtitle:
                 'Accept nearby passenger requests and monitor live ride progress.',
             icon: Icons.list_alt_rounded,

@@ -71,7 +71,7 @@ class ProfileViewData {
     );
 
     return ProfileViewData(
-      userId: (data['user_id'] ?? fallbackUserId).toString(),
+      userId: fallbackUserId,
       firstName: (data['first_name'] ?? '').toString().trim(),
       lastName: (data['last_name'] ?? '').toString().trim(),
       email: (data['email'] ?? 'No email provided').toString(),
@@ -130,6 +130,8 @@ class ProfileViewData {
   }
 
   bool get isAdmin => role == 'admin';
+  bool get isDriver => role == 'driver';
+  bool get isPassenger => role == 'passenger';
   bool get showVerifiedBadge => !isAdmin && isVerified;
 
   String get initials {

@@ -192,6 +192,7 @@ class AdminBookingRecord {
   final String status;
   final DateTime? timestamp;
   final String? paymentMethod;
+  final String? paymentStatus;
   final String? fareLabel;
 
   AdminBookingRecord({
@@ -203,6 +204,7 @@ class AdminBookingRecord {
     required this.status,
     required this.timestamp,
     required this.paymentMethod,
+    required this.paymentStatus,
     required this.fareLabel,
   });
 
@@ -220,8 +222,11 @@ class AdminBookingRecord {
       status: (data['status'] ?? 'pending').toString().trim().toLowerCase(),
       timestamp: AdminUserRecord._readDate(data['timestamp']),
       paymentMethod: _readNullableString(
-        data['payment_method'] ?? data['paymentMethod'],
+        data['payment_method_label'] ??
+            data['payment_method'] ??
+            data['paymentMethod'],
       ),
+      paymentStatus: _readNullableString(data['payment_status']),
       fareLabel: _readFare(data),
     );
   }

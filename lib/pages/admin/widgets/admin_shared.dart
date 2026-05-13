@@ -524,6 +524,10 @@ class AdminBookingCard extends StatelessWidget {
             label: 'Payment',
             value: booking.paymentMethod ?? 'Not set yet',
           ),
+          _DetailRow(
+            label: 'Payment status',
+            value: booking.paymentStatus ?? 'Pending',
+          ),
           _DetailRow(label: 'Fare', value: booking.fareLabel ?? 'Pending'),
           _DetailTimeRow(label: 'Time', value: booking.timestamp),
         ],

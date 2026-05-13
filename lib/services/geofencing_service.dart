@@ -34,6 +34,17 @@ class GeofencingService {
     );
   }
 
+  bool isDriverInsideBookingGeofence({
+    required LatLng driverLocation,
+    required LatLng pickupLocation,
+  }) {
+    return isWithinRadius(
+      origin: driverLocation,
+      target: pickupLocation,
+      radiusMeters: MapConfig.bookingGeofenceRadiusMeters,
+    );
+  }
+
   bool isDriverNearDestination({
     required LatLng driverLocation,
     required LatLng destination,

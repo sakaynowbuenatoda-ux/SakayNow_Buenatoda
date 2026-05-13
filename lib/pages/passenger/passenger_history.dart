@@ -22,7 +22,7 @@ class PassengerHistory extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           PassengerPageHeader(
-            title: 'Trip History',
+            title: 'History',
             subtitle:
                 'Review completed rides, routes, fares, and ride records.',
             icon: Icons.history_rounded,

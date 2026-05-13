@@ -1,0 +1,813 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../../models/chat_conversation.dart';
+import '../../models/chat_message.dart';
+import '../../models/chat_participant_profile.dart';
+import '../../services/chat_service.dart';
+import '../../widgets/firebase_storage_image.dart';
+import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../../widgets/time_ago_text.dart';
+
+class ChatPage extends StatefulWidget {
+  final String conversationId;
+  final String currentUserId;
+  final String currentUserRole;
+  final String title;
+  final String subtitle;
+
+  const ChatPage({
+    super.key,
+    required this.conversationId,
+    required this.currentUserId,
+    required this.currentUserRole,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  State<ChatPage> createState() => _ChatPageState();
+}
+
+class _ChatPageState extends State<ChatPage> {
+  final ChatService _chatService = ChatService();
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, Future<ChatParticipantProfile?>> _profileFutures =
+      <String, Future<ChatParticipantProfile?>>{};
+  final Map<String, ChatParticipantProfile> _profileCache =
+      <String, ChatParticipantProfile>{};
+  bool _isSending = false;
+  bool _isMarkingRead = false;
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _messageController.addListener(_handleMessageTextChanged);
+    unawaited(_markConversationRead());
+  }
+
+  @override
+  void dispose() {
+    _messageController.removeListener(_handleMessageTextChanged);
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<ChatConversation?>(
+      stream: _chatService.watchConversation(widget.conversationId),
+      builder: (context, conversationSnapshot) {
+        final conversation = conversationSnapshot.data;
+        final targetWithoutProfile = _targetFor(conversation, null);
+        final cachedProfile = _cachedProfileFor(targetWithoutProfile.userId);
+
+        if (cachedProfile != null) {
+          return _buildChatScaffold(
+            conversation: conversation,
+            target: _targetFor(conversation, cachedProfile),
+          );
+        }
+
+        return FutureBuilder<ChatParticipantProfile?>(
+          future: _profileFutureFor(targetWithoutProfile.userId),
+          builder: (context, profileSnapshot) {
+            final target = _targetFor(conversation, profileSnapshot.data);
+
+            return _buildChatScaffold(
+              conversation: conversation,
+              target: target,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildChatScaffold({
+    required ChatConversation? conversation,
+    required _ChatTarget target,
+  }) {
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      backgroundColor: PassengerUi.background,
+      appBar: AppBar(
+        backgroundColor: PassengerUi.background,
+        surfaceTintColor: PassengerUi.background,
+        titleSpacing: 0,
+        title: _ChatHeader(target: target),
+      ),
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: Column(
+          children: <Widget>[
+            Expanded(
+              child: _MessageList(
+                chatService: _chatService,
+                conversationId: widget.conversationId,
+                currentUserId: widget.currentUserId,
+                conversation: conversation,
+                target: target,
+                scrollController: _scrollController,
+                onMessagesRendered: () {
+                  _scrollToBottom();
+                  unawaited(_markConversationRead());
+                },
+              ),
+            ),
+            _MessageComposer(
+              controller: _messageController,
+              isSending: _isSending,
+              canSend: _hasText && !_isSending,
+              onSend: _sendMessage,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<ChatParticipantProfile?> _profileFutureFor(String? userId) {
+    if (userId == null || userId.trim().isEmpty) {
+      return Future<ChatParticipantProfile?>.value(null);
+    }
+
+    return _profileFutures.putIfAbsent(userId, () async {
+      final profile = await _chatService.loadParticipantProfile(userId);
+      if (profile != null) {
+        _profileCache[userId] = profile;
+      }
+      return profile;
+    });
+  }
+
+  ChatParticipantProfile? _cachedProfileFor(String? userId) {
+    if (userId == null || userId.trim().isEmpty) {
+      return null;
+    }
+
+    return _profileCache[userId];
+  }
+
+  _ChatTarget _targetFor(
+    ChatConversation? conversation,
+    ChatParticipantProfile? profile,
+  ) {
+    final fallbackTitle = widget.title.trim().isEmpty
+        ? 'Conversation'
+        : widget.title.trim();
+    final fallbackSubtitle = widget.subtitle.trim();
+
+    if (conversation == null) {
+      return _ChatTarget(
+        userId: profile?.userId,
+        name: profile?.displayName ?? fallbackTitle,
+        subtitle: fallbackSubtitle,
+        profileImageUrl: profile?.profileImageUrl,
+        isSupport: fallbackTitle.toLowerCase().contains('support'),
+      );
+    }
+
+    if (conversation.isSupport && widget.currentUserRole != 'admin') {
+      return _ChatTarget(
+        userId: null,
+        name: 'SakayNow Support',
+        subtitle: 'Admin',
+        profileImageUrl: null,
+        isSupport: true,
+      );
+    }
+
+    final targetUserId = conversation.isSupport
+        ? conversation.supportUserId ??
+              conversation.otherParticipantId(widget.currentUserId)
+        : conversation.otherParticipantId(widget.currentUserId);
+    final conversationName = conversation.titleFor(
+      currentUserId: widget.currentUserId,
+      currentUserRole: widget.currentUserRole,
+    );
+    final conversationRole = conversation.tagFor(
+      currentUserId: widget.currentUserId,
+      currentUserRole: widget.currentUserRole,
+    );
+
+    return _ChatTarget(
+      userId: targetUserId,
+      name: profile?.displayName ?? conversationName,
+      subtitle: _roleLabel(profile?.role) ?? conversationRole,
+      profileImageUrl: profile?.profileImageUrl,
+      isSupport: conversation.isSupport,
+    );
+  }
+
+  void _handleMessageTextChanged() {
+    final nextHasText = _messageController.text.trim().isNotEmpty;
+    if (nextHasText == _hasText) {
+      return;
+    }
+
+    setState(() => _hasText = nextHasText);
+  }
+
+  Future<void> _sendMessage() async {
+    final message = _messageController.text.trim();
+    if (message.isEmpty || _isSending) {
+      return;
+    }
+
+    if (message.length > ChatService.maxMessageLength) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message is too long.')));
+      return;
+    }
+
+    setState(() => _isSending = true);
+    try {
+      await _chatService.sendMessage(
+        conversationId: widget.conversationId,
+        senderId: widget.currentUserId,
+        senderRole: widget.currentUserRole,
+        text: message,
+      );
+      _messageController.clear();
+      _scrollToBottom();
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Message failed: $error')));
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
+    }
+  }
+
+  Future<void> _markConversationRead() async {
+    if (_isMarkingRead) {
+      return;
+    }
+
+    _isMarkingRead = true;
+    try {
+      await _chatService.markConversationRead(
+        conversationId: widget.conversationId,
+        userId: widget.currentUserId,
+        userRole: widget.currentUserRole,
+      );
+    } on Exception {
+      // The inbox stream will keep unread counts accurate when marking fails.
+    } finally {
+      _isMarkingRead = false;
+    }
+  }
+
+  void _scrollToBottom() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  static String? _roleLabel(String? role) {
+    return switch (role?.trim().toLowerCase()) {
+      'driver' => 'Driver',
+      'admin' => 'Admin',
+      'passenger' || 'regular' || 'student' => 'Passenger',
+      _ => null,
+    };
+  }
+}
+
+class _MessageList extends StatelessWidget {
+  final ChatService chatService;
+  final String conversationId;
+  final String currentUserId;
+  final ChatConversation? conversation;
+  final _ChatTarget target;
+  final ScrollController scrollController;
+  final VoidCallback onMessagesRendered;
+
+  const _MessageList({
+    required this.chatService,
+    required this.conversationId,
+    required this.currentUserId,
+    required this.conversation,
+    required this.target,
+    required this.scrollController,
+    required this.onMessagesRendered,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<ChatMessage>>(
+      stream: chatService.watchMessages(conversationId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: PassengerEmptyState(
+              icon: Icons.error_outline_rounded,
+              title: 'Conversation unavailable',
+              description: snapshot.error.toString(),
+            ),
+          );
+        }
+
+        final messages = snapshot.data ?? <ChatMessage>[];
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          onMessagesRendered();
+        });
+
+        if (messages.isEmpty) {
+          return _EmptyConversation(target: target);
+        }
+
+        return ListView.builder(
+          controller: scrollController,
+          padding: EdgeInsets.fromLTRB(
+            16,
+            12,
+            16,
+            PassengerUi.isCompactWidth(context) ? 12 : 18,
+          ),
+          itemCount: messages.length,
+          itemBuilder: (context, index) {
+            final message = messages[index];
+            final isMine = message.isMine(currentUserId);
+            return _MessageBubble(
+              message: message,
+              isMine: isMine,
+              target: target,
+              status: isMine
+                  ? _messageStatus(
+                      message: message,
+                      currentUserId: currentUserId,
+                      conversation: conversation,
+                      target: target,
+                    )
+                  : null,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  _MessageStatus _messageStatus({
+    required ChatMessage message,
+    required String currentUserId,
+    required ChatConversation? conversation,
+    required _ChatTarget target,
+  }) {
+    final createdAt = message.createdAt;
+    if (createdAt == null) {
+      return const _MessageStatus(label: 'Sent', isSeen: false);
+    }
+
+    final receiptUserIds = <String>[
+      if (target.userId != null && target.userId != currentUserId)
+        target.userId!,
+      if (target.userId == null && conversation != null)
+        ...conversation.participantIds.where((id) => id != currentUserId),
+    ];
+
+    final isSeen = receiptUserIds.any((userId) {
+      if (message.readBy[userId] == true) {
+        return true;
+      }
+
+      final lastReadAt = conversation?.lastReadAt[userId];
+      return lastReadAt != null && !lastReadAt.isBefore(createdAt);
+    });
+
+    return _MessageStatus(label: isSeen ? 'Seen' : 'Sent', isSeen: isSeen);
+  }
+}
+
+class _ChatHeader extends StatelessWidget {
+  final _ChatTarget target;
+
+  const _ChatHeader({required this.target});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        _ChatAvatar(target: target, size: 42),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                target.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: PassengerUi.cardTitle.copyWith(fontSize: 17),
+              ),
+              if (target.subtitle.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 1),
+                Text(
+                  target.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: PassengerUi.bodyText.copyWith(fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyConversation extends StatelessWidget {
+  final _ChatTarget target;
+
+  const _EmptyConversation({required this.target});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            _ChatAvatar(target: target, size: 78),
+            const SizedBox(height: 14),
+            Text(
+              target.name,
+              textAlign: TextAlign.center,
+              style: PassengerUi.sectionTitle.copyWith(fontSize: 20),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'No messages yet',
+              textAlign: TextAlign.center,
+              style: PassengerUi.cardTitle.copyWith(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Start the conversation when ready.',
+              textAlign: TextAlign.center,
+              style: PassengerUi.bodyText,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageBubble extends StatelessWidget {
+  final ChatMessage message;
+  final bool isMine;
+  final _ChatTarget target;
+  final _MessageStatus? status;
+
+  const _MessageBubble({
+    required this.message,
+    required this.isMine,
+    required this.target,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.72;
+    final backgroundColor = isMine ? PassengerUi.dark : PassengerUi.surface;
+    final foregroundColor = isMine ? Colors.white : PassengerUi.title;
+    final detailColor = isMine
+        ? Colors.white.withValues(alpha: 0.72)
+        : PassengerUi.body;
+    final borderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(16),
+      topRight: const Radius.circular(16),
+      bottomLeft: Radius.circular(isMine ? 16 : 5),
+      bottomRight: Radius.circular(isMine ? 5 : 16),
+    );
+    final bubble = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: borderRadius,
+          border: isMine ? null : Border.all(color: PassengerUi.border),
+          boxShadow: isMine ? null : PassengerUi.cardShadow,
+        ),
+        child: Column(
+          crossAxisAlignment: isMine
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              message.text,
+              style: PassengerUi.bodyText.copyWith(
+                color: foregroundColor,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 6),
+            _MessageMeta(
+              timeLabel: TimeAgo.format(message.createdAt),
+              color: detailColor,
+              status: status,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (isMine) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Align(alignment: Alignment.centerRight, child: bubble),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: <Widget>[
+          _ChatAvatar(target: target, size: 30),
+          const SizedBox(width: 8),
+          Flexible(child: bubble),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageMeta extends StatelessWidget {
+  final String timeLabel;
+  final Color color;
+  final _MessageStatus? status;
+
+  const _MessageMeta({
+    required this.timeLabel,
+    required this.color,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(
+          timeLabel,
+          style: PassengerUi.bodyText.copyWith(color: color, fontSize: 11),
+        ),
+        if (status != null) ...<Widget>[
+          const SizedBox(width: 6),
+          Icon(
+            status!.isSeen ? Icons.done_all_rounded : Icons.done_rounded,
+            size: 14,
+            color: color,
+          ),
+          const SizedBox(width: 2),
+          Text(
+            status!.label,
+            style: PassengerUi.bodyText.copyWith(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _MessageComposer extends StatelessWidget {
+  final TextEditingController controller;
+  final bool isSending;
+  final bool canSend;
+  final VoidCallback onSend;
+
+  const _MessageComposer({
+    required this.controller,
+    required this.isSending,
+    required this.canSend,
+    required this.onSend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardOpen = mediaQuery.viewInsets.bottom > 0;
+    final bottomPadding = keyboardOpen
+        ? 12.0
+        : mediaQuery.viewPadding.bottom + 14;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: PassengerUi.background,
+        border: Border(top: BorderSide(color: PassengerUi.border)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(14, 10, 14, bottomPadding),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: <Widget>[
+            Expanded(
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 50),
+                decoration: BoxDecoration(
+                  color: PassengerUi.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: PassengerUi.border, width: 1.2),
+                  boxShadow: PassengerUi.cardShadow,
+                ),
+                child: TextField(
+                  controller: controller,
+                  minLines: 1,
+                  maxLines: 5,
+                  textInputAction: TextInputAction.newline,
+                  style: PassengerUi.bodyText.copyWith(
+                    color: PassengerUi.title,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Type a message',
+                    hintStyle: PassengerUi.bodyText.copyWith(
+                      color: PassengerUi.hint,
+                    ),
+                    filled: false,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 52,
+              height: 52,
+              child: IconButton(
+                onPressed: canSend ? onSend : null,
+                style: IconButton.styleFrom(
+                  backgroundColor: canSend
+                      ? PassengerUi.dark
+                      : PassengerUi.mutedSurface,
+                  foregroundColor: canSend ? Colors.white : PassengerUi.body,
+                  disabledBackgroundColor: PassengerUi.mutedSurface,
+                  disabledForegroundColor: PassengerUi.body,
+                  shape: const CircleBorder(),
+                ),
+                icon: isSending
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: PassengerUi.surface,
+                        ),
+                      )
+                    : const Icon(Icons.send_rounded),
+                tooltip: 'Send',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatAvatar extends StatelessWidget {
+  final _ChatTarget target;
+  final double size;
+
+  const _ChatAvatar({required this.target, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = _AvatarFallback(
+      initials: target.initials,
+      isSupport: target.isSupport,
+      size: size,
+    );
+
+    return ClipOval(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: FirebaseStorageImage(
+          imageUrl: target.profileImageUrl,
+          width: size,
+          height: size,
+          fallback: fallback,
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarFallback extends StatelessWidget {
+  final String initials;
+  final bool isSupport;
+  final double size;
+
+  const _AvatarFallback({
+    required this.initials,
+    required this.isSupport,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: PassengerUi.blueSoft,
+        shape: BoxShape.circle,
+      ),
+      child: isSupport
+          ? Icon(
+              Icons.support_agent_rounded,
+              color: PassengerUi.accentBlue,
+              size: size * 0.52,
+            )
+          : Text(
+              initials,
+              style: PassengerUi.valueText.copyWith(
+                color: PassengerUi.accentBlue,
+                fontSize: size * 0.34,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+    );
+  }
+}
+
+class _ChatTarget {
+  final String? userId;
+  final String name;
+  final String subtitle;
+  final String? profileImageUrl;
+  final bool isSupport;
+
+  const _ChatTarget({
+    required this.userId,
+    required this.name,
+    required this.subtitle,
+    required this.profileImageUrl,
+    required this.isSupport,
+  });
+
+  String get initials {
+    final parts = name
+        .split(RegExp(r'\s+'))
+        .where((part) => part.trim().isNotEmpty)
+        .take(2)
+        .toList(growable: false);
+    if (parts.isEmpty) {
+      return '?';
+    }
+
+    return parts.map((part) => part[0].toUpperCase()).join();
+  }
+}
+
+class _MessageStatus {
+  final String label;
+  final bool isSeen;
+
+  const _MessageStatus({required this.label, required this.isSeen});
+}

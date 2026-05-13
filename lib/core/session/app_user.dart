@@ -49,13 +49,18 @@ class AppUser {
           };
 
     return AppUser(
-      userId: (data['user_id'] ?? fallbackUserId).toString(),
+      userId: fallbackUserId,
       firstName: (data['first_name'] ?? '').toString(),
       lastName: (data['last_name'] ?? '').toString(),
       email: (data['email'] ?? '').toString(),
       role: normalizedRole,
       passengerType: normalizedPassengerType,
-      isVerified: (data['is_verified'] ?? data['isVerified'] ?? false) == true,
+      isVerified:
+          (data['is_verified'] ??
+              data['isVerified'] ??
+              data['isVerrified'] ??
+              false) ==
+          true,
       isActive: (data['is_active'] ?? data['isActive'] ?? false) == true,
       isBanned: (data['is_banned'] ?? data['isBanned'] ?? false) == true,
       selfieUrl: _normalizeOptional(data['selfie_url']),

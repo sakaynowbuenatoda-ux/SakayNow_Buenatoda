@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/preferences/app_preferences_controller.dart';
 import 'pages/auth/auth_gate.dart';
+import 'services/notification_service.dart';
 import 'widgets/passenger_widgets/passenger_ui.dart';
 
 class MyApp extends StatelessWidget {
@@ -15,6 +16,7 @@ class MyApp extends StatelessWidget {
       animation: controller,
       builder: (context, _) {
         return MaterialApp(
+          navigatorKey: NotificationService.navigatorKey,
           debugShowCheckedModeBanner: false,
           title: 'SakayNow',
           theme: _buildTheme(brightness: Brightness.light),

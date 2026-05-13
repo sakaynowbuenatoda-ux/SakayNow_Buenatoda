@@ -2,17 +2,24 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../models/distance_matrix_result.dart';
+import '../models/fare_estimate.dart';
+import '../models/passenger_payment_method.dart';
 import '../models/ride.dart';
 import '../models/ride_driver_location.dart';
 import '../models/ride_location.dart';
 import '../models/ride_status.dart';
 import '../models/route_result.dart';
+import 'fare_service.dart';
 
 class RideTrackingService {
-  RideTrackingService({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  RideTrackingService({FirebaseFirestore? firestore, FareService? fareService})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _fareService = fareService ?? const FareService();
+
+  static const Duration driverAvailabilityTimeout = Duration(minutes: 15);
 
   final FirebaseFirestore _firestore;
+  final FareService _fareService;
 
   CollectionReference<Map<String, dynamic>> get _bookings =>
       _firestore.collection('bookings');
@@ -29,15 +36,30 @@ class RideTrackingService {
     required RideLocation dropoffLocation,
     required RouteResult route,
     DistanceMatrixResult? estimate,
-    String paymentMethod = 'cash',
+    FareEstimate? fareEstimate,
+    PassengerPaymentMethod? paymentMethod,
     String? preferredDriverId,
   }) async {
     final doc = _bookings.doc();
     final now = FieldValue.serverTimestamp();
+    final selectedPaymentMethod =
+        paymentMethod ?? PassengerPaymentMethod.cash(userId: passengerId);
+    final paymentStatus = selectedPaymentMethod.usesPayMongo
+        ? 'checkout_pending'
+        : 'cash_pending';
+    final passengerFareProfile = await loadPassengerFareProfile(passengerId);
+    final bookingFareEstimate = _fareService.estimateFare(
+      pickupLocation: pickupLocation,
+      dropoffLocation: dropoffLocation,
+      distanceMeters: estimate?.distanceMeters ?? route.distanceMeters,
+      studentDiscountEligible: passengerFareProfile.isVerifiedStudent,
+    );
 
     await doc.set(<String, dynamic>{
       'booking_id': doc.id,
       'passenger_id': passengerId,
+      'passenger_type': passengerFareProfile.passengerType,
+      'passenger_is_verified': passengerFareProfile.isVerified,
       'driver_id': null,
       'preferred_driver_id': preferredDriverId,
       'status': RideStatus.searching.firestoreValue,
@@ -50,7 +72,29 @@ class RideTrackingService {
           estimate?.durationSeconds ?? route.durationSeconds,
       'estimated_distance_text': estimate?.distanceText ?? route.distanceText,
       'estimated_duration_text': estimate?.durationText ?? route.durationText,
-      'payment_method': paymentMethod,
+      'fare': bookingFareEstimate.amount,
+      'base_fare': bookingFareEstimate.baseAmount,
+      'estimated_fare': bookingFareEstimate.amount,
+      'estimated_fare_amount': bookingFareEstimate.amount,
+      'estimated_fare_currency': bookingFareEstimate.currency,
+      'final_fare': bookingFareEstimate.amount,
+      'fare_rule': bookingFareEstimate.ruleLabel,
+      'fare_rule_code': bookingFareEstimate.ruleCode,
+      'fare_details': bookingFareEstimate.toFirestore(),
+      'fare_discount_applied': bookingFareEstimate.hasDiscount,
+      'fare_discount_amount': bookingFareEstimate.discountAmount,
+      'fare_discount_rate': bookingFareEstimate.discountRate,
+      if (bookingFareEstimate.discountCode != null)
+        'fare_discount_code': bookingFareEstimate.discountCode,
+      if (bookingFareEstimate.discountLabel != null)
+        'fare_discount_label': bookingFareEstimate.discountLabel,
+      'payment_method': selectedPaymentMethod.type.firestoreValue,
+      'payment_method_label': selectedPaymentMethod.displayLabel,
+      'payment_method_id': selectedPaymentMethod.isCash
+          ? null
+          : selectedPaymentMethod.id,
+      'payment_provider': selectedPaymentMethod.provider,
+      'payment_status': paymentStatus,
       'timestamp': now,
       'created_at': now,
       'updated_at': now,
@@ -64,6 +108,20 @@ class RideTrackingService {
     });
 
     return doc.id;
+  }
+
+  Future<PassengerFareProfile> loadPassengerFareProfile(
+    String passengerId,
+  ) async {
+    final snapshot = await _users.doc(passengerId).get();
+    if (!snapshot.exists) {
+      throw StateError('Passenger profile not found.');
+    }
+
+    return PassengerFareProfile.fromData(
+      userId: passengerId,
+      data: snapshot.data() ?? <String, dynamic>{},
+    );
   }
 
   Stream<Ride?> watchPassengerActiveRide(String passengerId) {
@@ -102,6 +160,17 @@ class RideTrackingService {
     return rides.isEmpty ? null : rides.first;
   }
 
+  Stream<List<Ride>> watchPassengerRides(String passengerId) {
+    return _bookings
+        .where('passenger_id', isEqualTo: passengerId)
+        .snapshots()
+        .map((snapshot) {
+          final rides = snapshot.docs.map(Ride.fromDocument).toList();
+          rides.sort(_compareRidesByLatestActivity);
+          return rides;
+        });
+  }
+
   Stream<List<AvailableDriver>> watchAvailableDrivers() {
     return _driverLocations
         .where('is_available', isEqualTo: true)
@@ -112,6 +181,10 @@ class RideTrackingService {
           for (final document in snapshot.docs) {
             final locationData = document.data();
             if (!_hasCoordinates(locationData)) {
+              continue;
+            }
+
+            if (_isStaleDriverLocation(locationData)) {
               continue;
             }
 
@@ -155,6 +228,15 @@ class RideTrackingService {
     }
 
     return data['latitude'] != null && data['longitude'] != null;
+  }
+
+  static bool _isStaleDriverLocation(Map<String, dynamic> data) {
+    final updatedAt = _readDate(data['updated_at']);
+    if (updatedAt == null) {
+      return true;
+    }
+
+    return DateTime.now().difference(updatedAt) > driverAvailabilityTimeout;
   }
 
   Stream<Ride?> watchRide(String bookingId) {
@@ -209,6 +291,16 @@ class RideTrackingService {
         )
         .snapshots()
         .map((snapshot) => snapshot.docs.map(Ride.fromDocument).toList());
+  }
+
+  Stream<List<Ride>> watchDriverRides(String driverId) {
+    return _bookings.where('driver_id', isEqualTo: driverId).snapshots().map((
+      snapshot,
+    ) {
+      final rides = snapshot.docs.map(Ride.fromDocument).toList();
+      rides.sort(_compareRidesByLatestActivity);
+      return rides;
+    });
   }
 
   Stream<RideDriverLocation?> watchDriverLocation(String driverId) {
@@ -613,6 +705,21 @@ class RideTrackingService {
         throw StateError('This booking is no longer available.');
       }
 
+      final paymentProvider = (data['payment_provider'] ?? 'cash')
+          .toString()
+          .trim()
+          .toLowerCase();
+      final paymentStatus = (data['payment_status'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
+      if (paymentProvider == 'paymongo' &&
+          driverData['accepts_online_payments'] != true) {
+        throw StateError(
+          'Add a driver payout account before accepting online payments.',
+        );
+      }
+
       final driverLocationSnapshot = await transaction.get(driverLocationDoc);
       final driverLocationData =
           driverLocationSnapshot.data() ?? <String, dynamic>{};
@@ -623,8 +730,7 @@ class RideTrackingService {
               'driver_id': driverId,
             }).toFirestore()
           : null;
-
-      transaction.update(doc, <String, dynamic>{
+      final bookingUpdates = <String, dynamic>{
         'driver_id': driverId,
         'status': RideStatus.accepted.firestoreValue,
         'driver_location': ?driverLocation,
@@ -637,7 +743,19 @@ class RideTrackingService {
             'changed_at': Timestamp.now(),
           },
         ]),
-      });
+      };
+
+      if (paymentProvider == 'paymongo') {
+        bookingUpdates.addAll(<String, dynamic>{
+          'driver_payout_status': paymentStatus == 'paid'
+              ? 'pending'
+              : 'awaiting_payment',
+          'driver_payout_account_id': driverData['default_payout_account_id'],
+          'driver_accepts_online_payments': true,
+        });
+      }
+
+      transaction.update(doc, bookingUpdates);
       transaction.set(driverLocationDoc, <String, dynamic>{
         'driver_id': driverId,
         'is_available': false,
@@ -652,17 +770,42 @@ class RideTrackingService {
     required RideStatus status,
     required String changedBy,
   }) async {
-    await _bookings.doc(bookingId).update(<String, dynamic>{
-      'status': status.firestoreValue,
-      'updated_at': FieldValue.serverTimestamp(),
-      _statusTimestampField(status): FieldValue.serverTimestamp(),
-      'status_history': FieldValue.arrayUnion(<Map<String, dynamic>>[
-        <String, dynamic>{
-          'status': status.firestoreValue,
-          'changed_by': changedBy,
-          'changed_at': Timestamp.now(),
-        },
-      ]),
+    final bookingRef = _bookings.doc(bookingId);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(bookingRef);
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final paymentProvider = (data['payment_provider'] ?? 'cash')
+          .toString()
+          .trim()
+          .toLowerCase();
+      final paymentStatus = (data['payment_status'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
+      final updates = <String, dynamic>{
+        'status': status.firestoreValue,
+        'updated_at': FieldValue.serverTimestamp(),
+        _statusTimestampField(status): FieldValue.serverTimestamp(),
+        'status_history': FieldValue.arrayUnion(<Map<String, dynamic>>[
+          <String, dynamic>{
+            'status': status.firestoreValue,
+            'changed_by': changedBy,
+            'changed_at': Timestamp.now(),
+          },
+        ]),
+      };
+
+      if (status == RideStatus.completed &&
+          paymentProvider == 'cash' &&
+          paymentStatus != 'cash_collected') {
+        updates.addAll(<String, dynamic>{
+          'payment_status': 'cash_collected',
+          'payment_confirmed_by': changedBy,
+          'payment_confirmed_at': FieldValue.serverTimestamp(),
+        });
+      }
+
+      transaction.update(bookingRef, updates);
     });
   }
 
@@ -681,6 +824,10 @@ class RideTrackingService {
       'active_booking_id': activeBookingId,
       'updated_at': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  Future<void> markDriverUnavailable({required String driverId}) {
+    return updateDriverAvailability(driverId: driverId, isAvailable: false);
   }
 
   Future<void> updateDriverLocation({
@@ -704,6 +851,7 @@ class RideTrackingService {
       ...locationData,
       'is_available': isAvailable,
       'active_booking_id': activeBookingId,
+      'updated_at': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
     if (activeBookingId != null && activeBookingId.isNotEmpty) {
@@ -781,6 +929,12 @@ class RideTrackingService {
     return null;
   }
 
+  static int _compareRidesByLatestActivity(Ride a, Ride b) {
+    final aDate = a.updatedAt ?? a.createdAt ?? DateTime(1970);
+    final bDate = b.updatedAt ?? b.createdAt ?? DateTime(1970);
+    return bDate.compareTo(aDate);
+  }
+
   static String? _readNullableString(Object? value) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty || text == 'null' ? null : text;
@@ -821,6 +975,48 @@ class DriverRecentTrip {
   final PassengerReviewProfile passenger;
 
   const DriverRecentTrip({required this.ride, required this.passenger});
+}
+
+class PassengerFareProfile {
+  final String userId;
+  final String passengerType;
+  final bool isVerified;
+
+  const PassengerFareProfile({
+    required this.userId,
+    required this.passengerType,
+    required this.isVerified,
+  });
+
+  factory PassengerFareProfile.fromData({
+    required String userId,
+    required Map<String, dynamic> data,
+  }) {
+    final rawRole = (data['role'] ?? '').toString().trim().toLowerCase();
+    final rawPassengerType = (data['passenger_type'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final passengerType = rawPassengerType.isNotEmpty
+        ? rawPassengerType
+        : rawRole == 'student'
+        ? 'student'
+        : 'regular';
+
+    return PassengerFareProfile(
+      userId: userId,
+      passengerType: passengerType == 'student' ? 'student' : 'regular',
+      isVerified:
+          (data['is_verified'] ??
+              data['isVerified'] ??
+              data['isVerrified'] ??
+              false) ==
+          true,
+    );
+  }
+
+  bool get isStudent => passengerType == 'student';
+  bool get isVerifiedStudent => isStudent && isVerified;
 }
 
 class PassengerRecentTrip {
@@ -1022,6 +1218,7 @@ class AvailableDriver {
   final String fullName;
   final String? profileImageUrl;
   final bool isVerified;
+  final bool supportsOnlinePayments;
   final double rating;
   final RideDriverLocation location;
 
@@ -1030,6 +1227,7 @@ class AvailableDriver {
     required this.fullName,
     required this.profileImageUrl,
     required this.isVerified,
+    required this.supportsOnlinePayments,
     required this.rating,
     required this.location,
   });
@@ -1049,6 +1247,7 @@ class AvailableDriver {
       profileImageUrl: _readNullableString(userData['selfie_url']),
       isVerified:
           (userData['is_verified'] ?? userData['isVerified'] ?? false) == true,
+      supportsOnlinePayments: userData['accepts_online_payments'] == true,
       rating: _readRating(
         userData['driver_average_rating'] ??
             userData['average_rating'] ??

@@ -190,10 +190,21 @@ class GooglePlacesService {
   }
 
   Future<RideLocation?> nearestKnownPlace(LatLng location) async {
+    final places = await nearbyKnownPlaces(location, limit: 1);
+    return places.isEmpty ? null : places.first;
+  }
+
+  Future<List<RideLocation>> nearbyKnownPlaces(
+    LatLng location, {
+    int limit = 5,
+  }) async {
     _validateSupportedServiceArea(location);
 
     if (web_places.googlePlacesWebApiSupported) {
-      return web_places.nearestKnownPlaceWithGooglePlacesWeb(location);
+      return web_places.nearbyKnownPlacesWithGooglePlacesWeb(
+        location,
+        limit: limit,
+      );
     }
 
     final apiKey = _requireApiKey();
@@ -202,7 +213,7 @@ class GooglePlacesService {
       '/maps/api/place/nearbysearch/json',
       <String, String>{
         'location': '${location.latitude},${location.longitude}',
-        'radius': '75',
+        'radius': '250',
         'key': apiKey,
       },
     );
@@ -212,7 +223,7 @@ class GooglePlacesService {
     final status = (payload['status'] ?? '').toString();
 
     if (status == 'ZERO_RESULTS') {
-      return null;
+      return <RideLocation>[];
     }
 
     if (response.statusCode != 200 || status != 'OK') {
@@ -223,36 +234,7 @@ class GooglePlacesService {
     }
 
     final results = payload['results'] as List<dynamic>? ?? <dynamic>[];
-    if (results.isEmpty || results.first is! Map<String, dynamic>) {
-      return null;
-    }
-
-    final place = _closestPlace(results, location);
-    if (place == null) {
-      return null;
-    }
-
-    final geometry = place['geometry'] is Map
-        ? place['geometry'] as Map<String, dynamic>
-        : <String, dynamic>{};
-    final placeLocation = geometry['location'] is Map
-        ? geometry['location'] as Map<String, dynamic>
-        : <String, dynamic>{};
-    final lat = (placeLocation['lat'] as num?)?.toDouble();
-    final lng = (placeLocation['lng'] as num?)?.toDouble();
-    final name = (place['name'] ?? '').toString().trim();
-
-    if (lat == null || lng == null || name.isEmpty) {
-      return null;
-    }
-
-    return RideLocation(
-      address: (place['vicinity'] ?? name).toString().trim(),
-      name: name,
-      placeId: (place['place_id'] ?? '').toString(),
-      latitude: lat,
-      longitude: lng,
-    );
+    return _placesFromResults(results, location).take(limit).toList();
   }
 
   bool isWithinSupportedServiceArea(LatLng location) {
@@ -271,9 +253,11 @@ class GooglePlacesService {
     return false;
   }
 
-  Map<String, dynamic>? _closestPlace(List<dynamic> results, LatLng location) {
-    Map<String, dynamic>? closest;
-    double? closestDistance;
+  List<RideLocation> _placesFromResults(
+    List<dynamic> results,
+    LatLng location,
+  ) {
+    final candidates = <_NearbyPlaceCandidate>[];
 
     for (final result in results) {
       if (result is! Map<String, dynamic>) {
@@ -293,6 +277,11 @@ class GooglePlacesService {
         continue;
       }
 
+      final name = (result['name'] ?? '').toString().trim();
+      if (name.isEmpty) {
+        continue;
+      }
+
       final distance = Geolocator.distanceBetween(
         location.latitude,
         location.longitude,
@@ -300,13 +289,23 @@ class GooglePlacesService {
         lng,
       );
 
-      if (closestDistance == null || distance < closestDistance) {
-        closest = result;
-        closestDistance = distance;
-      }
+      candidates.add(
+        _NearbyPlaceCandidate(
+          distanceMeters: distance,
+          place: RideLocation(
+            address: (result['vicinity'] ?? name).toString().trim(),
+            name: name,
+            placeId: (result['place_id'] ?? '').toString(),
+            latitude: lat,
+            longitude: lng,
+          ),
+        ),
+      );
     }
 
-    return closest;
+    candidates.sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+
+    return candidates.map((candidate) => candidate.place).toList();
   }
 
   String _requireApiKey() {
@@ -351,6 +350,16 @@ class GooglePlacesService {
 
     return radius * 2;
   }
+}
+
+class _NearbyPlaceCandidate {
+  final double distanceMeters;
+  final RideLocation place;
+
+  const _NearbyPlaceCandidate({
+    required this.distanceMeters,
+    required this.place,
+  });
 }
 
 class _PlacesAutocompleteRequest {

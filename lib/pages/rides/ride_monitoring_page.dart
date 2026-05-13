@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../controllers/ride_tracking_controller.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
+import '../../pages/messages/ride_chat_navigation.dart';
+import '../../pages/profile/driver_profile.dart';
+import '../../services/paymongo_checkout_service.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
@@ -26,6 +29,10 @@ class RideMonitoringPage extends StatefulWidget {
 
 class _RideMonitoringPageState extends State<RideMonitoringPage> {
   late final RideTrackingController _controller;
+  final PayMongoCheckoutService _payMongoCheckoutService =
+      PayMongoCheckoutService();
+  bool _completionDialogShown = false;
+  bool _isOpeningCheckout = false;
 
   @override
   void initState() {
@@ -35,13 +42,66 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
       userId: widget.userId,
       viewerRole: widget.viewerRole,
     );
+    _controller.addListener(_handleRideUpdates);
     _controller.start();
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_handleRideUpdates);
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleRideUpdates() {
+    final ride = _controller.ride;
+    if (_completionDialogShown ||
+        !_controller.isPassenger ||
+        ride == null ||
+        ride.status != RideStatus.completed) {
+      return;
+    }
+
+    _completionDialogShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      _showRideCompletedDialog(ride);
+    });
+  }
+
+  Future<void> _showRideCompletedDialog(Ride ride) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return _RideCompletedDialog(
+          ride: ride,
+          onClose: () => Navigator.of(dialogContext).pop(),
+          onRateReview: ride.hasDriver
+              ? () {
+                  Navigator.of(dialogContext).pop();
+                  if (!mounted) {
+                    return;
+                  }
+
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => DriverProfilePage(
+                        driverId: ride.driverId!,
+                        passengerId: widget.userId,
+                        bookingId: ride.bookingId,
+                        openReviewOnLoad: true,
+                      ),
+                    ),
+                  );
+                }
+              : null,
+        );
+      },
+    );
   }
 
   @override
@@ -109,6 +169,13 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
                   _RideEtaCard(ride: ride),
                   const SizedBox(height: 16),
                   _RideRouteCard(ride: ride),
+                  const SizedBox(height: 16),
+                  _RidePaymentCard(
+                    ride: ride,
+                    canOpenCheckout: _controller.isPassenger,
+                    isOpeningCheckout: _isOpeningCheckout,
+                    onOpenCheckout: () => _openPayMongoCheckout(ride),
+                  ),
                   if (_controller.errorMessage != null) ...<Widget>[
                     const SizedBox(height: 16),
                     PassengerSurfaceCard(
@@ -157,6 +224,33 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
       RideStatus.searching => PassengerUi.highlightAmber,
       _ => PassengerUi.accentBlue,
     };
+  }
+
+  Future<void> _openPayMongoCheckout(Ride ride) async {
+    final checkoutUrl = ride.payMongoCheckoutUrl;
+    if (checkoutUrl == null || checkoutUrl.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PayMongo checkout is not ready yet.')),
+      );
+      return;
+    }
+
+    setState(() => _isOpeningCheckout = true);
+    try {
+      await _payMongoCheckoutService.openCheckoutUrl(checkoutUrl);
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to open checkout: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isOpeningCheckout = false);
+      }
+    }
   }
 }
 
@@ -257,6 +351,307 @@ class _RideRouteCard extends StatelessWidget {
   }
 }
 
+class _RidePaymentCard extends StatelessWidget {
+  final Ride ride;
+  final bool canOpenCheckout;
+  final bool isOpeningCheckout;
+  final VoidCallback onOpenCheckout;
+
+  const _RidePaymentCard({
+    required this.ride,
+    required this.canOpenCheckout,
+    required this.isOpeningCheckout,
+    required this.onOpenCheckout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final showCheckoutButton =
+        canOpenCheckout && ride.usesPayMongo && !ride.isPaymentPaid;
+
+    return PassengerSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _RidePaymentMetric(
+                  icon: Icons.payments_rounded,
+                  label: 'Fare',
+                  value: ride.fareLabel ?? 'Pending',
+                ),
+              ),
+              Container(width: 1, height: 42, color: PassengerUi.border),
+              Expanded(
+                child: _RidePaymentMetric(
+                  icon: Icons.account_balance_wallet_rounded,
+                  label: 'Payment',
+                  value: ride.paymentMethodDisplayLabel,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: <Widget>[
+              PassengerStatusChip(
+                label: ride.paymentStatusLabel,
+                textColor: ride.isPaymentPaid
+                    ? PassengerUi.successText
+                    : PassengerUi.highlightAmber,
+                backgroundColor: ride.isPaymentPaid
+                    ? PassengerUi.successBackground
+                    : PassengerUi.warningSoft,
+              ),
+              if (showCheckoutButton) ...<Widget>[
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: isOpeningCheckout ? null : onOpenCheckout,
+                  icon: isOpeningCheckout
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.open_in_new_rounded, size: 18),
+                  label: const Text('Checkout'),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RidePaymentMetric extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _RidePaymentMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Icon(icon, color: PassengerUi.accentBlue),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(label, style: MapTextStyles.body.copyWith(fontSize: 12)),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MapTextStyles.value,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RideCompletedDialog extends StatelessWidget {
+  final Ride ride;
+  final VoidCallback? onRateReview;
+  final VoidCallback onClose;
+
+  const _RideCompletedDialog({
+    required this.ride,
+    required this.onRateReview,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = PassengerUi.isCompactWidth(context);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 430),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: PassengerUi.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: PassengerUi.border),
+            boxShadow: PassengerUi.cardShadow,
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(compact ? 18 : 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: PassengerUi.successBackground,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        Icons.check_circle_rounded,
+                        color: PassengerUi.successText,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Ride Complete',
+                        style: PassengerUi.sectionTitle.copyWith(
+                          fontSize: compact ? 19 : 21,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _RideCompleteDetailRow(
+                  icon: Icons.my_location_rounded,
+                  label: 'Pickup',
+                  value: ride.pickupLocation.displayLabel,
+                ),
+                const SizedBox(height: 12),
+                _RideCompleteDetailRow(
+                  icon: Icons.location_on_rounded,
+                  label: 'Drop-off',
+                  value: ride.dropoffLocation.displayLabel,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _RideCompleteMetric(
+                        label: 'Distance',
+                        value: ride.distanceLabel,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _RideCompleteMetric(
+                        label: 'Fare',
+                        value: ride.fareLabel ?? 'Pending',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: onClose,
+                        child: const Text('Close'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: onRateReview,
+                        icon: const Icon(Icons.rate_review_rounded, size: 18),
+                        label: const Text('Rate / Review'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RideCompleteDetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _RideCompleteDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: PassengerUi.mutedSurface,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, size: 18, color: PassengerUi.accentBlue),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(label, style: PassengerUi.bodyText.copyWith(fontSize: 12)),
+              const SizedBox(height: 2),
+              Text(value, style: PassengerUi.valueText),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RideCompleteMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _RideCompleteMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: PassengerUi.mutedSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: PassengerUi.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(label, style: PassengerUi.bodyText.copyWith(fontSize: 12)),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: PassengerUi.valueText,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _LocationRow extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -325,6 +720,16 @@ class _RideActions extends StatelessWidget {
       }
     }
 
+    if (ride.hasDriver && !ride.status.isTerminal) {
+      actions.add(
+        OutlinedButton.icon(
+          onPressed: () => _openRideConversation(context),
+          icon: const Icon(Icons.chat_bubble_rounded),
+          label: const Text('Message'),
+        ),
+      );
+    }
+
     if (!ride.status.isTerminal) {
       actions.add(
         OutlinedButton.icon(
@@ -337,6 +742,21 @@ class _RideActions extends StatelessWidget {
 
     if (actions.isEmpty) {
       return const SizedBox.shrink();
+    }
+
+    if (actions.length > 2) {
+      return Column(
+        children: actions
+            .asMap()
+            .entries
+            .map(
+              (entry) => Padding(
+                padding: EdgeInsets.only(top: entry.key == 0 ? 0 : 10),
+                child: SizedBox(width: double.infinity, child: entry.value),
+              ),
+            )
+            .toList(),
+      );
     }
 
     return Row(
@@ -352,6 +772,15 @@ class _RideActions extends StatelessWidget {
             ),
           )
           .toList(),
+    );
+  }
+
+  Future<void> _openRideConversation(BuildContext context) async {
+    await openRideChat(
+      context: context,
+      ride: ride,
+      currentUserId: controller.userId,
+      currentUserRole: controller.isDriver ? 'driver' : 'passenger',
     );
   }
 

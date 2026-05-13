@@ -42,7 +42,20 @@ class _LocationPinPickerSheetState extends State<LocationPinPickerSheet> {
   late LatLng _selected = widget.initialTarget;
   late LatLng _cameraTarget = widget.initialTarget;
   RideLocation? _googlePlace;
+  List<RideLocation> _nearbyPlaces = <RideLocation>[];
+  String? _manualAddress;
   bool _isResolvingPlace = false;
+  int _resolveToken = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _selectManualPin(_selected);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +112,10 @@ class _LocationPinPickerSheetState extends State<LocationPinPickerSheet> {
               children: <Widget>[
                 _SelectionSummary(
                   place: _googlePlace,
+                  nearbyPlaces: _nearbyPlaces,
+                  manualAddress: _manualAddress,
                   isResolving: _isResolvingPlace,
+                  onUseNearbyPlace: _useNearbyGooglePlace,
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -125,10 +141,6 @@ class _LocationPinPickerSheetState extends State<LocationPinPickerSheet> {
   }
 
   Set<Marker> get _markers {
-    if (_googlePlace != null) {
-      return const <Marker>{};
-    }
-
     return <Marker>{
       Marker(
         markerId: const MarkerId('selected_pin'),
@@ -142,40 +154,65 @@ class _LocationPinPickerSheetState extends State<LocationPinPickerSheet> {
     };
   }
 
-  Future<void> _selectFromMapTap(LatLng location) async {
+  Future<void> _selectFromMapTap(LatLng location) {
+    return _selectManualPin(location);
+  }
+
+  Future<void> _selectManualPin(LatLng location) async {
+    final token = ++_resolveToken;
     setState(() {
       _selected = location;
       _cameraTarget = location;
       _googlePlace = null;
+      _nearbyPlaces = <RideLocation>[];
+      _manualAddress = null;
       _isResolvingPlace = true;
     });
 
-    RideLocation? knownPlace;
+    String? address;
     try {
-      knownPlace = await _placesService.nearestKnownPlace(location);
+      address = await _placesService.reverseGeocode(location);
     } on Exception {
-      knownPlace = null;
+      address = null;
     }
 
-    if (!mounted) {
+    var knownPlaces = <RideLocation>[];
+    try {
+      knownPlaces = await _placesService.nearbyKnownPlaces(location);
+    } on Exception {
+      knownPlaces = <RideLocation>[];
+    }
+
+    if (!mounted || token != _resolveToken) {
       return;
     }
 
     setState(() {
-      _googlePlace = knownPlace;
-      _selected = knownPlace?.latLng ?? location;
-      _cameraTarget = _selected;
+      _nearbyPlaces = knownPlaces;
+      _manualAddress = _cleanAddress(address);
       _isResolvingPlace = false;
     });
   }
 
-  void _selectManualPin(LatLng location) {
+  void _useNearbyGooglePlace(RideLocation place) {
+    final placeLocation = place.latLng;
+    if (placeLocation == null) {
+      return;
+    }
+
+    ++_resolveToken;
     setState(() {
-      _selected = location;
-      _cameraTarget = location;
-      _googlePlace = null;
+      _selected = placeLocation;
+      _cameraTarget = placeLocation;
+      _googlePlace = place;
+      _manualAddress = place.address;
       _isResolvingPlace = false;
     });
+  }
+
+  String? _cleanAddress(String? value) {
+    final trimmed = value?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
   }
 
   void _saveSelection() {
@@ -187,19 +224,32 @@ class _LocationPinPickerSheetState extends State<LocationPinPickerSheet> {
 
 class _SelectionSummary extends StatelessWidget {
   final RideLocation? place;
+  final List<RideLocation> nearbyPlaces;
+  final String? manualAddress;
   final bool isResolving;
+  final ValueChanged<RideLocation> onUseNearbyPlace;
 
-  const _SelectionSummary({required this.place, required this.isResolving});
+  const _SelectionSummary({
+    required this.place,
+    required this.nearbyPlaces,
+    required this.manualAddress,
+    required this.isResolving,
+    required this.onUseNearbyPlace,
+  });
 
   @override
   Widget build(BuildContext context) {
     final selectedPlace = place;
     final title = isResolving
-        ? 'Checking Google places...'
+        ? 'Checking map details...'
         : selectedPlace?.name ?? 'Manual pinned location';
-    final subtitle = selectedPlace == null
-        ? 'Tap a Google place label to use its name, or drag the pin manually.'
-        : 'Using Google place pin';
+    final visibleNearbyPlaces = selectedPlace == null
+        ? nearbyPlaces.take(4).toList(growable: false)
+        : <RideLocation>[];
+    final subtitle = selectedPlace != null
+        ? selectedPlace.address
+        : manualAddress ??
+              'Exact pin saved at the selected map point. Drag to adjust.';
 
     return Container(
       width: double.infinity,
@@ -237,6 +287,34 @@ class _SelectionSummary extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: MapTextStyles.body.copyWith(fontSize: 12.5),
                 ),
+                if (visibleNearbyPlaces.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Nearby labels',
+                      style: MapTextStyles.value.copyWith(fontSize: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: visibleNearbyPlaces
+                        .map(
+                          (nearby) => ActionChip(
+                            avatar: const Icon(Icons.place_rounded, size: 16),
+                            label: Text(
+                              nearby.name ?? nearby.address,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            onPressed: () => onUseNearbyPlace(nearby),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                ],
               ],
             ),
           ),

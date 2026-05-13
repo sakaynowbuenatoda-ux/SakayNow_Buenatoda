@@ -3,11 +3,15 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../config/map_config.dart';
 import '../../controllers/booking_map_controller.dart';
+import '../../controllers/quick_destinations_controller.dart';
 import '../../controllers/ride_tracking_controller.dart';
 import '../../models/place_prediction.dart';
+import '../../models/passenger_payment_method.dart';
 import '../../models/ride_location.dart';
 import '../../models/ride_status.dart';
 import '../../services/geofencing_service.dart';
+import '../../services/payment_method_service.dart';
+import '../../services/paymongo_checkout_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/maps/location_pin_picker_sheet.dart';
@@ -23,11 +27,15 @@ import 'passenger_data.dart';
 
 class PassengerBookRidePage extends StatefulWidget {
   final String passengerId;
+  final String passengerType;
+  final bool isVerified;
   final PassengerQuickDestination? initialDropoffDestination;
 
   const PassengerBookRidePage({
     super.key,
     required this.passengerId,
+    this.passengerType = 'regular',
+    this.isVerified = false,
     this.initialDropoffDestination,
   });
 
@@ -38,13 +46,23 @@ class PassengerBookRidePage extends StatefulWidget {
 class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
   final TextEditingController _pickupController = TextEditingController();
   final TextEditingController _destinationController = TextEditingController();
+  final PaymentMethodService _paymentMethodService = PaymentMethodService();
   late final BookingMapController _controller;
+  late final QuickDestinationsController _quickDestinationsController;
   BookingLocationTarget _activeMapTarget = BookingLocationTarget.dropoff;
+  String? _selectedPaymentMethodId;
 
   @override
   void initState() {
     super.initState();
-    _controller = BookingMapController(passengerId: widget.passengerId);
+    _controller = BookingMapController(
+      passengerId: widget.passengerId,
+      passengerType: widget.passengerType,
+      isPassengerVerified: widget.isVerified,
+    );
+    _quickDestinationsController = QuickDestinationsController(
+      userId: widget.passengerId,
+    )..load();
     _pickupController.addListener(_rebuildForTypedLocations);
     _destinationController.addListener(_rebuildForTypedLocations);
     _initialize();
@@ -57,6 +75,7 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
     _pickupController.dispose();
     _destinationController.dispose();
     _controller.dispose();
+    _quickDestinationsController.dispose();
     super.dispose();
   }
 
@@ -164,13 +183,47 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
                         _pickLocationOnMap(BookingLocationTarget.dropoff),
                   ),
                   const SizedBox(height: 16),
-                  _SavedDestinationRow(onTap: _applySavedDestination),
+                  AnimatedBuilder(
+                    animation: _quickDestinationsController,
+                    builder: (context, _) {
+                      return _SavedDestinationRow(
+                        destinations: _quickDestinationsController.destinations,
+                        isLoading: _quickDestinationsController.isLoading,
+                        onTap: _applySavedDestination,
+                      );
+                    },
+                  ),
                   const SizedBox(height: 16),
                   RouteSummaryCard(
                     route: _controller.route,
                     estimate: _controller.estimate,
+                    fareEstimate: _controller.fareEstimate,
+                    fareNotice: _controller.fareNotice,
                     isLoading: _controller.isRouteLoading,
                     errorMessage: _controller.errorMessage,
+                  ),
+                  const SizedBox(height: 16),
+                  StreamBuilder<List<PassengerPaymentMethod>>(
+                    stream: _paymentMethodService.watchPaymentMethods(
+                      widget.passengerId,
+                    ),
+                    builder: (context, snapshot) {
+                      final methods =
+                          snapshot.data ??
+                          <PassengerPaymentMethod>[
+                            PassengerPaymentMethod.cash(
+                              userId: widget.passengerId,
+                            ),
+                          ];
+                      final selected = _selectedPaymentMethod(methods);
+
+                      return _BookingPaymentMethodCard(
+                        selectedMethod: selected,
+                        isLoading:
+                            snapshot.connectionState == ConnectionState.waiting,
+                        onChange: () => _showPaymentMethodPicker(methods),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   PassengerSurfaceCard(
@@ -184,7 +237,7 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Pickup and destination radius checks use configurable geofencing thresholds for Buenavista trips.',
+                            'Booking now checks drivers within a wider barangay-scale geofence around your pickup.',
                             style: MapTextStyles.body,
                           ),
                         ),
@@ -455,11 +508,23 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
       return;
     }
 
+    final paymentMethods = await _paymentMethodService.loadPaymentMethods(
+      widget.passengerId,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    final paymentMethod = _selectedPaymentMethod(paymentMethods);
+
     final bookingId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _DriverSelectionPanel(controller: _controller),
+      builder: (_) => _DriverSelectionPanel(
+        controller: _controller,
+        paymentMethod: paymentMethod,
+      ),
     );
 
     if (!mounted || bookingId == null) {
@@ -495,6 +560,50 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  PassengerPaymentMethod _selectedPaymentMethod(
+    List<PassengerPaymentMethod> methods,
+  ) {
+    if (methods.isEmpty) {
+      return PassengerPaymentMethod.cash(userId: widget.passengerId);
+    }
+
+    final selectedId = _selectedPaymentMethodId;
+    if (selectedId != null) {
+      for (final method in methods) {
+        if (method.id == selectedId) {
+          return method;
+        }
+      }
+    }
+
+    for (final method in methods) {
+      if (method.isDefault) {
+        return method;
+      }
+    }
+
+    return methods.first;
+  }
+
+  Future<void> _showPaymentMethodPicker(
+    List<PassengerPaymentMethod> methods,
+  ) async {
+    final selected = await showModalBottomSheet<PassengerPaymentMethod>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PaymentMethodPickerSheet(
+        methods: methods,
+        selectedMethodId: _selectedPaymentMethod(methods).id,
+      ),
+    );
+
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    setState(() => _selectedPaymentMethodId = selected.id);
+  }
+
   void _syncFieldsFromController() {
     final pickup = _controller.pickupLocation;
     final dropoff = _controller.dropoffLocation;
@@ -517,6 +626,133 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
           bookingId: bookingId,
           userId: widget.passengerId,
           viewerRole: RideViewerRole.passenger,
+        ),
+      ),
+    );
+  }
+}
+
+class _BookingPaymentMethodCard extends StatelessWidget {
+  final PassengerPaymentMethod selectedMethod;
+  final bool isLoading;
+  final VoidCallback onChange;
+
+  const _BookingPaymentMethodCard({
+    required this.selectedMethod,
+    required this.isLoading,
+    required this.onChange,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PassengerSurfaceCard(
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: selectedMethod.type.accentColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              selectedMethod.type.icon,
+              color: selectedMethod.type.accentColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Payment',
+                  style: MapTextStyles.body.copyWith(fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isLoading ? 'Loading...' : selectedMethod.displayLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MapTextStyles.value,
+                ),
+                if (!isLoading) ...<Widget>[
+                  const SizedBox(height: 2),
+                  Text(
+                    selectedMethod.usesPayMongo
+                        ? '${selectedMethod.accountLabel} - driver must support online'
+                        : selectedMethod.accountLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MapTextStyles.body.copyWith(fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: isLoading ? null : onChange,
+            child: const Text('Change'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentMethodPickerSheet extends StatelessWidget {
+  final List<PassengerPaymentMethod> methods;
+  final String selectedMethodId;
+
+  const _PaymentMethodPickerSheet({
+    required this.methods,
+    required this.selectedMethodId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+        decoration: BoxDecoration(
+          color: PassengerUi.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: PassengerUi.border),
+          boxShadow: PassengerUi.cardShadow,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('Choose Payment', style: MapTextStyles.title),
+            const SizedBox(height: 12),
+            for (final method in methods)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: method.type.accentColor.withValues(
+                    alpha: 0.12,
+                  ),
+                  child: Icon(method.type.icon, color: method.type.accentColor),
+                ),
+                title: Text(method.displayLabel, style: MapTextStyles.value),
+                subtitle: Text(
+                  method.accountLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MapTextStyles.body.copyWith(fontSize: 12),
+                ),
+                trailing: method.id == selectedMethodId
+                    ? Icon(
+                        Icons.check_circle_rounded,
+                        color: PassengerUi.successText,
+                      )
+                    : null,
+                onTap: () => Navigator.of(context).pop(method),
+              ),
+          ],
         ),
       ),
     );
@@ -620,8 +856,12 @@ class _TargetButton extends StatelessWidget {
 
 class _DriverSelectionPanel extends StatefulWidget {
   final BookingMapController controller;
+  final PassengerPaymentMethod paymentMethod;
 
-  const _DriverSelectionPanel({required this.controller});
+  const _DriverSelectionPanel({
+    required this.controller,
+    required this.paymentMethod,
+  });
 
   @override
   State<_DriverSelectionPanel> createState() => _DriverSelectionPanelState();
@@ -629,6 +869,8 @@ class _DriverSelectionPanel extends StatefulWidget {
 
 class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
   final GeofencingService _geofencingService = const GeofencingService();
+  final PayMongoCheckoutService _payMongoCheckoutService =
+      PayMongoCheckoutService();
   bool _isExpanded = false;
   String? _bookingDriverId;
 
@@ -758,10 +1000,14 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
                           bookingDriverId: _bookingDriverId,
                           isRequestingAny: _bookingDriverId == 'any',
                           isBookingLoading: widget.controller.isBookingLoading,
+                          fareLabel:
+                              widget.controller.fareEstimate?.amountLabel ??
+                              'Fare pending',
+                          fareNote: widget.controller.fareNotice,
+                          paymentMethod: widget.paymentMethod,
                           distanceLabelBuilder: (driver) =>
                               _distanceLabel(driver, pickup),
-                          onBookDriver: (driver) =>
-                              _bookDriver(driver.driverId),
+                          onBookDriver: _bookDriver,
                           onRequestAnyway: () => _bookDriver(null),
                         ),
                 ),
@@ -821,7 +1067,7 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
 
     return drivers
         .where(
-          (driver) => _geofencingService.isDriverNearPickup(
+          (driver) => _geofencingService.isDriverInsideBookingGeofence(
             driverLocation: driver.location.latLng,
             pickupLocation: pickup,
           ),
@@ -868,7 +1114,7 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
       Circle(
         circleId: const CircleId('available_driver_radius'),
         center: pickup,
-        radius: MapConfig.driverNearPickupRadiusMeters,
+        radius: MapConfig.bookingGeofenceRadiusMeters,
         fillColor: PassengerUi.accentBlue.withValues(alpha: 0.07),
         strokeColor: PassengerUi.accentBlue.withValues(alpha: 0.55),
         strokeWidth: 1,
@@ -894,10 +1140,14 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
     return '$minutes min away - $distanceText';
   }
 
-  Future<void> _bookDriver(String? driverId) async {
+  Future<void> _bookDriver(AvailableDriver? driver) async {
+    final driverId = driver?.driverId;
+    final paymentMethod = _effectivePaymentMethod(driver);
+
     setState(() => _bookingDriverId = driverId ?? 'any');
     final bookingId = await widget.controller.createBooking(
       preferredDriverId: driverId,
+      paymentMethod: paymentMethod,
     );
 
     if (!mounted) {
@@ -905,6 +1155,24 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
     }
 
     if (bookingId != null) {
+      if (paymentMethod.usesPayMongo) {
+        try {
+          final session = await _payMongoCheckoutService.createCheckoutSession(
+            bookingId: bookingId,
+            paymentMethod: paymentMethod,
+          );
+          await _payMongoCheckoutService.openCheckoutUrl(session.checkoutUrl);
+        } on Exception catch (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('PayMongo checkout failed: $error')),
+            );
+          }
+        }
+      }
+      if (!mounted) {
+        return;
+      }
       Navigator.of(context).pop(bookingId);
       return;
     }
@@ -918,6 +1186,19 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
       ),
     );
   }
+
+  PassengerPaymentMethod _effectivePaymentMethod(AvailableDriver? driver) {
+    final selected = widget.paymentMethod;
+    if (!selected.usesPayMongo) {
+      return selected;
+    }
+
+    if (driver?.supportsOnlinePayments == true) {
+      return selected;
+    }
+
+    return PassengerPaymentMethod.cash(userId: widget.controller.passengerId);
+  }
 }
 
 class _DriverPanelContent extends StatelessWidget {
@@ -927,6 +1208,9 @@ class _DriverPanelContent extends StatelessWidget {
   final String? bookingDriverId;
   final bool isRequestingAny;
   final bool isBookingLoading;
+  final String fareLabel;
+  final String? fareNote;
+  final PassengerPaymentMethod paymentMethod;
   final String Function(AvailableDriver driver) distanceLabelBuilder;
   final ValueChanged<AvailableDriver> onBookDriver;
   final VoidCallback onRequestAnyway;
@@ -938,6 +1222,9 @@ class _DriverPanelContent extends StatelessWidget {
     required this.bookingDriverId,
     required this.isRequestingAny,
     required this.isBookingLoading,
+    required this.fareLabel,
+    this.fareNote,
+    required this.paymentMethod,
     required this.distanceLabelBuilder,
     required this.onBookDriver,
     required this.onRequestAnyway,
@@ -951,14 +1238,21 @@ class _DriverPanelContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          _BookingCheckoutSummary(
+            fareLabel: fareLabel,
+            fareNote: fareNote,
+            paymentMethod: paymentMethod,
+          ),
+          const SizedBox(height: 16),
           if (hasNearbyDrivers)
             _DriverListSection(
               title: 'Active drivers nearby',
               subtitle: hasPickup
-                  ? 'Inside the pickup geofence'
+                  ? 'Inside the wider booking geofence'
                   : 'Sorted by availability',
               drivers: nearbyDrivers,
               bookingDriverId: bookingDriverId,
+              selectedPaymentMethod: paymentMethod,
               distanceLabelBuilder: distanceLabelBuilder,
               onBookDriver: onBookDriver,
             )
@@ -966,6 +1260,7 @@ class _DriverPanelContent extends StatelessWidget {
             _NoDriversState(
               hasActiveDrivers: otherActiveDrivers.isNotEmpty,
               isBooking: isRequestingAny || isBookingLoading,
+              selectedPaymentMethod: paymentMethod,
               onRequestAnyway: onRequestAnyway,
             ),
           if (otherActiveDrivers.isNotEmpty) ...<Widget>[
@@ -975,10 +1270,11 @@ class _DriverPanelContent extends StatelessWidget {
                   ? 'Other active drivers'
                   : 'Active drivers',
               subtitle: hasNearbyDrivers
-                  ? 'Available but outside the pickup geofence'
+                  ? 'Available but outside the booking geofence'
                   : 'Available verified drivers right now',
               drivers: otherActiveDrivers,
               bookingDriverId: bookingDriverId,
+              selectedPaymentMethod: paymentMethod,
               distanceLabelBuilder: distanceLabelBuilder,
               onBookDriver: onBookDriver,
             ),
@@ -994,6 +1290,7 @@ class _DriverListSection extends StatelessWidget {
   final String subtitle;
   final List<AvailableDriver> drivers;
   final String? bookingDriverId;
+  final PassengerPaymentMethod selectedPaymentMethod;
   final String Function(AvailableDriver driver) distanceLabelBuilder;
   final ValueChanged<AvailableDriver> onBookDriver;
 
@@ -1002,6 +1299,7 @@ class _DriverListSection extends StatelessWidget {
     required this.subtitle,
     required this.drivers,
     required this.bookingDriverId,
+    required this.selectedPaymentMethod,
     required this.distanceLabelBuilder,
     required this.onBookDriver,
   });
@@ -1019,6 +1317,7 @@ class _DriverListSection extends StatelessWidget {
           _AvailableDriverCard(
             driver: driver,
             distanceLabel: distanceLabelBuilder(driver),
+            selectedPaymentMethod: selectedPaymentMethod,
             isBooking: bookingDriverId == driver.driverId,
             onBook: () => onBookDriver(driver),
           ),
@@ -1029,21 +1328,123 @@ class _DriverListSection extends StatelessWidget {
   }
 }
 
+class _BookingCheckoutSummary extends StatelessWidget {
+  final String fareLabel;
+  final String? fareNote;
+  final PassengerPaymentMethod paymentMethod;
+
+  const _BookingCheckoutSummary({
+    required this.fareLabel,
+    this.fareNote,
+    required this.paymentMethod,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fareValue = paymentMethod.usesPayMongo
+        ? '$fareLabel / cash only fallback'
+        : fareLabel;
+
+    final note = fareNote?.trim();
+
+    return PassengerSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _SummaryValue(
+                  icon: Icons.payments_rounded,
+                  label: 'Fare',
+                  value: fareValue,
+                ),
+              ),
+              Container(width: 1, height: 42, color: PassengerUi.border),
+              Expanded(
+                child: _SummaryValue(
+                  icon: paymentMethod.type.icon,
+                  label: 'Payment',
+                  value: paymentMethod.displayLabel,
+                ),
+              ),
+            ],
+          ),
+          if (note != null && note.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
+            Text(
+              note,
+              style: MapTextStyles.body.copyWith(
+                fontSize: 12,
+                color: note.contains('applied')
+                    ? PassengerUi.successText
+                    : PassengerUi.body,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryValue extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _SummaryValue({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Icon(icon, color: PassengerUi.accentBlue),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(label, style: MapTextStyles.body.copyWith(fontSize: 12)),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MapTextStyles.value,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _AvailableDriverCard extends StatelessWidget {
   final AvailableDriver driver;
   final String distanceLabel;
+  final PassengerPaymentMethod selectedPaymentMethod;
   final bool isBooking;
   final VoidCallback onBook;
 
   const _AvailableDriverCard({
     required this.driver,
     required this.distanceLabel,
+    required this.selectedPaymentMethod,
     required this.isBooking,
     required this.onBook,
   });
 
   @override
   Widget build(BuildContext context) {
+    final forcesCash =
+        selectedPaymentMethod.usesPayMongo && !driver.supportsOnlinePayments;
+
     return PassengerSurfaceCard(
       child: Row(
         children: <Widget>[
@@ -1116,6 +1517,27 @@ class _AvailableDriverCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: PassengerStatusChip(
+                    label: forcesCash
+                        ? 'Cash only'
+                        : driver.supportsOnlinePayments
+                        ? 'Online payments'
+                        : 'Cash',
+                    textColor: forcesCash
+                        ? PassengerUi.primary
+                        : driver.supportsOnlinePayments
+                        ? PassengerUi.successText
+                        : PassengerUi.body,
+                    backgroundColor: forcesCash
+                        ? PassengerUi.dangerSoft
+                        : driver.supportsOnlinePayments
+                        ? PassengerUi.successBackground
+                        : PassengerUi.mutedSurface,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1128,7 +1550,7 @@ class _AvailableDriverCard extends StatelessWidget {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Book Now'),
+                : Text(forcesCash ? 'Cash Only' : 'Book Now'),
           ),
         ],
       ),
@@ -1139,11 +1561,13 @@ class _AvailableDriverCard extends StatelessWidget {
 class _NoDriversState extends StatelessWidget {
   final bool hasActiveDrivers;
   final bool isBooking;
+  final PassengerPaymentMethod selectedPaymentMethod;
   final VoidCallback onRequestAnyway;
 
   const _NoDriversState({
     required this.hasActiveDrivers,
     required this.isBooking,
+    required this.selectedPaymentMethod,
     required this.onRequestAnyway,
   });
 
@@ -1166,7 +1590,13 @@ class _NoDriversState extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: isBooking ? null : onRequestAnyway,
               icon: const Icon(Icons.radar_rounded),
-              label: Text(isBooking ? 'Requesting...' : 'Request Anyway'),
+              label: Text(
+                isBooking
+                    ? 'Requesting...'
+                    : selectedPaymentMethod.usesPayMongo
+                    ? 'Request Anyway - Cash'
+                    : 'Request Anyway',
+              ),
             ),
           ),
         ],
@@ -1176,15 +1606,38 @@ class _NoDriversState extends StatelessWidget {
 }
 
 class _SavedDestinationRow extends StatelessWidget {
+  final List<PassengerQuickDestination> destinations;
+  final bool isLoading;
   final ValueChanged<PassengerQuickDestination> onTap;
 
-  const _SavedDestinationRow({required this.onTap});
+  const _SavedDestinationRow({
+    required this.destinations,
+    required this.isLoading,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return SizedBox(
+        height: 68,
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (destinations.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final destinations = PassengerMockData.quickDestinations;
+        final visibleDestinations = destinations.take(4).toList();
         final isTight = constraints.maxWidth < 380;
 
         if (isTight) {
@@ -1193,7 +1646,7 @@ class _SavedDestinationRow extends StatelessWidget {
           return Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: destinations
+            children: visibleDestinations
                 .map(
                   (destination) => SizedBox(
                     width: itemWidth,
@@ -1208,14 +1661,16 @@ class _SavedDestinationRow extends StatelessWidget {
         }
 
         return Row(
-          children: destinations
+          children: visibleDestinations
               .asMap()
               .entries
               .map(
                 (entry) => Expanded(
                   child: Padding(
                     padding: EdgeInsets.only(
-                      right: entry.key == destinations.length - 1 ? 0 : 10,
+                      right: entry.key == visibleDestinations.length - 1
+                          ? 0
+                          : 10,
                     ),
                     child: _SavedDestinationButton(
                       destination: entry.value,

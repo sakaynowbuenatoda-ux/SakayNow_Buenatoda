@@ -7,8 +7,11 @@ import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../profile/profile_page.dart';
 import '../settings/settings_page.dart';
 import 'admin_insights_page.dart';
+import 'admin_messages_page.dart';
+import 'admin_monitoring_page.dart';
 import 'admin_operations_page.dart';
 import 'admin_overview_page.dart';
+import 'admin_reports_page.dart';
 import 'admin_verification_page.dart';
 
 class AdminHomePage extends StatefulWidget {
@@ -31,9 +34,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
   late final List<Widget> _pages = <Widget>[
     AdminOverviewPage(adminId: widget.userId, firstName: widget.firstName),
+    AdminMonitoringPage(adminId: widget.userId),
     AdminVerificationPage(adminId: widget.userId),
     AdminOperationsPage(adminId: widget.userId),
     AdminInsightsPage(adminId: widget.userId),
+    AdminMessagesPage(adminId: widget.userId),
+    AdminReportsPage(adminId: widget.userId),
   ];
 
   Future<void> _handleLogout(BuildContext context) async {
@@ -57,6 +63,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ProfilePage(userId: widget.userId)),
     );
+  }
+
+  Future<void> _handleRefresh() async {
+    await Future<void>.delayed(const Duration(milliseconds: 600));
   }
 
   @override
@@ -87,7 +97,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
           _openSettings();
         },
       ),
-      body: AnimatedTabSwitcher(index: _currentIndex, children: _pages),
+      body: AnimatedTabSwitcher(
+        index: _currentIndex,
+        onRefresh: _handleRefresh,
+        children: _pages,
+      ),
     );
   }
 }
@@ -111,9 +125,12 @@ class _AdminDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = <({IconData icon, String label})>[
       (icon: Icons.dashboard_customize_rounded, label: 'Overview'),
+      (icon: Icons.monitor_heart_rounded, label: 'Monitoring'),
       (icon: Icons.fact_check_rounded, label: 'Verification'),
       (icon: Icons.route_rounded, label: 'Operations'),
       (icon: Icons.analytics_rounded, label: 'Insights'),
+      (icon: Icons.chat_bubble_rounded, label: 'Messages'),
+      (icon: Icons.assessment_rounded, label: 'Reports'),
     ];
 
     return Drawer(

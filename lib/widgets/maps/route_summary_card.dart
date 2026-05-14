@@ -47,7 +47,10 @@ class RouteSummaryCard extends StatelessWidget {
       );
     }
 
-    if (errorMessage != null && errorMessage!.isNotEmpty) {
+    final activeRoute = route;
+    if (activeRoute == null &&
+        errorMessage != null &&
+        errorMessage!.isNotEmpty) {
       return PassengerSurfaceCard(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,7 +63,6 @@ class RouteSummaryCard extends StatelessWidget {
       );
     }
 
-    final activeRoute = route;
     if (activeRoute == null) {
       return PassengerSurfaceCard(
         child: Row(

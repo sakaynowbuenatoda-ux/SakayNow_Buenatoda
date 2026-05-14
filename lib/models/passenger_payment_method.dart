@@ -31,6 +31,15 @@ extension PassengerPaymentMethodTypeX on PassengerPaymentMethodType {
     };
   }
 
+  String? get xenditValue {
+    return switch (this) {
+      PassengerPaymentMethodType.cash => null,
+      PassengerPaymentMethodType.gcash => 'GCASH',
+      PassengerPaymentMethodType.maya => 'PAYMAYA',
+      PassengerPaymentMethodType.card => 'CREDIT_CARD',
+    };
+  }
+
   IconData get icon {
     return switch (this) {
       PassengerPaymentMethodType.cash => Icons.payments_rounded,
@@ -120,8 +129,11 @@ class PassengerPaymentMethod {
 
   bool get isCash => type == PassengerPaymentMethodType.cash;
   bool get usesPayMongo => type.payMongoValue != null;
-  String get provider => usesPayMongo ? 'paymongo' : 'cash';
+  bool get usesXendit => type.xenditValue != null;
+  bool get usesOnlineCheckout => usesXendit;
+  String get provider => usesXendit ? 'xendit' : 'cash';
   String? get payMongoPaymentMethodType => type.payMongoValue;
+  String? get xenditPaymentMethodType => type.xenditValue;
 
   String get displayLabel {
     final trimmed = label.trim();
@@ -134,17 +146,17 @@ class PassengerPaymentMethod {
     }
 
     if (type == PassengerPaymentMethodType.card) {
-      return 'Card via PayMongo checkout';
+      return 'Card via Xendit checkout';
     }
 
     if (type == PassengerPaymentMethodType.gcash ||
         type == PassengerPaymentMethodType.maya) {
-      return '${type.label} via PayMongo checkout';
+      return '${type.label} via Xendit checkout';
     }
 
     final reference = accountReference.trim();
     if (reference.isEmpty) {
-      return 'PayMongo checkout';
+      return 'Xendit checkout';
     }
 
     final name = accountName.trim();

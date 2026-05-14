@@ -11,8 +11,8 @@ import '../../models/ride_location.dart';
 import '../../models/ride_status.dart';
 import '../../services/geofencing_service.dart';
 import '../../services/payment_method_service.dart';
-import '../../services/paymongo_checkout_service.dart';
 import '../../services/ride_tracking_service.dart';
+import '../../services/xendit_checkout_service.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/maps/location_pin_picker_sheet.dart';
 import '../../widgets/maps/place_search_field.dart';
@@ -679,7 +679,7 @@ class _BookingPaymentMethodCard extends StatelessWidget {
                 if (!isLoading) ...<Widget>[
                   const SizedBox(height: 2),
                   Text(
-                    selectedMethod.usesPayMongo
+                    selectedMethod.usesOnlineCheckout
                         ? '${selectedMethod.accountLabel} - driver must support online'
                         : selectedMethod.accountLabel,
                     maxLines: 1,
@@ -869,8 +869,7 @@ class _DriverSelectionPanel extends StatefulWidget {
 
 class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
   final GeofencingService _geofencingService = const GeofencingService();
-  final PayMongoCheckoutService _payMongoCheckoutService =
-      PayMongoCheckoutService();
+  final XenditCheckoutService _xenditCheckoutService = XenditCheckoutService();
   bool _isExpanded = false;
   String? _bookingDriverId;
 
@@ -1155,17 +1154,17 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
     }
 
     if (bookingId != null) {
-      if (paymentMethod.usesPayMongo) {
+      if (paymentMethod.usesOnlineCheckout) {
         try {
-          final session = await _payMongoCheckoutService.createCheckoutSession(
+          final session = await _xenditCheckoutService.createCheckoutSession(
             bookingId: bookingId,
             paymentMethod: paymentMethod,
           );
-          await _payMongoCheckoutService.openCheckoutUrl(session.checkoutUrl);
+          await _xenditCheckoutService.openCheckoutUrl(session.checkoutUrl);
         } on Exception catch (error) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('PayMongo checkout failed: $error')),
+              SnackBar(content: Text('Xendit checkout failed: $error')),
             );
           }
         }
@@ -1189,7 +1188,7 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
 
   PassengerPaymentMethod _effectivePaymentMethod(AvailableDriver? driver) {
     final selected = widget.paymentMethod;
-    if (!selected.usesPayMongo) {
+    if (!selected.usesOnlineCheckout) {
       return selected;
     }
 
@@ -1341,7 +1340,7 @@ class _BookingCheckoutSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fareValue = paymentMethod.usesPayMongo
+    final fareValue = paymentMethod.usesOnlineCheckout
         ? '$fareLabel / cash only fallback'
         : fareLabel;
 
@@ -1443,7 +1442,8 @@ class _AvailableDriverCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final forcesCash =
-        selectedPaymentMethod.usesPayMongo && !driver.supportsOnlinePayments;
+        selectedPaymentMethod.usesOnlineCheckout &&
+        !driver.supportsOnlinePayments;
 
     return PassengerSurfaceCard(
       child: Row(
@@ -1593,7 +1593,7 @@ class _NoDriversState extends StatelessWidget {
               label: Text(
                 isBooking
                     ? 'Requesting...'
-                    : selectedPaymentMethod.usesPayMongo
+                    : selectedPaymentMethod.usesOnlineCheckout
                     ? 'Request Anyway - Cash'
                     : 'Request Anyway',
               ),

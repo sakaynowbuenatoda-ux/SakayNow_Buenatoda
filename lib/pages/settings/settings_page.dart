@@ -9,6 +9,7 @@ import 'app_preferences_page.dart';
 import 'change_password_page.dart';
 import 'developers.dart';
 import 'help_and_support.dart';
+import 'notification_settings_page.dart';
 import 'privacy_policy.dart';
 import 'settings_placeholder_page.dart';
 import 'terms_and_conditions.dart';
@@ -111,12 +112,10 @@ class SettingsPage extends StatelessWidget {
             'Control ride updates, alerts, and account-related reminders.',
         icon: Icons.notifications_none_rounded,
         accentColor: PassengerUi.secondary,
-        onTap: () => _openPlaceholder(
-          context,
-          title: 'Notifications',
-          description:
-              'Notification preferences and alert categories will appear here.',
-          icon: Icons.notifications_none_rounded,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => NotificationSettingsPage(userId: currentUserId),
+          ),
         ),
       ),
       SettingsTileData(

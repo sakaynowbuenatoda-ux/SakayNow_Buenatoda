@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/session/session_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/animated_tab_switcher.dart';
 import '../../widgets/admin_widgets/admin_appbar.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../notifications/notifications_page.dart';
 import '../profile/profile_page.dart';
 import '../settings/settings_page.dart';
 import 'admin_insights_page.dart';
@@ -30,7 +34,10 @@ class AdminHomePage extends StatefulWidget {
 
 class _AdminHomePageState extends State<AdminHomePage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final NotificationService _notificationService = NotificationService.instance;
+  StreamSubscription<int>? _notificationSubscription;
   int _currentIndex = 0;
+  int _notificationUnreadCount = 0;
 
   late final List<Widget> _pages = <Widget>[
     AdminOverviewPage(adminId: widget.userId, firstName: widget.firstName),
@@ -41,6 +48,18 @@ class _AdminHomePageState extends State<AdminHomePage> {
     AdminMessagesPage(adminId: widget.userId),
     AdminReportsPage(adminId: widget.userId),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _watchUnreadNotifications();
+  }
+
+  @override
+  void dispose() {
+    _notificationSubscription?.cancel();
+    super.dispose();
+  }
 
   Future<void> _handleLogout(BuildContext context) async {
     try {
@@ -65,6 +84,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
+  void _openNotifications() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const NotificationsPage()));
+  }
+
   Future<void> _handleRefresh() async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
   }
@@ -78,6 +103,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
         adminName: widget.firstName.isEmpty ? 'Admin' : widget.firstName,
         appName: 'SakayNow Admin',
         onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+        onNotificationsTap: _openNotifications,
+        notificationUnreadCount: _notificationUnreadCount,
         onProfileSettingsTap: _openSettings,
         onLogout: _handleLogout,
       ),
@@ -103,6 +130,24 @@ class _AdminHomePageState extends State<AdminHomePage> {
         children: _pages,
       ),
     );
+  }
+
+  void _watchUnreadNotifications() {
+    unawaited(_notificationSubscription?.cancel());
+    _notificationSubscription = _notificationService
+        .watchUnreadCount(widget.userId)
+        .listen(
+          (count) {
+            if (mounted && count != _notificationUnreadCount) {
+              setState(() => _notificationUnreadCount = count);
+            }
+          },
+          onError: (_) {
+            if (mounted && _notificationUnreadCount != 0) {
+              setState(() => _notificationUnreadCount = 0);
+            }
+          },
+        );
   }
 }
 

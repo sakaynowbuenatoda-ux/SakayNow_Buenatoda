@@ -44,7 +44,7 @@ class RideTrackingService {
     final now = FieldValue.serverTimestamp();
     final selectedPaymentMethod =
         paymentMethod ?? PassengerPaymentMethod.cash(userId: passengerId);
-    final paymentStatus = selectedPaymentMethod.usesPayMongo
+    final paymentStatus = selectedPaymentMethod.usesOnlineCheckout
         ? 'checkout_pending'
         : 'cash_pending';
     final passengerFareProfile = await loadPassengerFareProfile(passengerId);
@@ -256,9 +256,15 @@ class RideTrackingService {
         .map((snapshot) {
           final rides = snapshot.docs.map(Ride.fromDocument).where((ride) {
             final preferredDriverId = ride.preferredDriverId;
-            return driverId == null ||
-                preferredDriverId == null ||
-                preferredDriverId == driverId;
+            if (driverId == null) {
+              return true;
+            }
+
+            if (ride.declinedDriverIds.contains(driverId)) {
+              return false;
+            }
+
+            return preferredDriverId == null || preferredDriverId == driverId;
           }).toList();
           rides.sort((a, b) {
             if (driverId != null) {
@@ -437,17 +443,9 @@ class RideTrackingService {
 
           for (final document in snapshot.docs) {
             final data = document.data();
-            final reviewerId = (data['reviewer_id'] ?? '').toString().trim();
-            var reviewerName = 'Passenger';
-
-            if (reviewerId.isNotEmpty) {
-              final reviewerDoc = await _users.doc(reviewerId).get();
-              final reviewerData = reviewerDoc.data() ?? <String, dynamic>{};
-              reviewerName = _fullNameFromData(
-                reviewerData,
-                fallback: 'Passenger',
-              );
-            }
+            final reviewerName =
+                _reviewerNameFromReviewData(data) ??
+                _reviewerFallbackName(data);
 
             reviews.add(
               DriverReviewRecord.fromData(
@@ -491,6 +489,7 @@ class RideTrackingService {
     final reviewId = '${bookingId}_passenger_${passengerId}_driver_$driverId';
     final reviewRef = _firestore.collection('reviews').doc(reviewId);
     final bookingRef = _bookings.doc(bookingId);
+    final passengerRef = _users.doc(passengerId);
     final driverRef = _users.doc(driverId);
 
     await _firestore.runTransaction((transaction) async {
@@ -508,7 +507,9 @@ class RideTrackingService {
       }
 
       final existingReview = await transaction.get(reviewRef);
+      final passengerSnapshot = await transaction.get(passengerRef);
       final driverSnapshot = await transaction.get(driverRef);
+      final passengerData = passengerSnapshot.data() ?? <String, dynamic>{};
       final driverData = driverSnapshot.data() ?? <String, dynamic>{};
       final previousRating = existingReview.exists
           ? _readInt(existingReview.data()?['rating'])
@@ -526,6 +527,10 @@ class RideTrackingService {
           ? currentCount + 1
           : currentCount;
       final nextAverage = nextCount == 0 ? 0 : nextTotal / nextCount;
+      final reviewerName = _fullNameFromData(
+        passengerData,
+        fallback: 'Passenger',
+      );
       final now = FieldValue.serverTimestamp();
 
       transaction.set(reviewRef, <String, dynamic>{
@@ -533,6 +538,7 @@ class RideTrackingService {
         'booking_id': bookingId,
         'reviewer_id': passengerId,
         'reviewer_role': 'passenger',
+        'reviewer_name': reviewerName,
         'reviewee_id': driverId,
         'reviewee_role': 'driver',
         'rating': rating,
@@ -624,11 +630,14 @@ class RideTrackingService {
     final reviewId = '${bookingId}_driver_${driverId}_passenger_$passengerId';
     final reviewRef = _firestore.collection('reviews').doc(reviewId);
     final bookingRef = _bookings.doc(bookingId);
+    final driverRef = _users.doc(driverId);
     final passengerRef = _users.doc(passengerId);
 
     await _firestore.runTransaction((transaction) async {
       final existingReview = await transaction.get(reviewRef);
+      final driverSnapshot = await transaction.get(driverRef);
       final passengerSnapshot = await transaction.get(passengerRef);
+      final driverData = driverSnapshot.data() ?? <String, dynamic>{};
       final passengerData = passengerSnapshot.data() ?? <String, dynamic>{};
       final previousRating = existingReview.exists
           ? _readInt(existingReview.data()?['rating'])
@@ -640,6 +649,7 @@ class RideTrackingService {
           ? currentCount + 1
           : currentCount;
       final nextAverage = nextCount == 0 ? 0 : nextTotal / nextCount;
+      final reviewerName = _fullNameFromData(driverData, fallback: 'Driver');
       final now = FieldValue.serverTimestamp();
 
       transaction.set(reviewRef, <String, dynamic>{
@@ -647,6 +657,7 @@ class RideTrackingService {
         'booking_id': bookingId,
         'reviewer_id': driverId,
         'reviewer_role': 'driver',
+        'reviewer_name': reviewerName,
         'reviewee_id': passengerId,
         'reviewee_role': 'passenger',
         'rating': rating,
@@ -705,6 +716,18 @@ class RideTrackingService {
         throw StateError('This booking is no longer available.');
       }
 
+      final preferredDriverId = _readNullableString(
+        data['preferred_driver_id'],
+      );
+      if (preferredDriverId != null && preferredDriverId != driverId) {
+        throw StateError('This booking is reserved for another driver.');
+      }
+
+      final declinedDriverIds = _readStringList(data['declined_driver_ids']);
+      if (declinedDriverIds.contains(driverId)) {
+        throw StateError('You already declined this booking.');
+      }
+
       final paymentProvider = (data['payment_provider'] ?? 'cash')
           .toString()
           .trim()
@@ -713,7 +736,7 @@ class RideTrackingService {
           .toString()
           .trim()
           .toLowerCase();
-      if (paymentProvider == 'paymongo' &&
+      if ((paymentProvider == 'paymongo' || paymentProvider == 'xendit') &&
           driverData['accepts_online_payments'] != true) {
         throw StateError(
           'Add a driver payout account before accepting online payments.',
@@ -745,7 +768,7 @@ class RideTrackingService {
         ]),
       };
 
-      if (paymentProvider == 'paymongo') {
+      if (paymentProvider == 'paymongo' || paymentProvider == 'xendit') {
         bookingUpdates.addAll(<String, dynamic>{
           'driver_payout_status': paymentStatus == 'paid'
               ? 'pending'
@@ -765,6 +788,61 @@ class RideTrackingService {
     });
   }
 
+  Future<void> declineBooking({
+    required String bookingId,
+    required String driverId,
+  }) async {
+    final bookingRef = _bookings.doc(bookingId);
+    final driverRef = _users.doc(driverId);
+
+    await _firestore.runTransaction((transaction) async {
+      final driverSnapshot = await transaction.get(driverRef);
+      final driverData = driverSnapshot.data() ?? <String, dynamic>{};
+      final isVerifiedDriver =
+          driverSnapshot.exists &&
+          driverData['role'] == 'driver' &&
+          (driverData['is_verified'] ?? driverData['isVerified'] ?? false) ==
+              true &&
+          (driverData['is_banned'] ?? driverData['isBanned'] ?? false) != true;
+
+      if (!isVerifiedDriver) {
+        throw StateError('Only verified drivers can decline bookings.');
+      }
+
+      final bookingSnapshot = await transaction.get(bookingRef);
+      final data = bookingSnapshot.data() ?? <String, dynamic>{};
+      final currentStatus = rideStatusFromString(data['status']);
+
+      if (!bookingSnapshot.exists || currentStatus != RideStatus.searching) {
+        throw StateError('This booking is no longer available.');
+      }
+
+      final preferredDriverId = _readNullableString(
+        data['preferred_driver_id'],
+      );
+      if (preferredDriverId != null && preferredDriverId != driverId) {
+        throw StateError('This booking is reserved for another driver.');
+      }
+
+      transaction.update(bookingRef, <String, dynamic>{
+        'preferred_driver_id': null,
+        'declined_driver_ids': FieldValue.arrayUnion(<String>[driverId]),
+        'last_declined_driver_id': driverId,
+        'declined_at': FieldValue.serverTimestamp(),
+        'status': RideStatus.searching.firestoreValue,
+        'updated_at': FieldValue.serverTimestamp(),
+        'status_history': FieldValue.arrayUnion(<Map<String, dynamic>>[
+          <String, dynamic>{
+            'status': RideStatus.searching.firestoreValue,
+            'event': 'driver_declined',
+            'changed_by': driverId,
+            'changed_at': Timestamp.now(),
+          },
+        ]),
+      });
+    });
+  }
+
   Future<void> updateRideStatus({
     required String bookingId,
     required RideStatus status,
@@ -774,6 +852,10 @@ class RideTrackingService {
     await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(bookingRef);
       final data = snapshot.data() ?? <String, dynamic>{};
+      if (!snapshot.exists) {
+        throw StateError('Booking was not found.');
+      }
+
       final paymentProvider = (data['payment_provider'] ?? 'cash')
           .toString()
           .trim()
@@ -802,6 +884,13 @@ class RideTrackingService {
           'payment_status': 'cash_collected',
           'payment_confirmed_by': changedBy,
           'payment_confirmed_at': FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (status == RideStatus.cancelled) {
+        updates.addAll(<String, dynamic>{
+          'cancelled_by': changedBy,
+          'cancelled_at': FieldValue.serverTimestamp(),
         });
       }
 
@@ -940,6 +1029,17 @@ class RideTrackingService {
     return text.isEmpty || text == 'null' ? null : text;
   }
 
+  static List<String> _readStringList(Object? value) {
+    if (value is! Iterable) {
+      return const <String>[];
+    }
+
+    return value
+        .map((entry) => entry.toString().trim())
+        .where((entry) => entry.isNotEmpty && entry != 'null')
+        .toList(growable: false);
+  }
+
   static String _fullNameFromData(
     Map<String, dynamic> data, {
     required String fallback,
@@ -948,6 +1048,29 @@ class RideTrackingService {
     final lastName = (data['last_name'] ?? '').toString().trim();
     final fullName = '$firstName $lastName'.trim();
     return fullName.isEmpty ? fallback : fullName;
+  }
+
+  static String? _reviewerNameFromReviewData(Map<String, dynamic> data) {
+    final candidates = <Object?>[
+      data['reviewer_name'],
+      data['reviewer_full_name'],
+      data['reviewer_display_name'],
+      data['reviewerName'],
+    ];
+
+    for (final candidate in candidates) {
+      final name = _readNullableString(candidate);
+      if (name != null) {
+        return name;
+      }
+    }
+
+    return null;
+  }
+
+  static String _reviewerFallbackName(Map<String, dynamic> data) {
+    final role = (data['reviewer_role'] ?? '').toString().trim().toLowerCase();
+    return role == 'driver' ? 'Driver' : 'Passenger';
   }
 
   String _statusTimestampField(RideStatus status) {

@@ -24,6 +24,7 @@ class DriverQueuePage extends StatefulWidget {
 class _DriverQueuePageState extends State<DriverQueuePage> {
   final RideTrackingService _rideTrackingService = RideTrackingService();
   String? _acceptingBookingId;
+  String? _decliningBookingId;
 
   @override
   Widget build(BuildContext context) {
@@ -79,8 +80,11 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
                           ride: entry.value,
                           isAccepting:
                               _acceptingBookingId == entry.value.bookingId,
+                          isDeclining:
+                              _decliningBookingId == entry.value.bookingId,
                           rideTrackingService: _rideTrackingService,
                           onAccept: () => _acceptRide(entry.value),
+                          onDecline: () => _declineRide(entry.value),
                         ),
                       ),
                     )
@@ -140,6 +144,54 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
       if (mounted) {
         setState(() {
           _acceptingBookingId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _declineRide(Ride ride) async {
+    if (!widget.isVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Admin verification is required before declining bookings.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _decliningBookingId = ride.bookingId;
+    });
+
+    try {
+      await _rideTrackingService.declineBooking(
+        bookingId: ride.bookingId,
+        driverId: widget.driverId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Request declined and kept open for other drivers.'),
+        ),
+      );
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _decliningBookingId = null;
         });
       }
     }

@@ -530,7 +530,9 @@ class _PassengerDashboardData {
       activeRides: rides.where((ride) => ride.isActive).length,
       totalSpent: totalSpent,
       cashlessTrips: rides
-          .where((ride) => ride.usesPayMongo || ride.paymentMethod != 'cash')
+          .where(
+            (ride) => ride.usesOnlineCheckout || ride.paymentMethod != 'cash',
+          )
           .length,
       studentSavings: isStudent ? (totalSpent * 0.15).round() : 0,
       latestRide: rides.isEmpty ? null : rides.first,

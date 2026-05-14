@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'admin_models.dart';
 import 'admin_navigation.dart';
@@ -139,8 +140,14 @@ class _AdminUserRecordList extends StatelessWidget {
                       ),
                       onRestrict: user.isBanned
                           ? null
-                          : () => _runUserAction(
+                          : () => _confirmAndRunUserAction(
                               context,
+                              title: 'Restrict Account?',
+                              message:
+                                  'This will block ${user.fullName} from using verification-gated app features until access is restored.',
+                              confirmLabel: 'Restrict',
+                              icon: Icons.block_rounded,
+                              confirmColor: PassengerUi.primary,
                               action: () => AdminService.restrictUser(
                                 userId: user.userId,
                                 adminId: adminId,
@@ -441,6 +448,32 @@ Future<void> _runUserAction(
       context,
     ).showSnackBar(SnackBar(content: Text('Action failed: $error')));
   }
+}
+
+Future<void> _confirmAndRunUserAction(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+  required IconData icon,
+  required Color confirmColor,
+  required Future<void> Function() action,
+  required String successMessage,
+}) async {
+  final confirmed = await showConfirmationDialog(
+    context,
+    title: title,
+    message: message,
+    confirmLabel: confirmLabel,
+    icon: icon,
+    confirmColor: confirmColor,
+  );
+
+  if (!confirmed || !context.mounted) {
+    return;
+  }
+
+  await _runUserAction(context, action: action, successMessage: successMessage);
 }
 
 bool _matchesUserSearch(AdminUserRecord user, String query) {

@@ -321,7 +321,7 @@ class _PaymentMethodFormSheetState extends State<_PaymentMethodFormSheet> {
                       textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 12),
-                    _PayMongoCheckoutNote(type: _type),
+                    _XenditCheckoutNote(type: _type),
                     const SizedBox(height: 8),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
@@ -365,7 +365,7 @@ class _PaymentMethodFormSheetState extends State<_PaymentMethodFormSheet> {
           ? _type.label
           : _labelController.text.trim(),
       accountName: '',
-      accountReference: 'PayMongo checkout',
+      accountReference: 'Xendit checkout',
       isDefault: _isDefault,
       createdAt: existing?.createdAt,
       updatedAt: existing?.updatedAt,
@@ -374,16 +374,16 @@ class _PaymentMethodFormSheetState extends State<_PaymentMethodFormSheet> {
   }
 }
 
-class _PayMongoCheckoutNote extends StatelessWidget {
+class _XenditCheckoutNote extends StatelessWidget {
   final PassengerPaymentMethodType type;
 
-  const _PayMongoCheckoutNote({required this.type});
+  const _XenditCheckoutNote({required this.type});
 
   @override
   Widget build(BuildContext context) {
     final text = type == PassengerPaymentMethodType.card
-        ? 'Card number, expiry date, and CVV are entered only on PayMongo checkout.'
-        : '${type.label} account details are entered only on PayMongo checkout.';
+        ? 'Card number, expiry date, and CVV are entered only on Xendit checkout.'
+        : '${type.label} account details are entered only on Xendit checkout.';
 
     return Container(
       width: double.infinity,

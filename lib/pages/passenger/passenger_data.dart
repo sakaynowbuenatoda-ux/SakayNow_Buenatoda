@@ -267,6 +267,6 @@ class PassengerMockData {
       value: '35',
       valueColor: Color(0xFF174A36),
     ),
-    PassengerFareDetail(label: 'Cashless payment', value: 'PayMongo checkout'),
+    PassengerFareDetail(label: 'Cashless payment', value: 'Xendit checkout'),
   ];
 }

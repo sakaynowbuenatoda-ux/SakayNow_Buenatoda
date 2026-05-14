@@ -360,7 +360,7 @@ class _DriverPayoutAccountsPreview extends StatelessWidget {
                 ),
                 SizedBox(height: 6),
                 Text(
-                  'Add GCash, Maya, or bank account details so passengers can choose PayMongo checkout when booking you.',
+                  'Add GCash, Maya, or bank account details so passengers can choose Xendit checkout when booking you.',
                   style: PassengerUi.bodyText,
                 ),
                 SizedBox(height: 12),
@@ -639,7 +639,9 @@ class _DriverDashboardData {
         (sum, ride) => sum + (ride.fareAmount ?? 0),
       ),
       cashlessTrips: rides
-          .where((ride) => ride.usesPayMongo || ride.paymentMethod != 'cash')
+          .where(
+            (ride) => ride.usesOnlineCheckout || ride.paymentMethod != 'cash',
+          )
           .length,
       latestRide: rides.isEmpty ? null : rides.first,
     );

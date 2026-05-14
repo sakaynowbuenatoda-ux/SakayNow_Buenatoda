@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -646,34 +645,24 @@ class BookingMapController extends ChangeNotifier {
         distanceMeters: estimate?.distanceMeters ?? fetchedRoute.distanceMeters,
       );
       errorMessage = null;
-    } on Exception catch (error) {
-      if (kIsWeb) {
-        route = _buildApproximateRoute(origin: pickup, destination: dropoff);
-        fareEstimate = _estimateFare(distanceMeters: route!.distanceMeters);
-        estimate = null;
-        errorMessage = null;
-      } else {
-        route = null;
-        estimate = null;
-        fareEstimate = null;
-        errorMessage = error.toString();
-      }
-    } catch (error) {
-      if (kIsWeb) {
-        route = _buildApproximateRoute(origin: pickup, destination: dropoff);
-        fareEstimate = _estimateFare(distanceMeters: route!.distanceMeters);
-        estimate = null;
-        errorMessage = null;
-      } else {
-        route = null;
-        estimate = null;
-        fareEstimate = null;
-        errorMessage = error.toString();
-      }
+    } on Exception {
+      _useApproximateRoute(origin: pickup, destination: dropoff);
+    } catch (_) {
+      _useApproximateRoute(origin: pickup, destination: dropoff);
     } finally {
       isRouteLoading = false;
       notifyListeners();
     }
+  }
+
+  void _useApproximateRoute({
+    required LatLng origin,
+    required LatLng destination,
+  }) {
+    route = _buildApproximateRoute(origin: origin, destination: destination);
+    fareEstimate = _estimateFare(distanceMeters: route!.distanceMeters);
+    estimate = null;
+    errorMessage = null;
   }
 
   FareEstimate _estimateFare({required int distanceMeters}) {

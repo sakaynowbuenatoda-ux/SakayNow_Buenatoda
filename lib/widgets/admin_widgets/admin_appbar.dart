@@ -7,6 +7,8 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String appName;
   final String? logoAssetPath;
   final VoidCallback onMenuTap;
+  final VoidCallback? onNotificationsTap;
+  final int notificationUnreadCount;
   final VoidCallback onProfileSettingsTap;
   final Future<void> Function(BuildContext context) onLogout;
 
@@ -15,6 +17,8 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.adminName,
     required this.appName,
     required this.onMenuTap,
+    this.onNotificationsTap,
+    this.notificationUnreadCount = 0,
     required this.onProfileSettingsTap,
     required this.onLogout,
     this.logoAssetPath = AppAssets.logo,
@@ -129,6 +133,14 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
       ),
       actions: [
+        if (onNotificationsTap != null)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _AdminNotificationButton(
+              count: notificationUnreadCount,
+              onTap: onNotificationsTap!,
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: PopupMenuButton<String>(
@@ -220,6 +232,72 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AdminNotificationButton extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+
+  const _AdminNotificationButton({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasUnread = count > 0;
+
+    return Material(
+      color: PassengerUi.mutedSurface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                Icons.notifications_none_rounded,
+                color: PassengerUi.accentBlue,
+                size: 22,
+              ),
+              if (hasUnread)
+                Positioned(
+                  top: 7,
+                  right: 7,
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minWidth: 15,
+                      minHeight: 15,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: PassengerUi.primary,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: PassengerUi.surface,
+                        width: 1.4,
+                      ),
+                    ),
+                    child: Text(
+                      count > 99 ? '99+' : count.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w800,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

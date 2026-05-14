@@ -13,6 +13,7 @@ class Ride {
   final String passengerId;
   final String? driverId;
   final String? preferredDriverId;
+  final List<String> declinedDriverIds;
   final RideStatus status;
   final RideLocation pickupLocation;
   final RideLocation dropoffLocation;
@@ -26,6 +27,8 @@ class Ride {
   final int? remainingRideDurationSeconds;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? cancelledBy;
+  final DateTime? cancelledAt;
   final String? fareLabel;
   final int? fareAmount;
   final String? fareRuleLabel;
@@ -43,6 +46,7 @@ class Ride {
     required this.passengerId,
     required this.driverId,
     required this.preferredDriverId,
+    required this.declinedDriverIds,
     required this.status,
     required this.pickupLocation,
     required this.dropoffLocation,
@@ -56,6 +60,8 @@ class Ride {
     required this.remainingRideDurationSeconds,
     required this.createdAt,
     required this.updatedAt,
+    required this.cancelledBy,
+    required this.cancelledAt,
     required this.fareLabel,
     required this.fareAmount,
     required this.fareRuleLabel,
@@ -139,6 +145,7 @@ class Ride {
       passengerId: (data['passenger_id'] ?? '').toString(),
       driverId: _readNullableString(data['driver_id']),
       preferredDriverId: _readNullableString(data['preferred_driver_id']),
+      declinedDriverIds: _readStringList(data['declined_driver_ids']),
       status: rideStatusFromString(data['status']),
       pickupLocation: RideLocation.fromMap(data['pickup_location']),
       dropoffLocation: RideLocation.fromMap(data['dropoff_location']),
@@ -164,6 +171,8 @@ class Ride {
       ),
       createdAt: _readDate(data['created_at'] ?? data['timestamp']),
       updatedAt: _readDate(data['updated_at']),
+      cancelledBy: _readNullableString(data['cancelled_by']),
+      cancelledAt: _readDate(data['cancelled_at']),
       fareLabel: _readFare(data),
       fareAmount: _readFareAmount(data),
       fareRuleLabel: _readNullableString(
@@ -174,7 +183,9 @@ class Ride {
       paymentProvider: _readNullableString(data['payment_provider']) ?? 'cash',
       paymentStatus:
           _readNullableString(data['payment_status']) ?? 'cash_pending',
-      payMongoCheckoutUrl: _readNullableString(data['paymongo_checkout_url']),
+      payMongoCheckoutUrl: _readNullableString(
+        data['xendit_checkout_url'] ?? data['paymongo_checkout_url'],
+      ),
       driverPassengerReviewRating: _readReviewRating(
         data['driver_passenger_review'],
       ),
@@ -190,6 +201,17 @@ class Ride {
   static String? _readNullableString(Object? value) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? null : text;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! Iterable) {
+      return const <String>[];
+    }
+
+    return value
+        .map((entry) => entry.toString().trim())
+        .where((entry) => entry.isNotEmpty)
+        .toList(growable: false);
   }
 
   static int? _readNullableInt(Object? value) {
@@ -303,8 +325,15 @@ class Ride {
   }
 
   bool get usesPayMongo => paymentProvider == 'paymongo';
+  bool get usesOnlineCheckout =>
+      paymentProvider == 'xendit' || paymentProvider == 'paymongo';
   bool get isPaymentPaid =>
       paymentStatus == 'paid' || paymentStatus == 'cash_collected';
+
+  bool wasCancelledBy(String userId) {
+    final normalizedUserId = userId.trim();
+    return normalizedUserId.isNotEmpty && cancelledBy == normalizedUserId;
+  }
 
   static DateTime? _readDate(Object? value) {
     if (value is Timestamp) {

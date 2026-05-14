@@ -10,6 +10,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   final String firstName;
   final String? profileImageUrl;
   final VoidCallback onNotificationsTap;
+  final int notificationUnreadCount;
   final ValueChanged<String>? onProfileSelected;
 
   final bool isDriver;
@@ -22,6 +23,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     required this.firstName,
     this.profileImageUrl,
     required this.onNotificationsTap,
+    this.notificationUnreadCount = 0,
     this.onProfileSelected,
     this.isDriver = false,
     this.showVerifiedBadge = false,
@@ -114,6 +116,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
           icon: Icons.notifications_none_rounded,
           onTap: onNotificationsTap,
           compact: compact,
+          count: notificationUnreadCount,
         ),
         if (!compact) _NameText(firstName: firstName),
         SizedBox(width: compact ? 6 : 10),
@@ -207,15 +210,19 @@ class _ModernIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final bool compact;
+  final int count;
 
   const _ModernIconButton({
     required this.icon,
     required this.onTap,
     required this.compact,
+    this.count = 0,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasUnread = count > 0;
+
     return Padding(
       padding: EdgeInsets.only(right: compact ? 4 : 8),
       child: Material(
@@ -227,10 +234,46 @@ class _ModernIconButton extends StatelessWidget {
           child: SizedBox(
             width: compact ? 38 : 42,
             height: compact ? 38 : 42,
-            child: Icon(
-              icon,
-              color: PassengerUi.accentBlue,
-              size: compact ? 20 : 22,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: PassengerUi.accentBlue,
+                  size: compact ? 20 : 22,
+                ),
+                if (hasUnread)
+                  Positioned(
+                    top: compact ? 7 : 8,
+                    right: compact ? 7 : 8,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 15,
+                        minHeight: 15,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: PassengerUi.primary,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: PassengerUi.surface,
+                          width: 1.4,
+                        ),
+                      ),
+                      child: Text(
+                        count > 99 ? '99+' : count.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),

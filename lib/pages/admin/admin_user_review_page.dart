@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/time_ago_text.dart';
@@ -141,7 +142,13 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                   user: user,
                   isProcessing: _isProcessing,
                   onVerify: user.isPendingVerification
-                      ? () => _runAction(
+                      ? () => _confirmAndRunAction(
+                          title: 'Verify User?',
+                          message:
+                              'This will approve ${user.fullName} and unlock verification-gated features for this account.',
+                          confirmLabel: 'Verify User',
+                          icon: Icons.verified_user_rounded,
+                          confirmColor: PassengerUi.successText,
                           action: () => AdminService.approveUser(
                             userId: user.userId,
                             adminId: widget.adminId,
@@ -150,7 +157,13 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                         )
                       : null,
                   onRestrict: !user.isBanned
-                      ? () => _runAction(
+                      ? () => _confirmAndRunAction(
+                          title: 'Restrict Account?',
+                          message:
+                              'This will block ${user.fullName} from using verification-gated app features until access is restored.',
+                          confirmLabel: 'Restrict',
+                          icon: Icons.block_rounded,
+                          confirmColor: PassengerUi.primary,
                           action: () => AdminService.restrictUser(
                             userId: user.userId,
                             adminId: widget.adminId,
@@ -247,6 +260,31 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
         setState(() => _isProcessing = false);
       }
     }
+  }
+
+  Future<void> _confirmAndRunAction({
+    required String title,
+    required String message,
+    required String confirmLabel,
+    required IconData icon,
+    required Color confirmColor,
+    required Future<void> Function() action,
+    required String successMessage,
+  }) async {
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: title,
+      message: message,
+      confirmLabel: confirmLabel,
+      icon: icon,
+      confirmColor: confirmColor,
+    );
+
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    await _runAction(action: action, successMessage: successMessage);
   }
 
   Future<void> _showImagePreview(

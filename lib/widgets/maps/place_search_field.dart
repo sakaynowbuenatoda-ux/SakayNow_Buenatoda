@@ -63,6 +63,7 @@ class _PlaceSearchFieldState extends State<PlaceSearchField> {
                   controller: widget.controller,
                   textInputAction: TextInputAction.search,
                   onChanged: _handleChanged,
+                  onSubmitted: _handleSubmitted,
                   decoration: InputDecoration(
                     labelText: widget.label,
                     hintText: widget.hintText,
@@ -148,5 +149,10 @@ class _PlaceSearchFieldState extends State<PlaceSearchField> {
       const Duration(milliseconds: MapConfig.placesSearchDebounceMs),
       () => widget.onSearchChanged(value),
     );
+  }
+
+  void _handleSubmitted(String value) {
+    _debounce?.cancel();
+    widget.onSearchChanged(value);
   }
 }

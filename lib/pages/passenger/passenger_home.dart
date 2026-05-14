@@ -448,7 +448,7 @@ class _PassengerInformationKeySection extends StatelessWidget {
       icon: Icons.payments_rounded,
       title: 'Approved payment methods',
       description:
-          'Cash, GCash, Maya, and PayMongo checkout are supported when available.',
+          'Cash, GCash, Maya, and Xendit checkout are supported when available.',
     ),
     _InformationKeyItem(
       icon: Icons.school_rounded,

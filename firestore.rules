@@ -126,7 +126,7 @@ service cloud.firestore {
           && isPassengerRole(signedInUser())
           && request.resource.data.user_id == userId
           && request.resource.data.type in ['gcash', 'maya', 'card']
-          && request.resource.data.provider == 'paymongo'
+          && request.resource.data.provider == 'xendit'
           && request.resource.data.label is string
           && request.resource.data.account_name is string
           && request.resource.data.account_reference is string;
@@ -135,7 +135,7 @@ service cloud.firestore {
           && resource.data.user_id == userId
           && request.resource.data.user_id == userId
           && request.resource.data.type in ['gcash', 'maya', 'card']
-          && request.resource.data.provider == 'paymongo';
+          && request.resource.data.provider == 'xendit';
         allow delete: if isSelf(userId) || isAdmin();
       }
 
@@ -211,6 +211,19 @@ service cloud.firestore {
         && request.resource.data.reviewer_role in ['driver', 'passenger']
         && request.resource.data.reviewee_role in ['driver', 'passenger'];
       allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.user_id == request.auth.uid);
+      allow create: if false;
+      allow update: if signedIn()
+        && resource.data.user_id == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'is_read',
+          'read_at'
+        ]);
+      allow update, delete: if isAdmin();
     }
 
     match /reports/{reportId} {

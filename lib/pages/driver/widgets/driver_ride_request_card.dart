@@ -9,19 +9,25 @@ import '../../../widgets/passenger_widgets/passenger_ui.dart';
 class DriverRideRequestCard extends StatelessWidget {
   final Ride ride;
   final bool isAccepting;
+  final bool isDeclining;
   final VoidCallback onAccept;
+  final VoidCallback onDecline;
   final RideTrackingService rideTrackingService;
 
   DriverRideRequestCard({
     super.key,
     required this.ride,
     required this.isAccepting,
+    required this.isDeclining,
     required this.onAccept,
+    required this.onDecline,
     RideTrackingService? rideTrackingService,
   }) : rideTrackingService = rideTrackingService ?? RideTrackingService();
 
   @override
   Widget build(BuildContext context) {
+    final isBusy = isAccepting || isDeclining;
+
     return StreamBuilder<PassengerReviewProfile>(
       stream: rideTrackingService.watchPassengerProfile(ride.passengerId),
       builder: (context, snapshot) {
@@ -94,20 +100,43 @@ class DriverRideRequestCard extends StatelessWidget {
                       style: PassengerUi.bodyText.copyWith(fontSize: 13),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  ElevatedButton.icon(
-                    onPressed: isAccepting ? null : onAccept,
-                    icon: isAccepting
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.check_rounded, size: 18),
-                    label: const Text('Accept'),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: isBusy ? null : onDecline,
+                      icon: isDeclining
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: PassengerUi.primary,
+                              ),
+                            )
+                          : const Icon(Icons.close_rounded, size: 18),
+                      label: const Text('Decline'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: isBusy ? null : onAccept,
+                      icon: isAccepting
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.check_rounded, size: 18),
+                      label: const Text('Accept'),
+                    ),
                   ),
                 ],
               ),

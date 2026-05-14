@@ -2,15 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../models/chat_conversation.dart';
+import '../../models/ride.dart';
+import '../../models/ride_status.dart';
+import '../../controllers/ride_tracking_controller.dart';
 import '../../services/chat_service.dart';
 import '../../widgets/animated_tab_switcher.dart';
 import '../../widgets/app_bar.dart';
 import '../../widgets/bottom_nav.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../services/location_service.dart';
+import '../../services/notification_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../notifications/notifications_page.dart';
 import '../profile/profile_page.dart';
+import '../rides/ride_monitoring_page.dart';
 import '../settings/settings_page.dart';
 import 'driver_dashboard.dart';
 import 'driver_history.dart';
@@ -43,14 +48,20 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   late final ValueNotifier<bool> _isActiveNotifier;
   late List<Widget> _pages;
   final ChatService _chatService = ChatService();
+  final NotificationService _notificationService = NotificationService.instance;
   final RideTrackingService _rideTrackingService = RideTrackingService();
   final LocationService _locationService = const LocationService();
   StreamSubscription<List<ChatConversation>>? _conversationSubscription;
+  StreamSubscription<int>? _notificationSubscription;
+  StreamSubscription<List<Ride>>? _rideCancellationSubscription;
+  final Map<String, RideStatus> _knownRideStatuses = <String, RideStatus>{};
   Timer? _inactivityTimer;
   Timer? _foregroundIdleTimer;
   DateTime? _inactiveSince;
   int _messageUnreadCount = 0;
+  int _notificationUnreadCount = 0;
   bool _isMarkingMessagesRead = false;
+  bool _hasSeededRideStatuses = false;
 
   bool get isActive => _isActiveNotifier.value;
 
@@ -61,6 +72,8 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     _isActiveNotifier = ValueNotifier<bool>(false);
     _pages = _buildPages();
     _watchUnreadMessages();
+    _watchUnreadNotifications();
+    _watchRideCancellations();
   }
 
   @override
@@ -75,7 +88,10 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
 
     if (oldWidget.userId != widget.userId) {
       _messageUnreadCount = 0;
+      _notificationUnreadCount = 0;
       _watchUnreadMessages();
+      _watchUnreadNotifications();
+      _watchRideCancellations();
     }
   }
 
@@ -83,6 +99,8 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _conversationSubscription?.cancel();
+    _notificationSubscription?.cancel();
+    _rideCancellationSubscription?.cancel();
     _inactivityTimer?.cancel();
     _foregroundIdleTimer?.cancel();
     _isActiveNotifier.dispose();
@@ -180,6 +198,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
           isDriver: true,
           showVerifiedBadge: widget.isVerified,
           isActive: isActive,
+          notificationUnreadCount: _notificationUnreadCount,
           onStatusChanged: _handleAvailabilityChanged,
           onNotificationsTap: _openNotifications,
           onProfileSelected: _handleProfileSelected,
@@ -234,6 +253,86 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
             }
           },
         );
+  }
+
+  void _watchUnreadNotifications() {
+    unawaited(_notificationSubscription?.cancel());
+    _notificationSubscription = _notificationService
+        .watchUnreadCount(widget.userId)
+        .listen(
+          (count) {
+            if (mounted && count != _notificationUnreadCount) {
+              setState(() => _notificationUnreadCount = count);
+            }
+          },
+          onError: (_) {
+            if (mounted && _notificationUnreadCount != 0) {
+              setState(() => _notificationUnreadCount = 0);
+            }
+          },
+        );
+  }
+
+  void _watchRideCancellations() {
+    unawaited(_rideCancellationSubscription?.cancel());
+    _knownRideStatuses.clear();
+    _hasSeededRideStatuses = false;
+    _rideCancellationSubscription = _rideTrackingService
+        .watchDriverRides(widget.userId)
+        .listen(
+          _handleRideCancellationSnapshot,
+          onError: (_) {
+            // Dashboard/history already surface ride read errors when needed.
+          },
+        );
+  }
+
+  void _handleRideCancellationSnapshot(List<Ride> rides) {
+    if (!_hasSeededRideStatuses) {
+      for (final ride in rides) {
+        _knownRideStatuses[ride.bookingId] = ride.status;
+      }
+      _hasSeededRideStatuses = true;
+      return;
+    }
+
+    for (final ride in rides) {
+      final previousStatus = _knownRideStatuses[ride.bookingId];
+      _knownRideStatuses[ride.bookingId] = ride.status;
+
+      if (ride.status == RideStatus.cancelled &&
+          previousStatus != null &&
+          previousStatus != RideStatus.cancelled &&
+          !ride.wasCancelledBy(widget.userId)) {
+        _showRideCancelledNotice(ride);
+      }
+    }
+  }
+
+  void _showRideCancelledNotice(Ride ride) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('The passenger cancelled this ride.'),
+        action: SnackBarAction(
+          label: 'View',
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => RideMonitoringPage(
+                  bookingId: ride.bookingId,
+                  userId: widget.userId,
+                  viewerRole: RideViewerRole.driver,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   int _unreadTotal(List<ChatConversation> conversations) {

@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../controllers/ride_tracking_controller.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../pages/messages/ride_chat_navigation.dart';
-import '../../pages/profile/driver_profile.dart';
-import '../../services/paymongo_checkout_service.dart';
+import '../../services/xendit_checkout_service.dart';
+import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
@@ -29,9 +31,12 @@ class RideMonitoringPage extends StatefulWidget {
 
 class _RideMonitoringPageState extends State<RideMonitoringPage> {
   late final RideTrackingController _controller;
-  final PayMongoCheckoutService _payMongoCheckoutService =
-      PayMongoCheckoutService();
-  bool _completionDialogShown = false;
+  final XenditCheckoutService _xenditCheckoutService = XenditCheckoutService();
+  static const Duration _terminalStatusDialogDuration = Duration(seconds: 10);
+
+  RideStatus? _shownTerminalStatus;
+  OverlayEntry? _terminalStatusOverlay;
+  Timer? _terminalStatusTimer;
   bool _isOpeningCheckout = false;
 
   @override
@@ -48,6 +53,7 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
 
   @override
   void dispose() {
+    _removeTerminalStatusDialog();
     _controller.removeListener(_handleRideUpdates);
     _controller.dispose();
     super.dispose();
@@ -55,53 +61,45 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
 
   void _handleRideUpdates() {
     final ride = _controller.ride;
-    if (_completionDialogShown ||
-        !_controller.isPassenger ||
-        ride == null ||
-        ride.status != RideStatus.completed) {
+    if (ride == null ||
+        !ride.status.isTerminal ||
+        _shownTerminalStatus == ride.status) {
       return;
     }
 
-    _completionDialogShown = true;
+    _shownTerminalStatus = ride.status;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
 
-      _showRideCompletedDialog(ride);
+      _showTerminalStatusDialog(ride.status);
     });
   }
 
-  Future<void> _showRideCompletedDialog(Ride ride) {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) {
-        return _RideCompletedDialog(
-          ride: ride,
-          onClose: () => Navigator.of(dialogContext).pop(),
-          onRateReview: ride.hasDriver
-              ? () {
-                  Navigator.of(dialogContext).pop();
-                  if (!mounted) {
-                    return;
-                  }
+  void _showTerminalStatusDialog(RideStatus status) {
+    _removeTerminalStatusDialog();
 
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => DriverProfilePage(
-                        driverId: ride.driverId!,
-                        passengerId: widget.userId,
-                        bookingId: ride.bookingId,
-                        openReviewOnLoad: true,
-                      ),
-                    ),
-                  );
-                }
-              : null,
-        );
-      },
+    final entry = OverlayEntry(
+      builder: (context) => _TerminalStatusOverlay(
+        status: status,
+        onDismiss: _removeTerminalStatusDialog,
+      ),
     );
+
+    _terminalStatusOverlay = entry;
+    Overlay.of(context).insert(entry);
+    _terminalStatusTimer = Timer(
+      _terminalStatusDialogDuration,
+      _removeTerminalStatusDialog,
+    );
+  }
+
+  void _removeTerminalStatusDialog() {
+    _terminalStatusTimer?.cancel();
+    _terminalStatusTimer = null;
+    _terminalStatusOverlay?.remove();
+    _terminalStatusOverlay = null;
   }
 
   @override
@@ -174,7 +172,7 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
                     ride: ride,
                     canOpenCheckout: _controller.isPassenger,
                     isOpeningCheckout: _isOpeningCheckout,
-                    onOpenCheckout: () => _openPayMongoCheckout(ride),
+                    onOpenCheckout: () => _openXenditCheckout(ride),
                   ),
                   if (_controller.errorMessage != null) ...<Widget>[
                     const SizedBox(height: 16),
@@ -226,18 +224,18 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
     };
   }
 
-  Future<void> _openPayMongoCheckout(Ride ride) async {
+  Future<void> _openXenditCheckout(Ride ride) async {
     final checkoutUrl = ride.payMongoCheckoutUrl;
     if (checkoutUrl == null || checkoutUrl.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PayMongo checkout is not ready yet.')),
+        const SnackBar(content: Text('Xendit checkout is not ready yet.')),
       );
       return;
     }
 
     setState(() => _isOpeningCheckout = true);
     try {
-      await _payMongoCheckoutService.openCheckoutUrl(checkoutUrl);
+      await _xenditCheckoutService.openCheckoutUrl(checkoutUrl);
     } on Exception catch (error) {
       if (!mounted) {
         return;
@@ -367,7 +365,7 @@ class _RidePaymentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final showCheckoutButton =
-        canOpenCheckout && ride.usesPayMongo && !ride.isPaymentPaid;
+        canOpenCheckout && ride.usesOnlineCheckout && !ride.isPaymentPaid;
 
     return PassengerSurfaceCard(
       child: Column(
@@ -463,114 +461,34 @@ class _RidePaymentMetric extends StatelessWidget {
   }
 }
 
-class _RideCompletedDialog extends StatelessWidget {
-  final Ride ride;
-  final VoidCallback? onRateReview;
-  final VoidCallback onClose;
+class _TerminalStatusOverlay extends StatelessWidget {
+  final RideStatus status;
+  final VoidCallback onDismiss;
 
-  const _RideCompletedDialog({
-    required this.ride,
-    required this.onRateReview,
-    required this.onClose,
-  });
+  const _TerminalStatusOverlay({required this.status, required this.onDismiss});
 
   @override
   Widget build(BuildContext context) {
-    final compact = PassengerUi.isCompactWidth(context);
-
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      backgroundColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 430),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: PassengerUi.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: PassengerUi.border),
-            boxShadow: PassengerUi.cardShadow,
-          ),
-          child: Padding(
-            padding: EdgeInsets.all(compact ? 18 : 22),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: PassengerUi.successBackground,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        Icons.check_circle_rounded,
-                        color: PassengerUi.successText,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Ride Complete',
-                        style: PassengerUi.sectionTitle.copyWith(
-                          fontSize: compact ? 19 : 21,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                _RideCompleteDetailRow(
-                  icon: Icons.my_location_rounded,
-                  label: 'Pickup',
-                  value: ride.pickupLocation.displayLabel,
-                ),
-                const SizedBox(height: 12),
-                _RideCompleteDetailRow(
-                  icon: Icons.location_on_rounded,
-                  label: 'Drop-off',
-                  value: ride.dropoffLocation.displayLabel,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: _RideCompleteMetric(
-                        label: 'Distance',
-                        value: ride.distanceLabel,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _RideCompleteMetric(
-                        label: 'Fare',
-                        value: ride.fareLabel ?? 'Pending',
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: onClose,
-                        child: const Text('Close'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: onRateReview,
-                        icon: const Icon(Icons.rate_review_rounded, size: 18),
-                        label: const Text('Rate / Review'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+    return Positioned.fill(
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.24),
+        child: SafeArea(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onDismiss,
+            child: Center(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.92, end: 1),
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, child) {
+                  return Opacity(
+                    opacity: value,
+                    child: Transform.scale(scale: value, child: child),
+                  );
+                },
+                child: _TerminalStatusDialog(status: status),
+              ),
             ),
           ),
         ),
@@ -579,76 +497,91 @@ class _RideCompletedDialog extends StatelessWidget {
   }
 }
 
-class _RideCompleteDetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
+class _TerminalStatusDialog extends StatelessWidget {
+  final RideStatus status;
 
-  const _RideCompleteDetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+  const _TerminalStatusDialog({required this.status});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Container(
-          width: 34,
-          height: 34,
+    final isCompleted = status == RideStatus.completed;
+    final accentColor = isCompleted
+        ? PassengerUi.successText
+        : PassengerUi.primary;
+    final accentBackground = isCompleted
+        ? PassengerUi.successBackground
+        : PassengerUi.dangerSoft;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: DecoratedBox(
           decoration: BoxDecoration(
-            color: PassengerUi.mutedSurface,
-            borderRadius: BorderRadius.circular(12),
+            color: PassengerUi.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: PassengerUi.border),
+            boxShadow: PassengerUi.cardShadow,
           ),
-          child: Icon(icon, size: 18, color: PassengerUi.accentBlue),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(label, style: PassengerUi.bodyText.copyWith(fontSize: 12)),
-              const SizedBox(height: 2),
-              Text(value, style: PassengerUi.valueText),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: accentBackground,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(_icon, color: accentColor, size: 30),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  _title,
+                  textAlign: TextAlign.center,
+                  style: PassengerUi.sectionTitle.copyWith(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _message,
+                  textAlign: TextAlign.center,
+                  style: PassengerUi.bodyText,
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
-}
 
-class _RideCompleteMetric extends StatelessWidget {
-  final String label;
-  final String value;
+  IconData get _icon {
+    return switch (status) {
+      RideStatus.completed => Icons.check_circle_rounded,
+      RideStatus.cancelled => Icons.cancel_rounded,
+      _ => Icons.info_rounded,
+    };
+  }
 
-  const _RideCompleteMetric({required this.label, required this.value});
+  String get _title {
+    return switch (status) {
+      RideStatus.completed => 'Booking Completed',
+      RideStatus.cancelled => 'Booking Cancelled',
+      _ => 'Booking Updated',
+    };
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: PassengerUi.mutedSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: PassengerUi.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label, style: PassengerUi.bodyText.copyWith(fontSize: 12)),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: PassengerUi.valueText,
-          ),
-        ],
-      ),
-    );
+  String get _message {
+    return switch (status) {
+      RideStatus.completed => 'This ride has been marked as completed.',
+      RideStatus.cancelled => 'This ride request has been cancelled.',
+      _ => 'The booking status has been updated.',
+    };
   }
 }
 
@@ -733,7 +666,9 @@ class _RideActions extends StatelessWidget {
     if (!ride.status.isTerminal) {
       actions.add(
         OutlinedButton.icon(
-          onPressed: controller.isUpdatingStatus ? null : controller.cancelRide,
+          onPressed: controller.isUpdatingStatus
+              ? null
+              : () => _confirmCancelRide(context),
           icon: const Icon(Icons.cancel_rounded),
           label: const Text('Cancel'),
         ),
@@ -782,6 +717,24 @@ class _RideActions extends StatelessWidget {
       currentUserId: controller.userId,
       currentUserRole: controller.isDriver ? 'driver' : 'passenger',
     );
+  }
+
+  Future<void> _confirmCancelRide(BuildContext context) async {
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Cancel Booking?',
+      message:
+          'This will cancel the active booking and notify the ${controller.isDriver ? 'passenger' : 'driver'}.',
+      confirmLabel: 'Cancel Booking',
+      icon: Icons.cancel_rounded,
+      confirmColor: PassengerUi.primary,
+    );
+
+    if (!confirmed || !context.mounted) {
+      return;
+    }
+
+    await controller.cancelRide();
   }
 
   RideStatus? _nextDriverStatus(RideStatus status) {

@@ -124,6 +124,7 @@ class PassengerTripCard extends StatelessWidget {
     final ride = trip.ride;
     final driver = trip.driver;
     final passengerRating = ride.passengerDriverReviewRating;
+    final canReview = ride.canPassengerReviewDriver;
 
     return InkWell(
       borderRadius: BorderRadius.circular(12),
@@ -134,6 +135,7 @@ class PassengerTripCard extends StatelessWidget {
             driverId: driver.driverId,
             passengerId: passengerId,
             bookingId: ride.bookingId,
+            openReviewOnLoad: canReview,
           ),
         ),
       ),
@@ -232,11 +234,13 @@ class PassengerTripCard extends StatelessWidget {
                       : driver.averageRating.toStringAsFixed(1),
                 ),
                 _RatingPill(
-                  icon: passengerRating == null
+                  icon: passengerRating == null && canReview
                       ? Icons.rate_review_outlined
                       : Icons.rate_review_rounded,
                   label: passengerRating == null
-                      ? 'Tap to review'
+                      ? canReview
+                            ? 'Tap to review'
+                            : 'No review'
                       : 'Your review $passengerRating',
                 ),
               ],

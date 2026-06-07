@@ -41,8 +41,12 @@ class FareEstimate {
   String get discountAmountLabel => '$currency $discountAmount';
   bool get hasDiscount => discountAmount > 0 && amount < baseAmount;
 
-  FareEstimate applyStudentDiscount({required bool isEligible}) {
+  FareEstimate applyStudentDiscount({
+    required bool isEligible,
+    double discountRate = studentDiscountRate,
+  }) {
     final originalAmount = baseAmount;
+    final activeDiscountRate = discountRate.clamp(0.0, 1.0).toDouble();
     if (!isEligible || originalAmount <= 0) {
       return _copyWithFare(
         amount: originalAmount,
@@ -54,7 +58,7 @@ class FareEstimate {
       );
     }
 
-    final discountedAmount = (originalAmount * (1 - studentDiscountRate))
+    final discountedAmount = (originalAmount * (1 - activeDiscountRate))
         .round()
         .clamp(1, originalAmount)
         .toInt();
@@ -75,9 +79,9 @@ class FareEstimate {
       amount: discountedAmount,
       baseAmount: originalAmount,
       discountAmount: savings,
-      discountRate: studentDiscountRate,
+      discountRate: activeDiscountRate,
       discountCode: studentDiscountCode,
-      discountLabel: '15% student discount',
+      discountLabel: '${(activeDiscountRate * 100).round()}% student discount',
     );
   }
 

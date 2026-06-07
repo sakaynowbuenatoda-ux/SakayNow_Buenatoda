@@ -95,7 +95,7 @@ class _PassengerSignupState extends State<PassengerSignup> {
 
     final validations = <String?>[
       SignupValidators.email(_emailController.text),
-      SignupValidators.name(_firstNameController.text, fieldName: 'First name'),
+      SignupValidators.accountFirstName(_firstNameController.text),
       SignupValidators.name(_lastNameController.text, fieldName: 'Last name'),
       SignupValidators.age(
         _ageController.text,
@@ -539,8 +539,7 @@ class _PassengerSignupState extends State<PassengerSignup> {
                   label: 'First Name',
                   icon: Icons.person_outline,
                 ),
-                validator: (value) =>
-                    SignupValidators.name(value, fieldName: 'First name'),
+                validator: SignupValidators.accountFirstName,
               ),
               second: TextFormField(
                 controller: _lastNameController,

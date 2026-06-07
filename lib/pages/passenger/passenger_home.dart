@@ -8,6 +8,8 @@ import '../../controllers/ride_tracking_controller.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../models/ride_location.dart';
+import '../../models/fare_settings.dart';
+import '../../services/fare_settings_service.dart';
 import '../../services/geofencing_service.dart';
 import '../../services/google_places_service.dart';
 import '../../services/location_service.dart';
@@ -15,12 +17,14 @@ import '../../services/ride_tracking_service.dart';
 import '../../widgets/maps/location_pin_picker_sheet.dart';
 import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/maps/sakay_google_map.dart';
+import '../../widgets/driver_rating_leaderboard_panel.dart';
 import '../../widgets/passenger_widgets/passenger_booking_hero_card.dart';
 import '../../widgets/passenger_widgets/passenger_quick_destinations_section.dart';
 import '../../widgets/passenger_widgets/passenger_recent_trips_section.dart';
 import '../../widgets/passenger_widgets/ride_status_strip.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../messages/ride_chat_navigation.dart';
+import '../driver_ratings/driver_leaderboard_page.dart';
 import '../rides/ride_monitoring_page.dart';
 import 'passenger_data.dart';
 import 'passenger_book_ride_page.dart';
@@ -152,14 +156,20 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
           SizedBox(height: 24),
           PassengerRecentTripsSection(
             passengerId: widget.userId,
-            limit: 2,
+            limit: 3,
             onViewAllTap: () => _showSnackBar(
               context,
               'Open the History tab to see all trips.',
             ),
           ),
           SizedBox(height: 24),
-          const _PassengerInformationKeySection(),
+          DriverRatingLeaderboardPanel(
+            limit: 5,
+            actionLabel: 'See Top 20',
+            onActionTap: _openDriverLeaderboard,
+          ),
+          SizedBox(height: 24),
+          _PassengerInformationKeySection(),
         ],
       ),
     );
@@ -178,6 +188,12 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
       currentUserId: widget.userId,
       currentUserRole: 'passenger',
     );
+  }
+
+  void _openDriverLeaderboard() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const DriverLeaderboardPage()));
   }
 
   Future<void> _handleQuickDestinationTap(
@@ -435,64 +451,78 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
 }
 
 class _PassengerInformationKeySection extends StatelessWidget {
-  const _PassengerInformationKeySection();
+  final FareSettingsService fareSettingsService;
 
-  static const List<_InformationKeyItem> _items = <_InformationKeyItem>[
-    _InformationKeyItem(
-      icon: Icons.receipt_long_rounded,
-      title: 'Local LGU fare guide',
-      description:
-          'Base fare starts at PHP 20, up to 5 barangays is PHP 30, and extended routes are PHP 30-100.',
-    ),
-    _InformationKeyItem(
-      icon: Icons.payments_rounded,
-      title: 'Approved payment methods',
-      description:
-          'Cash, GCash, Maya, and Xendit checkout are supported when available.',
-    ),
-    _InformationKeyItem(
-      icon: Icons.school_rounded,
-      title: 'Student discount',
-      description: 'Verified students always receive 15% off eligible rides.',
-    ),
-    _InformationKeyItem(
-      icon: Icons.local_offer_rounded,
-      title: 'Current discounts',
-      description:
-          'Active promos and special discounts are applied before checkout.',
-    ),
-  ];
+  _PassengerInformationKeySection({FareSettingsService? fareSettingsService})
+    : fareSettingsService = fareSettingsService ?? FareSettingsService();
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            'Information Key',
-            style: PassengerUi.sectionTitle.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          SizedBox(height: 6),
-          Text(
-            'Helpful fare, payment, and discount details before you ride.',
-            style: PassengerUi.bodyText,
-          ),
-          SizedBox(height: 14),
-          ..._items.asMap().entries.map(
-            (MapEntry<int, _InformationKeyItem> entry) => Padding(
-              padding: EdgeInsets.only(
-                bottom: entry.key == _items.length - 1 ? 0 : 12,
+    return StreamBuilder<FareSettings>(
+      stream: fareSettingsService.watchSettings(),
+      builder: (context, snapshot) {
+        final settings = snapshot.data ?? FareSettings.defaults;
+        final items = _itemsFor(settings);
+
+        return PassengerSurfaceCard(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Information Key',
+                style: PassengerUi.sectionTitle.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              child: _InformationKeyTile(item: entry.value),
-            ),
+              SizedBox(height: 6),
+              Text(
+                'Helpful fare, payment, and discount details before you ride.',
+                style: PassengerUi.bodyText,
+              ),
+              SizedBox(height: 14),
+              ...items.asMap().entries.map(
+                (MapEntry<int, _InformationKeyItem> entry) => Padding(
+                  padding: EdgeInsets.only(
+                    bottom: entry.key == items.length - 1 ? 0 : 12,
+                  ),
+                  child: _InformationKeyTile(item: entry.value),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
+  }
+
+  List<_InformationKeyItem> _itemsFor(FareSettings settings) {
+    return <_InformationKeyItem>[
+      _InformationKeyItem(
+        icon: Icons.receipt_long_rounded,
+        title: 'Local LGU fare guide',
+        description:
+            'Base fare starts at ${settings.oneBarangayFareLabel}, up to 5 barangays is ${settings.buenavistaFiveBarangayFareLabel}, and extended routes are ${settings.outsideBuenavistaRangeLabel}.',
+      ),
+      const _InformationKeyItem(
+        icon: Icons.payments_rounded,
+        title: 'Approved payment methods',
+        description:
+            'Cash, GCash, Maya, and Xendit checkout are supported when available.',
+      ),
+      _InformationKeyItem(
+        icon: Icons.school_rounded,
+        title: 'Student discount',
+        description:
+            'Verified students receive ${(settings.studentDiscountRate * 100).round()}% off eligible rides.',
+      ),
+      const _InformationKeyItem(
+        icon: Icons.local_offer_rounded,
+        title: 'Current discounts',
+        description:
+            'Active promos and special discounts are applied before checkout.',
+      ),
+    ];
   }
 }
 

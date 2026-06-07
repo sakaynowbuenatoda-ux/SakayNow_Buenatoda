@@ -44,6 +44,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         title: Text('Change Password', style: PassengerUi.cardTitle),
       ),
       body: PassengerPageContainer(
+        maxContentWidth: PassengerUi.settingsContentWidth,
         child: Form(
           key: _formKey,
           child: Column(

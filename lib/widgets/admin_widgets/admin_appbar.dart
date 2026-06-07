@@ -1,131 +1,108 @@
 import 'package:flutter/material.dart';
 import '../../config/app_assets.dart';
-import '../passenger_widgets/passenger_ui.dart';
+import '../../pages/admin/widgets/admin_ui.dart';
+import '../firebase_storage_image.dart';
 
 class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String adminName;
   final String appName;
+  final String? profileImageUrl;
   final String? logoAssetPath;
   final VoidCallback onMenuTap;
+  final VoidCallback? onBrandTap;
+  final bool showMenuButton;
   final VoidCallback? onNotificationsTap;
+  final VoidCallback? onProfileTap;
   final int notificationUnreadCount;
-  final VoidCallback onProfileSettingsTap;
-  final Future<void> Function(BuildContext context) onLogout;
 
   const AdminAppBar({
     super.key,
     required this.adminName,
     required this.appName,
+    this.profileImageUrl,
     required this.onMenuTap,
+    this.onBrandTap,
+    this.showMenuButton = true,
     this.onNotificationsTap,
+    this.onProfileTap,
     this.notificationUnreadCount = 0,
-    required this.onProfileSettingsTap,
-    required this.onLogout,
     this.logoAssetPath = AppAssets.logo,
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(72);
-
-  Future<void> _showLogoutConfirmation(BuildContext context) async {
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.logout_rounded, size: 22),
-              SizedBox(width: 8),
-              Text('Confirm Logout'),
-            ],
-          ),
-          content: Text(
-            'Are you sure you want to log out of your admin account?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text('Logout'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (shouldLogout == true) {
-      if (!context.mounted) return;
-      await onLogout(context);
-    }
-  }
+  Size get preferredSize => const Size.fromHeight(AdminUi.appBarHeight + 1);
 
   @override
   Widget build(BuildContext context) {
     return AppBar(
       automaticallyImplyLeading: false,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Divider(height: 1, thickness: 1, color: AdminUi.border),
+      ),
       elevation: 0,
-      backgroundColor: PassengerUi.surface,
-      surfaceTintColor: PassengerUi.surface,
-      toolbarHeight: 72,
+      backgroundColor: AdminUi.surface,
+      surfaceTintColor: AdminUi.surface,
+      toolbarHeight: AdminUi.appBarHeight,
       titleSpacing: 0,
       title: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: EdgeInsets.only(left: showMenuButton ? 10 : 22, right: 10),
         child: Row(
           children: [
-            IconButton(
-              onPressed: onMenuTap,
-              icon: Icon(
-                Icons.menu_rounded,
-                color: PassengerUi.title,
-                size: 28,
+            if (showMenuButton) ...[
+              IconButton(
+                onPressed: onMenuTap,
+                icon: Icon(Icons.menu_rounded, color: AdminUi.title, size: 24),
+                tooltip: 'Open menu',
               ),
-              tooltip: 'Open menu',
-            ),
-            SizedBox(width: 4),
-
-            // Logo
-            Container(
-              height: 40,
-              width: 40,
-              decoration: BoxDecoration(
-                color: PassengerUi.mutedSurface,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: logoAssetPath != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(logoAssetPath!, fit: BoxFit.cover),
-                    )
-                  : Icon(
-                      Icons.directions_bus_rounded,
-                      color: PassengerUi.primary,
-                      size: 24,
-                    ),
-            ),
-
-            SizedBox(width: 10),
-
-            // App name
+              const SizedBox(width: 4),
+            ],
             Expanded(
-              child: Text(
-                appName,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: PassengerUi.title,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onBrandTap,
+                  borderRadius: AdminUi.radius,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 4,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          height: 34,
+                          width: 34,
+                          decoration: BoxDecoration(
+                            color: AdminUi.mutedSurface,
+                            borderRadius: AdminUi.radius,
+                            border: Border.all(color: AdminUi.border),
+                          ),
+                          child: logoAssetPath != null
+                              ? ClipRRect(
+                                  borderRadius: AdminUi.radius,
+                                  child: Image.asset(
+                                    logoAssetPath!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.directions_bus_rounded,
+                                  color: AdminUi.primary,
+                                  size: 20,
+                                ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            appName,
+                            overflow: TextOverflow.ellipsis,
+                            style: AdminUi.cardTitle.copyWith(fontSize: 16),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -140,93 +117,56 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
               count: notificationUnreadCount,
               onTap: onNotificationsTap!,
             ),
-          ),
+        ),
         Padding(
           padding: const EdgeInsets.only(right: 12),
-          child: PopupMenuButton<String>(
-            offset: Offset(0, 52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            onSelected: (value) async {
-              if (value == 'settings') {
-                onProfileSettingsTap();
-              } else if (value == 'logout') {
-                await _showLogoutConfirmation(context);
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem<String>(
-                value: 'settings',
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onProfileTap,
+              borderRadius: AdminUi.radius,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
-                    Icon(Icons.settings_outlined, size: 20),
-                    SizedBox(width: 10),
-                    Text('Account Settings'),
-                  ],
-                ),
-              ),
-              PopupMenuDivider(),
-              PopupMenuItem<String>(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.logout_rounded,
-                      size: 20,
-                      color: PassengerUi.primary,
-                    ),
-                    SizedBox(width: 10),
-                    Text(
-                      'Logout',
-                      style: TextStyle(color: PassengerUi.primary),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: PassengerUi.mutedSurface,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: PassengerUi.border),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: PassengerUi.primary.withValues(
-                      alpha: 0.12,
-                    ),
-                    child: Text(
-                      adminName.isNotEmpty ? adminName[0].toUpperCase() : 'A',
-                      style: TextStyle(
-                        color: PassengerUi.primary,
-                        fontWeight: FontWeight.bold,
+                    ClipOval(
+                      child: FirebaseStorageImage(
+                        imageUrl: profileImageUrl,
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.cover,
+                        fallback: CircleAvatar(
+                          radius: 16,
+                          backgroundColor: AdminUi.mutedSurface,
+                          child: Text(
+                            adminName.isNotEmpty
+                                ? adminName[0].toUpperCase()
+                                : 'A',
+                            style: TextStyle(
+                              color: AdminUi.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  SizedBox(width: 8),
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: 120),
-                    child: Text(
-                      adminName,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: PassengerUi.title,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                    const SizedBox(width: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 120),
+                      child: Text(
+                        adminName,
+                        overflow: TextOverflow.ellipsis,
+                        style: AdminUi.bodyText.copyWith(
+                          color: AdminUi.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  ),
-                  SizedBox(width: 4),
-                  Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: PassengerUi.accentBlue,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -247,21 +187,24 @@ class _AdminNotificationButton extends StatelessWidget {
     final hasUnread = count > 0;
 
     return Material(
-      color: PassengerUi.mutedSurface,
-      borderRadius: BorderRadius.circular(14),
+      color: AdminUi.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: AdminUi.radius,
+        side: BorderSide(color: AdminUi.border),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AdminUi.radius,
         child: SizedBox(
-          width: 42,
-          height: 42,
+          width: 40,
+          height: 40,
           child: Stack(
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
               Icon(
                 Icons.notifications_none_rounded,
-                color: PassengerUi.accentBlue,
+                color: AdminUi.primary,
                 size: 22,
               ),
               if (hasUnread)
@@ -276,12 +219,9 @@ class _AdminNotificationButton extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 3),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: PassengerUi.primary,
+                      color: AdminUi.primary,
                       borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: PassengerUi.surface,
-                        width: 1.4,
-                      ),
+                      border: Border.all(color: AdminUi.surface, width: 1.4),
                     ),
                     child: Text(
                       count > 99 ? '99+' : count.toString(),

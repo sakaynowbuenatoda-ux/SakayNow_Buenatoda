@@ -49,6 +49,15 @@ class ChatService {
         });
   }
 
+  Stream<int> watchAdminSupportUnreadCount() {
+    return watchAdminSupportConversations().map((conversations) {
+      return conversations.fold<int>(
+        0,
+        (total, conversation) => total + conversation.adminUnreadCount,
+      );
+    });
+  }
+
   Stream<List<ChatMessage>> watchMessages(String conversationId) {
     return _conversations
         .doc(conversationId)

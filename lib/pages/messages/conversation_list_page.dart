@@ -33,9 +33,25 @@ class ConversationListPage extends StatefulWidget {
 
 class _ConversationListPageState extends State<ConversationListPage> {
   final ChatService _chatService = ChatService();
+  final TextEditingController _searchController = TextEditingController();
   final Map<String, Future<ChatParticipantProfile?>> _profileFutures =
       <String, Future<ChatParticipantProfile?>>{};
   bool _isOpeningSupport = false;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      setState(() => _query = _searchController.text.trim().toLowerCase());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,45 +59,10 @@ class _ConversationListPageState extends State<ConversationListPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          PassengerPageHeader(
-            title: widget.title,
-            subtitle: '',
-            icon: Icons.chat_bubble_rounded,
-            accentColor: PassengerUi.accentBlue,
-          ),
-          const SizedBox(height: 16),
-          _SupportConversationCard(
-            isLoading: _isOpeningSupport,
-            onTap: _openSupportConversation,
-          ),
-          const SizedBox(height: 16),
           StreamBuilder<List<ChatConversation>>(
             stream: _chatService.watchUserConversations(widget.currentUserId),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  !snapshot.hasData) {
-                return const PassengerSurfaceCard(
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-
-              if (snapshot.hasError) {
-                return PassengerEmptyState(
-                  icon: Icons.error_outline_rounded,
-                  title: 'Messages unavailable',
-                  description: _messageErrorDescription(snapshot.error),
-                );
-              }
-
               final conversations = snapshot.data ?? <ChatConversation>[];
-              if (conversations.isEmpty) {
-                return PassengerEmptyState(
-                  icon: Icons.mark_chat_unread_rounded,
-                  title: widget.emptyTitle,
-                  description: widget.emptyDescription,
-                );
-              }
-
               final unreadTotal = conversations.fold<int>(
                 0,
                 (total, conversation) =>
@@ -91,46 +72,92 @@ class _ConversationListPageState extends State<ConversationListPage> {
                       currentUserRole: widget.currentUserRole,
                     ),
               );
+              final header = _ConversationHeader(
+                title: widget.title,
+                searchController: _searchController,
+                unreadTotal: unreadTotal,
+                isOpeningSupport: _isOpeningSupport,
+                onSupportTap: _openSupportConversation,
+              );
+
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    header,
+                    const SizedBox(height: 16),
+                    const PassengerSurfaceCard(
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  ],
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    header,
+                    const SizedBox(height: 16),
+                    PassengerEmptyState(
+                      icon: Icons.error_outline_rounded,
+                      title: 'Messages unavailable',
+                      description: _messageErrorDescription(snapshot.error),
+                    ),
+                  ],
+                );
+              }
+
+              if (conversations.isEmpty) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    header,
+                    const SizedBox(height: 16),
+                    PassengerEmptyState(
+                      icon: Icons.mark_chat_unread_rounded,
+                      title: widget.emptyTitle,
+                      description: widget.emptyDescription,
+                    ),
+                  ],
+                );
+              }
+              final filteredConversations = conversations
+                  .where(_matchesConversationSearch)
+                  .toList(growable: false);
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  PassengerSurfaceCard(
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            'Unread conversations',
-                            style: PassengerUi.cardTitle,
-                          ),
-                        ),
-                        PassengerStatusChip(
-                          label: unreadTotal == 1
-                              ? '1 new'
-                              : '$unreadTotal new',
-                          textColor: PassengerUi.accentBlue,
-                          backgroundColor: PassengerUi.blueSoft,
-                        ),
-                      ],
-                    ),
-                  ),
+                  header,
                   const SizedBox(height: 16),
-                  ...conversations.asMap().entries.map(
-                    (entry) => Padding(
-                      padding: EdgeInsets.only(
-                        bottom: entry.key == conversations.length - 1 ? 0 : 12,
-                      ),
-                      child: _ConversationCard(
-                        conversation: entry.value,
-                        currentUserId: widget.currentUserId,
-                        currentUserRole: widget.currentUserRole,
-                        targetProfileFuture: _targetProfileFutureFor(
-                          entry.value,
+                  if (filteredConversations.isEmpty)
+                    PassengerEmptyState(
+                      icon: Icons.search_off_rounded,
+                      title: 'No matching conversations',
+                      description:
+                          'Try searching by user name, role, message, or conversation ID.',
+                    )
+                  else
+                    ...filteredConversations.asMap().entries.map(
+                      (entry) => Padding(
+                        padding: EdgeInsets.only(
+                          bottom: entry.key == filteredConversations.length - 1
+                              ? 0
+                              : 12,
                         ),
-                        onTap: () => _openConversation(entry.value),
+                        child: _ConversationCard(
+                          conversation: entry.value,
+                          currentUserId: widget.currentUserId,
+                          currentUserRole: widget.currentUserRole,
+                          targetProfileFuture: _targetProfileFutureFor(
+                            entry.value,
+                          ),
+                          onTap: () => _openConversation(entry.value),
+                        ),
                       ),
                     ),
-                  ),
                 ],
               );
             },
@@ -211,6 +238,32 @@ class _ConversationListPageState extends State<ConversationListPage> {
     return 'Unable to load conversations right now. Please try again later.';
   }
 
+  bool _matchesConversationSearch(ChatConversation conversation) {
+    if (_query.isEmpty) {
+      return true;
+    }
+
+    final searchable = <String>[
+      conversation.conversationId,
+      conversation.supportUserId ?? '',
+      conversation.bookingId ?? '',
+      conversation.titleFor(
+        currentUserId: widget.currentUserId,
+        currentUserRole: widget.currentUserRole,
+      ),
+      conversation.tagFor(
+        currentUserId: widget.currentUserId,
+        currentUserRole: widget.currentUserRole,
+      ),
+      conversation.previewFor(widget.currentUserId),
+      conversation.participantIds.join(' '),
+      conversation.participantNames.values.join(' '),
+      conversation.participantRoles.values.join(' '),
+    ].join(' ').toLowerCase();
+
+    return searchable.contains(_query);
+  }
+
   Future<ChatParticipantProfile?>? _targetProfileFutureFor(
     ChatConversation conversation,
   ) {
@@ -233,61 +286,182 @@ class _ConversationListPageState extends State<ConversationListPage> {
   }
 }
 
-class _SupportConversationCard extends StatelessWidget {
-  final bool isLoading;
-  final VoidCallback onTap;
+class _ConversationHeader extends StatelessWidget {
+  final String title;
+  final TextEditingController searchController;
+  final int unreadTotal;
+  final bool isOpeningSupport;
+  final VoidCallback onSupportTap;
 
-  const _SupportConversationCard({
-    required this.isLoading,
-    required this.onTap,
+  const _ConversationHeader({
+    required this.title,
+    required this.searchController,
+    required this.unreadTotal,
+    required this.isOpeningSupport,
+    required this.onSupportTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      padding: const EdgeInsets.all(16),
-      child: InkWell(
-        borderRadius: PassengerUi.cardRadius,
-        onTap: isLoading ? null : onTap,
-        child: Row(
-          children: <Widget>[
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: PassengerUi.blueSoft,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.support_agent_rounded,
-                color: PassengerUi.accentBlue,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text('SakayNow Support', style: PassengerUi.cardTitle),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Contact admin',
-                    style: PassengerUi.bodyText.copyWith(fontSize: 13),
-                  ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 680;
+        final header = PassengerPageHeader(
+          title: title,
+          subtitle: '',
+          icon: Icons.chat_bubble_rounded,
+          accentColor: PassengerUi.accentBlue,
+        );
+        final search = _ConversationSearchField(controller: searchController);
+        final unreadPill = _UnreadMessagePill(unreadTotal: unreadTotal);
+        final supportButton = _SupportIconButton(
+          isLoading: isOpeningSupport,
+          onTap: onSupportTap,
+        );
+
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: [
+                  Expanded(child: header),
+                  const SizedBox(width: 10),
+                  unreadPill,
+                  const SizedBox(width: 8),
+                  supportButton,
                 ],
               ),
+              const SizedBox(height: 12),
+              search,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            Expanded(child: header),
+            const SizedBox(width: 16),
+            unreadPill,
+            const SizedBox(width: 10),
+            supportButton,
+            const SizedBox(width: 12),
+            SizedBox(width: 420, child: search),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _UnreadMessagePill extends StatelessWidget {
+  final int unreadTotal;
+
+  const _UnreadMessagePill({required this.unreadTotal});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: PassengerUi.blueSoft,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: PassengerUi.accentBlue.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Text(
+        unreadTotal > 99 ? '99+' : '$unreadTotal',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: PassengerUi.valueText.copyWith(
+          color: PassengerUi.accentBlue,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _SupportIconButton extends StatelessWidget {
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  const _SupportIconButton({required this.isLoading, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Contact admin',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLoading ? null : onTap,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: PassengerUi.blueSoft,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: PassengerUi.accentBlue.withValues(alpha: 0.14),
+              ),
             ),
-            isLoading
-                ? SizedBox(
-                    width: 22,
-                    height: 22,
+            child: isLoading
+                ? Padding(
+                    padding: const EdgeInsets.all(11),
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: PassengerUi.accentBlue,
                     ),
                   )
-                : Icon(Icons.chevron_right_rounded, color: PassengerUi.body),
-          ],
+                : Icon(
+                    Icons.support_agent_rounded,
+                    color: PassengerUi.accentBlue,
+                    size: 22,
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConversationSearchField extends StatelessWidget {
+  final TextEditingController controller;
+
+  const _ConversationSearchField({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: 'Search conversations',
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: controller.text.isEmpty
+            ? null
+            : IconButton(
+                onPressed: controller.clear,
+                icon: const Icon(Icons.close_rounded),
+              ),
+        filled: true,
+        fillColor: PassengerUi.surface,
+        hintStyle: PassengerUi.bodyText.copyWith(color: PassengerUi.body),
+        border: OutlineInputBorder(
+          borderRadius: PassengerUi.cardRadius,
+          borderSide: BorderSide(color: PassengerUi.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: PassengerUi.cardRadius,
+          borderSide: BorderSide(color: PassengerUi.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: PassengerUi.cardRadius,
+          borderSide: BorderSide(color: PassengerUi.accentBlue, width: 1.4),
         ),
       ),
     );

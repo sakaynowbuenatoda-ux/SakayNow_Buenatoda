@@ -77,6 +77,12 @@ class Ride {
 
   bool get hasDriver => driverId != null && driverId!.isNotEmpty;
   bool get isActive => !status.isTerminal;
+  bool get hasPassengerDriverReview => passengerDriverReviewRating != null;
+  bool get hasDriverPassengerReview => driverPassengerReviewRating != null;
+  bool get canPassengerReviewDriver =>
+      status == RideStatus.completed && hasDriver && !hasPassengerDriverReview;
+  bool get canDriverReviewPassenger =>
+      status == RideStatus.completed && !hasDriverPassengerReview;
 
   String get distanceLabel {
     final meters = _distanceMetersForStatus;

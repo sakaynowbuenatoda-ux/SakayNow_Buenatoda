@@ -1,8 +1,16 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum UserRole { admin, driver, passenger }
 
 enum PassengerType { regular, student }
 
-enum AccountAccessState { active, pendingApproval, banned }
+enum AccountAccessState {
+  active,
+  pendingApproval,
+  banned,
+  deactivated,
+  deleted,
+}
 
 class AppUser {
   final String userId;
@@ -14,6 +22,14 @@ class AppUser {
   final bool isVerified;
   final bool isActive;
   final bool isBanned;
+  final bool isDeactivated;
+  final bool isDeleted;
+  final String accountStatus;
+  final DateTime? deactivatedAt;
+  final DateTime? deactivationRestoreDeadline;
+  final DateTime? deactivationPurgeAfter;
+  final DateTime? accountAnonymizedAt;
+  final String? profilePictureUrl;
   final String? selfieUrl;
 
   AppUser({
@@ -26,6 +42,14 @@ class AppUser {
     required this.isVerified,
     required this.isActive,
     required this.isBanned,
+    required this.isDeactivated,
+    required this.isDeleted,
+    required this.accountStatus,
+    required this.deactivatedAt,
+    required this.deactivationRestoreDeadline,
+    required this.deactivationPurgeAfter,
+    required this.accountAnonymizedAt,
+    required this.profilePictureUrl,
     required this.selfieUrl,
   });
 
@@ -48,6 +72,11 @@ class AppUser {
             _ => 'regular',
           };
 
+    final accountStatus = (data['account_status'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
     return AppUser(
       userId: fallbackUserId,
       firstName: (data['first_name'] ?? '').toString(),
@@ -63,6 +92,21 @@ class AppUser {
           true,
       isActive: (data['is_active'] ?? data['isActive'] ?? false) == true,
       isBanned: (data['is_banned'] ?? data['isBanned'] ?? false) == true,
+      isDeactivated:
+          (data['is_deactivated'] ?? data['isDeactivated'] ?? false) == true ||
+          accountStatus == 'deactivated',
+      isDeleted:
+          accountStatus == 'deleted' || data['account_anonymized_at'] != null,
+      accountStatus: accountStatus,
+      deactivatedAt: _readDate(data['deactivated_at']),
+      deactivationRestoreDeadline: _readDate(
+        data['deactivation_restore_deadline'],
+      ),
+      deactivationPurgeAfter: _readDate(data['deactivation_purge_after']),
+      accountAnonymizedAt: _readDate(data['account_anonymized_at']),
+      profilePictureUrl: _normalizeOptional(
+        data['profile_picture_url'] ?? data['profile_image_url'],
+      ),
       selfieUrl: _normalizeOptional(data['selfie_url']),
     );
   }
@@ -80,7 +124,19 @@ class AppUser {
     return normalized;
   }
 
-  String? get profileImageUrl => selfieUrl;
+  static DateTime? _readDate(Object? value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    return null;
+  }
+
+  String? get profileImageUrl => profilePictureUrl ?? selfieUrl;
 
   UserRole get userRole {
     switch (role) {
@@ -121,6 +177,14 @@ class AppUser {
   AccountAccessState accessState() {
     if (isBanned) {
       return AccountAccessState.banned;
+    }
+
+    if (isDeleted) {
+      return AccountAccessState.deleted;
+    }
+
+    if (isDeactivated) {
+      return AccountAccessState.deactivated;
     }
 
     if (userRole == UserRole.admin) {

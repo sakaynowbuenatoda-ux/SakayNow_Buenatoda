@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -5,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../config/map_config.dart';
 import '../models/distance_matrix_result.dart';
 import '../models/fare_estimate.dart';
+import '../models/fare_settings.dart';
 import '../models/passenger_payment_method.dart';
 import '../models/place_prediction.dart';
 import '../models/ride.dart';
@@ -12,6 +15,7 @@ import '../models/ride_location.dart';
 import '../models/route_result.dart';
 import '../services/distance_matrix_service.dart';
 import '../services/fare_service.dart';
+import '../services/fare_settings_service.dart';
 import '../services/google_directions_service.dart';
 import '../services/google_places_service.dart';
 import '../services/location_service.dart';
@@ -31,13 +35,15 @@ class BookingMapController extends ChangeNotifier {
     DistanceMatrixService? distanceMatrixService,
     RideTrackingService? rideTrackingService,
     FareService? fareService,
+    FareSettingsService? fareSettingsService,
   }) : _locationService = locationService ?? const LocationService(),
        _placesService = placesService ?? GooglePlacesService(),
        _directionsService = directionsService ?? GoogleDirectionsService(),
        _distanceMatrixService =
            distanceMatrixService ?? DistanceMatrixService(),
        _rideTrackingService = rideTrackingService ?? RideTrackingService(),
-       _fareService = fareService ?? const FareService() {
+       _fareService = fareService ?? const FareService(),
+       _fareSettingsService = fareSettingsService ?? FareSettingsService() {
     if (passengerType != null || isPassengerVerified != null) {
       final normalizedPassengerType = passengerType?.trim().toLowerCase();
       passengerFareProfile = PassengerFareProfile(
@@ -57,6 +63,7 @@ class BookingMapController extends ChangeNotifier {
   final DistanceMatrixService _distanceMatrixService;
   final RideTrackingService _rideTrackingService;
   final FareService _fareService;
+  final FareSettingsService _fareSettingsService;
 
   bool isInitializing = true;
   bool isPickupSearching = false;
@@ -72,6 +79,9 @@ class BookingMapController extends ChangeNotifier {
   RouteResult? route;
   DistanceMatrixResult? estimate;
   FareEstimate? fareEstimate;
+  FareSettings fareSettings = FareSettings.defaults;
+  bool isFareSettingsLoading = true;
+  String? fareSettingsError;
   PassengerFareProfile? passengerFareProfile;
   MapMarkerIcons? markerIcons;
   List<PlacePrediction> pickupPredictions = <PlacePrediction>[];
@@ -80,6 +90,7 @@ class BookingMapController extends ChangeNotifier {
   int _pickupSearchToken = 0;
   int _dropoffSearchToken = 0;
   bool _isPickupCurrentLocation = false;
+  StreamSubscription<FareSettings>? _fareSettingsSubscription;
 
   bool get isPickupCurrentLocation => _isPickupCurrentLocation;
   bool get isStudentDiscountEligible =>
@@ -95,6 +106,10 @@ class BookingMapController extends ChangeNotifier {
 
     if (profile?.isStudent == true && profile?.isVerified != true) {
       return 'Student discount unlocks after account verification.';
+    }
+
+    if (fareSettingsError != null) {
+      return fareSettingsError;
     }
 
     return null;
@@ -218,6 +233,7 @@ class BookingMapController extends ChangeNotifier {
   Future<void> initialize() async {
     isInitializing = true;
     errorMessage = null;
+    _watchFareSettings();
     notifyListeners();
 
     try {
@@ -671,6 +687,42 @@ class BookingMapController extends ChangeNotifier {
       dropoffLocation: dropoffLocation!,
       distanceMeters: distanceMeters,
       studentDiscountEligible: isStudentDiscountEligible,
+      settings: fareSettings,
+    );
+  }
+
+  void _watchFareSettings() {
+    if (_fareSettingsSubscription != null) {
+      return;
+    }
+
+    _fareSettingsSubscription = _fareSettingsService.watchSettings().listen(
+      (settings) {
+        fareSettings = settings;
+        isFareSettingsLoading = false;
+        fareSettingsError = null;
+        _refreshFareEstimateFromCurrentRoute();
+        notifyListeners();
+      },
+      onError: (Object _) {
+        isFareSettingsLoading = false;
+        fareSettingsError =
+            'Unable to load latest fare settings. Default fare table is shown.';
+        notifyListeners();
+      },
+    );
+  }
+
+  void _refreshFareEstimateFromCurrentRoute() {
+    final selectedRoute = route;
+    if (selectedRoute == null ||
+        pickupLocation == null ||
+        dropoffLocation == null) {
+      return;
+    }
+
+    fareEstimate = _estimateFare(
+      distanceMeters: estimate?.distanceMeters ?? selectedRoute.distanceMeters,
     );
   }
 
@@ -776,5 +828,11 @@ class BookingMapController extends ChangeNotifier {
       isBookingLoading = false;
       notifyListeners();
     }
+  }
+
+  @override
+  void dispose() {
+    _fareSettingsSubscription?.cancel();
+    super.dispose();
   }
 }

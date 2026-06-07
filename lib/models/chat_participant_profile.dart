@@ -25,7 +25,9 @@ class ChatParticipantProfile {
       displayName: fullName.isEmpty ? 'SakayNow User' : fullName,
       role: role.isEmpty ? 'passenger' : role,
       profileImageUrl: _readOptional(
-        data['selfie_url'] ?? data['profile_image_url'] ?? data['id_image_url'],
+        data['profile_picture_url'] ??
+            data['profile_image_url'] ??
+            data['selfie_url'],
       ),
     );
   }

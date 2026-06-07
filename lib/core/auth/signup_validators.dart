@@ -42,6 +42,23 @@ class SignupValidators {
     return null;
   }
 
+  static String? accountFirstName(String? value) {
+    final error = name(value, fieldName: 'First name');
+    if (error != null) {
+      return error;
+    }
+
+    if (isReservedAdminName(value)) {
+      return 'The name admin is reserved.';
+    }
+
+    return null;
+  }
+
+  static bool isReservedAdminName(String? value) {
+    return (value ?? '').trim().toLowerCase() == 'admin';
+  }
+
   static String? age(
     String? value, {
     required int minimumAge,

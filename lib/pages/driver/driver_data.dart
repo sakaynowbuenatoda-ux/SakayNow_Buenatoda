@@ -71,7 +71,7 @@ class DriverMockData {
       pickup: 'Buenavista National High School',
       dropoff: 'Poblacion, Buenavista',
       requestedAt: 'Requested 7:42 AM',
-      fare: 'PHP 20',
+      fare: 'PHP 25',
       status: 'new',
     ),
     DriverQueueItem(
@@ -105,7 +105,7 @@ class DriverMockData {
       route: 'Public Market to Poblacion',
       completedAt: 'Apr 16, 2026 - 6:55 AM',
       completedDate: DateTime(2026, 4, 16, 6, 55),
-      earnings: 'PHP 20',
+      earnings: 'PHP 25',
       rating: 5.0,
     ),
     DriverTripSummary(

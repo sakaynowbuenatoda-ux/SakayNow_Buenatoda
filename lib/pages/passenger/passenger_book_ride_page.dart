@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../config/map_config.dart';
 import '../../controllers/booking_map_controller.dart';
 import '../../controllers/quick_destinations_controller.dart';
+import '../../models/driver_rating.dart';
 import '../../controllers/ride_tracking_controller.dart';
 import '../../models/place_prediction.dart';
 import '../../models/passenger_payment_method.dart';
@@ -1051,9 +1052,41 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
         b.location.latLng,
         pickup,
       );
+      final distanceDifference = (aDistance - bDistance).abs();
+      if (distanceDifference <= DriverRating.closeDistanceTieMeters) {
+        final rankComparison = _compareDriverRank(a, b);
+        if (rankComparison != 0) {
+          return rankComparison;
+        }
+      }
+
       return aDistance.compareTo(bDistance);
     });
     return sorted;
+  }
+
+  int _compareDriverRank(AvailableDriver a, AvailableDriver b) {
+    final aRank = a.ratingRank;
+    final bRank = b.ratingRank;
+
+    if (aRank != null && bRank != null && aRank != bRank) {
+      return aRank.compareTo(bRank);
+    }
+
+    if (aRank != null && bRank == null) {
+      return -1;
+    }
+
+    if (aRank == null && bRank != null) {
+      return 1;
+    }
+
+    final weightedComparison = b.weightedRating.compareTo(a.weightedRating);
+    if (weightedComparison != 0) {
+      return weightedComparison;
+    }
+
+    return b.reviewCount.compareTo(a.reviewCount);
   }
 
   List<AvailableDriver> _nearbyDrivers(
@@ -1503,9 +1536,16 @@ class _AvailableDriverCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 3),
                     Text(
-                      driver.rating.toStringAsFixed(1),
+                      driver.ratingLabel,
                       style: MapTextStyles.body.copyWith(fontSize: 12.5),
                     ),
+                    if (driver.reviewCount > 0) ...<Widget>[
+                      const SizedBox(width: 4),
+                      Text(
+                        '(${driver.reviewCountLabel})',
+                        style: MapTextStyles.body.copyWith(fontSize: 12.5),
+                      ),
+                    ],
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1518,25 +1558,38 @@ class _AvailableDriverCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: PassengerStatusChip(
-                    label: forcesCash
-                        ? 'Cash only'
-                        : driver.supportsOnlinePayments
-                        ? 'Online payments'
-                        : 'Cash',
-                    textColor: forcesCash
-                        ? PassengerUi.primary
-                        : driver.supportsOnlinePayments
-                        ? PassengerUi.successText
-                        : PassengerUi.body,
-                    backgroundColor: forcesCash
-                        ? PassengerUi.dangerSoft
-                        : driver.supportsOnlinePayments
-                        ? PassengerUi.successBackground
-                        : PassengerUi.mutedSurface,
-                  ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: <Widget>[
+                    PassengerStatusChip(
+                      label: forcesCash
+                          ? 'Cash only'
+                          : driver.supportsOnlinePayments
+                          ? 'Online payments'
+                          : 'Cash',
+                      textColor: forcesCash
+                          ? PassengerUi.primary
+                          : driver.supportsOnlinePayments
+                          ? PassengerUi.successText
+                          : PassengerUi.body,
+                      backgroundColor: forcesCash
+                          ? PassengerUi.dangerSoft
+                          : driver.supportsOnlinePayments
+                          ? PassengerUi.successBackground
+                          : PassengerUi.mutedSurface,
+                    ),
+                    if (driver.displayBadge.isNotEmpty)
+                      PassengerStatusChip(
+                        label: driver.displayBadge,
+                        textColor: driver.ratingRank == null
+                            ? PassengerUi.accentBlue
+                            : PassengerUi.highlightAmber,
+                        backgroundColor: driver.ratingRank == null
+                            ? PassengerUi.blueSoft
+                            : PassengerUi.warningSoft,
+                      ),
+                  ],
                 ),
               ],
             ),

@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../models/distance_matrix_result.dart';
+import '../models/driver_rating.dart';
 import '../models/fare_estimate.dart';
 import '../models/passenger_payment_method.dart';
 import '../models/ride.dart';
@@ -10,16 +13,29 @@ import '../models/ride_location.dart';
 import '../models/ride_status.dart';
 import '../models/route_result.dart';
 import 'fare_service.dart';
+import 'fare_settings_service.dart';
 
 class RideTrackingService {
-  RideTrackingService({FirebaseFirestore? firestore, FareService? fareService})
-    : _firestore = firestore ?? FirebaseFirestore.instance,
-      _fareService = fareService ?? const FareService();
+  RideTrackingService({
+    FirebaseFirestore? firestore,
+    FareService? fareService,
+    FareSettingsService? fareSettingsService,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _fareService = fareService ?? const FareService(),
+       _fareSettingsService =
+           fareSettingsService ?? FareSettingsService(firestore: firestore);
 
   static const Duration driverAvailabilityTimeout = Duration(minutes: 15);
+  static final List<String> _activeRideStatusValues = <String>[
+    RideStatus.accepted.firestoreValue,
+    RideStatus.driverArriving.firestoreValue,
+    RideStatus.arrived.firestoreValue,
+    RideStatus.inProgress.firestoreValue,
+  ];
 
   final FirebaseFirestore _firestore;
   final FareService _fareService;
+  final FareSettingsService _fareSettingsService;
 
   CollectionReference<Map<String, dynamic>> get _bookings =>
       _firestore.collection('bookings');
@@ -29,6 +45,9 @@ class RideTrackingService {
 
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection('users');
+
+  CollectionReference<Map<String, dynamic>> get _reports =>
+      _firestore.collection('reports');
 
   Future<String> createBooking({
     required String passengerId,
@@ -48,11 +67,13 @@ class RideTrackingService {
         ? 'checkout_pending'
         : 'cash_pending';
     final passengerFareProfile = await loadPassengerFareProfile(passengerId);
+    final fareSettings = await _fareSettingsService.loadSettings();
     final bookingFareEstimate = _fareService.estimateFare(
       pickupLocation: pickupLocation,
       dropoffLocation: dropoffLocation,
       distanceMeters: estimate?.distanceMeters ?? route.distanceMeters,
       studentDiscountEligible: passengerFareProfile.isVerifiedStudent,
+      settings: fareSettings,
     );
 
     await doc.set(<String, dynamic>{
@@ -80,6 +101,9 @@ class RideTrackingService {
       'final_fare': bookingFareEstimate.amount,
       'fare_rule': bookingFareEstimate.ruleLabel,
       'fare_rule_code': bookingFareEstimate.ruleCode,
+      'fare_settings_id': FareSettingsService.currentDocumentId,
+      if (fareSettings.updatedAt != null)
+        'fare_settings_updated_at': Timestamp.fromDate(fareSettings.updatedAt!),
       'fare_details': bookingFareEstimate.toFirestore(),
       'fare_discount_applied': bookingFareEstimate.hasDiscount,
       'fare_discount_amount': bookingFareEstimate.discountAmount,
@@ -188,6 +212,10 @@ class RideTrackingService {
               continue;
             }
 
+            if (_hasActiveBookingMarker(locationData)) {
+              continue;
+            }
+
             final location = RideDriverLocation.fromMap(locationData);
             final driverId = location.driverId.isNotEmpty
                 ? location.driverId
@@ -205,6 +233,11 @@ class RideTrackingService {
                 userData['role'] != 'driver' ||
                 !isVerified ||
                 isBanned) {
+              continue;
+            }
+
+            final activeRide = await findDriverActiveRide(driverId);
+            if (activeRide != null) {
               continue;
             }
 
@@ -239,6 +272,28 @@ class RideTrackingService {
     return DateTime.now().difference(updatedAt) > driverAvailabilityTimeout;
   }
 
+  static bool _hasActiveBookingMarker(Map<String, dynamic> data) {
+    return _readNullableString(data['active_booking_id']) != null;
+  }
+
+  static bool _isAvailableDriverLocation(Map<String, dynamic> data) {
+    return data['is_available'] == true &&
+        _hasCoordinates(data) &&
+        !_isStaleDriverLocation(data) &&
+        !_hasActiveBookingMarker(data);
+  }
+
+  Future<bool> _canDriverReceiveNewBookings(String driverId) async {
+    final locationSnapshot = await _driverLocations.doc(driverId).get();
+    final locationData = locationSnapshot.data() ?? <String, dynamic>{};
+    if (!locationSnapshot.exists || !_isAvailableDriverLocation(locationData)) {
+      return false;
+    }
+
+    final activeRide = await findDriverActiveRide(driverId);
+    return activeRide == null;
+  }
+
   Stream<Ride?> watchRide(String bookingId) {
     return _bookings.doc(bookingId).snapshots().map((snapshot) {
       if (!snapshot.exists) {
@@ -253,7 +308,12 @@ class RideTrackingService {
     return _bookings
         .where('status', isEqualTo: RideStatus.searching.firestoreValue)
         .snapshots()
-        .map((snapshot) {
+        .asyncMap((snapshot) async {
+          if (driverId != null &&
+              !await _canDriverReceiveNewBookings(driverId)) {
+            return <Ride>[];
+          }
+
           final rides = snapshot.docs.map(Ride.fromDocument).where((ride) {
             final preferredDriverId = ride.preferredDriverId;
             if (driverId == null) {
@@ -286,15 +346,7 @@ class RideTrackingService {
   Stream<List<Ride>> watchDriverActiveRides(String driverId) {
     return _bookings
         .where('driver_id', isEqualTo: driverId)
-        .where(
-          'status',
-          whereIn: <String>[
-            RideStatus.accepted.firestoreValue,
-            RideStatus.driverArriving.firestoreValue,
-            RideStatus.arrived.firestoreValue,
-            RideStatus.inProgress.firestoreValue,
-          ],
-        )
+        .where('status', whereIn: _activeRideStatusValues)
         .snapshots()
         .map((snapshot) => snapshot.docs.map(Ride.fromDocument).toList());
   }
@@ -327,7 +379,10 @@ class RideTrackingService {
     });
   }
 
-  Stream<List<DriverRecentTrip>> watchDriverRecentTrips(String driverId) {
+  Stream<List<DriverRecentTrip>> watchDriverRecentTrips(
+    String driverId, {
+    int limit = 8,
+  }) {
     return _bookings
         .where('driver_id', isEqualTo: driverId)
         .snapshots()
@@ -342,7 +397,7 @@ class RideTrackingService {
             return bDate.compareTo(aDate);
           });
 
-          final recentRides = rides.take(8).toList(growable: false);
+          final recentRides = rides.take(limit).toList(growable: false);
           final trips = <DriverRecentTrip>[];
 
           for (final ride in recentRides) {
@@ -407,6 +462,18 @@ class RideTrackingService {
         });
   }
 
+  Future<DriverReviewProfile> loadDriverProfile(String driverId) async {
+    final snapshot = await _users.doc(driverId).get();
+    if (!snapshot.exists) {
+      throw StateError('Driver profile not found.');
+    }
+
+    return DriverReviewProfile.fromData(
+      driverId: driverId,
+      data: snapshot.data() ?? <String, dynamic>{},
+    );
+  }
+
   Stream<DriverReviewProfile> watchDriverProfile(String driverId) {
     return _users.doc(driverId).snapshots().map((snapshot) {
       if (!snapshot.exists) {
@@ -416,6 +483,100 @@ class RideTrackingService {
       final data = snapshot.data() ?? <String, dynamic>{};
       return DriverReviewProfile.fromData(driverId: driverId, data: data);
     });
+  }
+
+  Future<Ride?> findPendingPassengerDriverReviewRide({
+    required String passengerId,
+    required String driverId,
+    String? preferredBookingId,
+  }) async {
+    final preferredId = preferredBookingId?.trim();
+    if (preferredId != null && preferredId.isNotEmpty) {
+      final snapshot = await _bookings.doc(preferredId).get();
+      final ride = snapshot.exists ? Ride.fromDocument(snapshot) : null;
+      if (_isPendingPassengerDriverReviewRide(
+        ride,
+        passengerId: passengerId,
+        driverId: driverId,
+      )) {
+        return ride;
+      }
+    }
+
+    final snapshot = await _bookings
+        .where('passenger_id', isEqualTo: passengerId)
+        .get();
+    final rides = snapshot.docs
+        .map(Ride.fromDocument)
+        .where(
+          (ride) => _isPendingPassengerDriverReviewRide(
+            ride,
+            passengerId: passengerId,
+            driverId: driverId,
+          ),
+        )
+        .toList(growable: false);
+
+    rides.sort(_compareRidesByLatestActivity);
+    return rides.isEmpty ? null : rides.first;
+  }
+
+  bool _isPendingPassengerDriverReviewRide(
+    Ride? ride, {
+    required String passengerId,
+    required String driverId,
+  }) {
+    return ride != null &&
+        ride.passengerId == passengerId &&
+        ride.driverId == driverId &&
+        ride.canPassengerReviewDriver;
+  }
+
+  Stream<List<DriverReviewProfile>> watchTopDrivers({int limit = 5}) {
+    final safeLimit = limit <= 0 ? DriverRating.leaderboardLimit : limit;
+
+    return _users
+        .where('role', isEqualTo: 'driver')
+        .where('is_verified', isEqualTo: true)
+        .where('is_banned', isEqualTo: false)
+        .snapshots()
+        .map((snapshot) {
+          final drivers = snapshot.docs
+              .map(
+                (document) => DriverReviewProfile.fromData(
+                  driverId: document.id,
+                  data: document.data(),
+                ),
+              )
+              .where((driver) => driver.reviewCount > 0)
+              .toList();
+
+          drivers.sort(_compareDriverLeaderboardProfiles);
+
+          return drivers.take(safeLimit).toList(growable: false);
+        });
+  }
+
+  int _compareDriverLeaderboardProfiles(
+    DriverReviewProfile a,
+    DriverReviewProfile b,
+  ) {
+    final weightedComparison = b.weightedRating.compareTo(a.weightedRating);
+    if (weightedComparison != 0) {
+      return weightedComparison;
+    }
+
+    final reviewComparison = b.reviewCount.compareTo(a.reviewCount);
+    if (reviewComparison != 0) {
+      return reviewComparison;
+    }
+
+    final ratingComparison = b.averageRating.compareTo(a.averageRating);
+    if (ratingComparison != 0) {
+      return ratingComparison;
+    }
+
+    return a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase());
   }
 
   Stream<PassengerReviewProfile> watchPassengerProfile(String passengerId) {
@@ -490,7 +651,6 @@ class RideTrackingService {
     final reviewRef = _firestore.collection('reviews').doc(reviewId);
     final bookingRef = _bookings.doc(bookingId);
     final passengerRef = _users.doc(passengerId);
-    final driverRef = _users.doc(driverId);
 
     await _firestore.runTransaction((transaction) async {
       final bookingSnapshot = await transaction.get(bookingRef);
@@ -502,31 +662,18 @@ class RideTrackingService {
       if (!bookingSnapshot.exists ||
           bookingData['passenger_id'] != passengerId ||
           bookingData['driver_id'] != driverId ||
-          bookingRide?.status.isTerminal != true) {
-        throw StateError('Only completed or cancelled trips can be reviewed.');
+          bookingRide?.status != RideStatus.completed) {
+        throw StateError('Only completed trips can be reviewed.');
       }
 
       final existingReview = await transaction.get(reviewRef);
+      if (existingReview.exists ||
+          bookingRide?.hasPassengerDriverReview == true) {
+        throw StateError('This ride already has a driver review.');
+      }
+
       final passengerSnapshot = await transaction.get(passengerRef);
-      final driverSnapshot = await transaction.get(driverRef);
       final passengerData = passengerSnapshot.data() ?? <String, dynamic>{};
-      final driverData = driverSnapshot.data() ?? <String, dynamic>{};
-      final previousRating = existingReview.exists
-          ? _readInt(existingReview.data()?['rating'])
-          : null;
-      final currentTotal =
-          _readInt(driverData['driver_review_rating_total']) ??
-          _readInt(driverData['review_rating_total']) ??
-          0;
-      final currentCount =
-          _readInt(driverData['driver_review_count']) ??
-          _readInt(driverData['review_count']) ??
-          0;
-      final nextTotal = currentTotal - (previousRating ?? 0) + rating;
-      final nextCount = previousRating == null
-          ? currentCount + 1
-          : currentCount;
-      final nextAverage = nextCount == 0 ? 0 : nextTotal / nextCount;
       final reviewerName = _fullNameFromData(
         passengerData,
         fallback: 'Passenger',
@@ -543,30 +690,22 @@ class RideTrackingService {
         'reviewee_role': 'driver',
         'rating': rating,
         'comment': trimmedComment,
+        'created_at': now,
         'updated_at': now,
-        if (!existingReview.exists) 'created_at': now,
-      }, SetOptions(merge: true));
+      });
 
       transaction.update(bookingRef, <String, dynamic>{
         'passenger_driver_review': <String, dynamic>{
+          'review_id': reviewId,
           'rating': rating,
           'comment': trimmedComment,
           'reviewer_id': passengerId,
           'reviewee_id': driverId,
+          'created_at': Timestamp.now(),
           'updated_at': Timestamp.now(),
         },
         'updated_at': now,
       });
-
-      transaction.set(driverRef, <String, dynamic>{
-        'driver_review_rating_total': nextTotal,
-        'driver_review_count': nextCount,
-        'driver_average_rating': nextAverage,
-        'review_rating_total': nextTotal,
-        'review_count': nextCount,
-        'average_rating': nextAverage,
-        'updated_at': now,
-      }, SetOptions(merge: true));
     });
   }
 
@@ -577,21 +716,6 @@ class RideTrackingService {
     required String reason,
     required String details,
   }) async {
-    final trimmedReason = reason.trim();
-    final trimmedDetails = details.trim();
-
-    if (trimmedReason.isEmpty) {
-      throw ArgumentError.value(reason, 'reason', 'Please choose a reason.');
-    }
-
-    if (trimmedDetails.length > 800) {
-      throw ArgumentError.value(
-        details,
-        'details',
-        'Report details must be 800 characters or fewer.',
-      );
-    }
-
     final bookingSnapshot = await _bookings.doc(bookingId).get();
     final bookingData = bookingSnapshot.data() ?? <String, dynamic>{};
     if (!bookingSnapshot.exists ||
@@ -600,21 +724,56 @@ class RideTrackingService {
       throw StateError('Reports must be connected to your driver trip.');
     }
 
-    final reportRef = _firestore.collection('reports').doc();
-    final now = FieldValue.serverTimestamp();
-    await reportRef.set(<String, dynamic>{
-      'report_id': reportRef.id,
-      'booking_id': bookingId,
-      'reporter_id': passengerId,
-      'reporter_role': 'passenger',
-      'reported_user_id': driverId,
-      'reported_user_role': 'driver',
-      'reason': trimmedReason,
-      'details': trimmedDetails,
-      'status': 'open',
-      'created_at': now,
-      'updated_at': now,
-    });
+    await _submitUserReport(
+      bookingId: bookingId,
+      reporterId: passengerId,
+      reporterRole: 'passenger',
+      reportedUserId: driverId,
+      reportedUserRole: 'driver',
+      reason: reason,
+      details: details,
+    );
+  }
+
+  Future<void> reportPassenger({
+    required String bookingId,
+    required String driverId,
+    required String passengerId,
+    required String reason,
+    required String details,
+  }) async {
+    final bookingSnapshot = await _bookings.doc(bookingId).get();
+    final bookingData = bookingSnapshot.data() ?? <String, dynamic>{};
+    final currentStatus = rideStatusFromString(bookingData['status']);
+    final assignedDriverId = _readNullableString(bookingData['driver_id']);
+    final preferredDriverId = _readNullableString(
+      bookingData['preferred_driver_id'],
+    );
+    final declinedDriverIds = _readStringList(
+      bookingData['declined_driver_ids'],
+    );
+    final isAssignedToDriver = assignedDriverId == driverId;
+    final isVisibleOpenRequest =
+        assignedDriverId == null &&
+        currentStatus == RideStatus.searching &&
+        !declinedDriverIds.contains(driverId) &&
+        (preferredDriverId == null || preferredDriverId == driverId);
+
+    if (!bookingSnapshot.exists ||
+        bookingData['passenger_id'] != passengerId ||
+        (!isAssignedToDriver && !isVisibleOpenRequest)) {
+      throw StateError('Reports must be connected to your passenger booking.');
+    }
+
+    await _submitUserReport(
+      bookingId: bookingId,
+      reporterId: driverId,
+      reporterRole: 'driver',
+      reportedUserId: passengerId,
+      reportedUserRole: 'passenger',
+      reason: reason,
+      details: details,
+    );
   }
 
   Future<void> saveDriverPassengerReview({
@@ -631,24 +790,29 @@ class RideTrackingService {
     final reviewRef = _firestore.collection('reviews').doc(reviewId);
     final bookingRef = _bookings.doc(bookingId);
     final driverRef = _users.doc(driverId);
-    final passengerRef = _users.doc(passengerId);
 
     await _firestore.runTransaction((transaction) async {
-      final existingReview = await transaction.get(reviewRef);
-      final driverSnapshot = await transaction.get(driverRef);
-      final passengerSnapshot = await transaction.get(passengerRef);
-      final driverData = driverSnapshot.data() ?? <String, dynamic>{};
-      final passengerData = passengerSnapshot.data() ?? <String, dynamic>{};
-      final previousRating = existingReview.exists
-          ? _readInt(existingReview.data()?['rating'])
+      final bookingSnapshot = await transaction.get(bookingRef);
+      final bookingData = bookingSnapshot.data() ?? <String, dynamic>{};
+      final bookingRide = bookingSnapshot.exists
+          ? Ride.fromDocument(bookingSnapshot)
           : null;
-      final currentTotal = _readInt(passengerData['review_rating_total']) ?? 0;
-      final currentCount = _readInt(passengerData['review_count']) ?? 0;
-      final nextTotal = currentTotal - (previousRating ?? 0) + rating;
-      final nextCount = previousRating == null
-          ? currentCount + 1
-          : currentCount;
-      final nextAverage = nextCount == 0 ? 0 : nextTotal / nextCount;
+
+      if (!bookingSnapshot.exists ||
+          bookingData['passenger_id'] != passengerId ||
+          bookingData['driver_id'] != driverId ||
+          bookingRide?.status != RideStatus.completed) {
+        throw StateError('Only completed trips can be reviewed.');
+      }
+
+      final existingReview = await transaction.get(reviewRef);
+      if (existingReview.exists ||
+          bookingRide?.hasDriverPassengerReview == true) {
+        throw StateError('This ride already has a passenger review.');
+      }
+
+      final driverSnapshot = await transaction.get(driverRef);
+      final driverData = driverSnapshot.data() ?? <String, dynamic>{};
       final reviewerName = _fullNameFromData(driverData, fallback: 'Driver');
       final now = FieldValue.serverTimestamp();
 
@@ -661,28 +825,21 @@ class RideTrackingService {
         'reviewee_id': passengerId,
         'reviewee_role': 'passenger',
         'rating': rating,
+        'created_at': now,
         'updated_at': now,
-        if (!existingReview.exists) 'created_at': now,
-      }, SetOptions(merge: true));
+      });
 
       transaction.update(bookingRef, <String, dynamic>{
         'driver_passenger_review': <String, dynamic>{
+          'review_id': reviewId,
           'rating': rating,
           'reviewer_id': driverId,
           'reviewee_id': passengerId,
+          'created_at': Timestamp.now(),
           'updated_at': Timestamp.now(),
         },
         'updated_at': now,
       });
-
-      transaction.set(passengerRef, <String, dynamic>{
-        'review_rating_total': nextTotal,
-        'review_count': nextCount,
-        'average_rating': nextAverage,
-        'passenger_average_rating': nextAverage,
-        'passenger_review_count': nextCount,
-        'updated_at': now,
-      }, SetOptions(merge: true));
     });
   }
 
@@ -706,6 +863,15 @@ class RideTrackingService {
 
       if (!isVerifiedDriver) {
         throw StateError('Only verified drivers can accept bookings.');
+      }
+
+      final driverLocationSnapshot = await transaction.get(driverLocationDoc);
+      final driverLocationData =
+          driverLocationSnapshot.data() ?? <String, dynamic>{};
+      if (!_isAvailableDriverLocation(driverLocationData)) {
+        throw StateError(
+          'You are unavailable or already handling an active booking.',
+        );
       }
 
       final snapshot = await transaction.get(doc);
@@ -743,9 +909,6 @@ class RideTrackingService {
         );
       }
 
-      final driverLocationSnapshot = await transaction.get(driverLocationDoc);
-      final driverLocationData =
-          driverLocationSnapshot.data() ?? <String, dynamic>{};
       final hasDriverLocation = _hasCoordinates(driverLocationData);
       final driverLocation = hasDriverLocation
           ? RideDriverLocation.fromMap(<String, dynamic>{
@@ -905,6 +1068,12 @@ class RideTrackingService {
   }) async {
     if (isAvailable) {
       await _ensureVerifiedDriver(driverId);
+      final activeRide = await findDriverActiveRide(driverId);
+      if (activeRide != null) {
+        throw StateError(
+          'Finish your active booking before going available again.',
+        );
+      }
     }
 
     return _driverLocations.doc(driverId).set(<String, dynamic>{
@@ -925,6 +1094,15 @@ class RideTrackingService {
     String? activeBookingId,
     bool isAvailable = true,
   }) async {
+    if (isAvailable) {
+      await _ensureVerifiedDriver(driverId);
+      final activeRide = await findDriverActiveRide(driverId);
+      if (activeRide != null) {
+        isAvailable = false;
+        activeBookingId = activeRide.bookingId;
+      }
+    }
+
     final driverLocation = RideDriverLocation(
       driverId: driverId,
       latitude: position.latitude,
@@ -951,6 +1129,20 @@ class RideTrackingService {
     }
 
     await batch.commit();
+  }
+
+  Future<Ride?> findDriverActiveRide(String driverId) async {
+    final snapshot = await _bookings
+        .where('driver_id', isEqualTo: driverId)
+        .where('status', whereIn: _activeRideStatusValues)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      return null;
+    }
+
+    return Ride.fromDocument(snapshot.docs.first);
   }
 
   Future<void> _ensureVerifiedDriver(String driverId) async {
@@ -1029,6 +1221,23 @@ class RideTrackingService {
     return text.isEmpty || text == 'null' ? null : text;
   }
 
+  static String? _profileImageUrlFromData(Map<String, dynamic> data) {
+    final candidates = <Object?>[
+      data['profile_picture_url'],
+      data['profile_image_url'],
+      data['selfie_url'],
+    ];
+
+    for (final candidate in candidates) {
+      final imageUrl = _readNullableString(candidate);
+      if (imageUrl != null) {
+        return imageUrl;
+      }
+    }
+
+    return null;
+  }
+
   static List<String> _readStringList(Object? value) {
     if (value is! Iterable) {
       return const <String>[];
@@ -1071,6 +1280,96 @@ class RideTrackingService {
   static String _reviewerFallbackName(Map<String, dynamic> data) {
     final role = (data['reviewer_role'] ?? '').toString().trim().toLowerCase();
     return role == 'driver' ? 'Driver' : 'Passenger';
+  }
+
+  Future<void> _submitUserReport({
+    required String bookingId,
+    required String reporterId,
+    required String reporterRole,
+    required String reportedUserId,
+    required String reportedUserRole,
+    required String reason,
+    required String details,
+  }) async {
+    final trimmedReporterId = reporterId.trim();
+    final trimmedReportedUserId = reportedUserId.trim();
+    final trimmedReason = reason.trim();
+    final trimmedDetails = details.trim();
+
+    if (trimmedReporterId.isEmpty || trimmedReportedUserId.isEmpty) {
+      throw StateError('Report users are missing.');
+    }
+
+    if (trimmedReporterId == trimmedReportedUserId) {
+      throw StateError('You cannot report your own account.');
+    }
+
+    if (trimmedReason.isEmpty) {
+      throw ArgumentError.value(reason, 'reason', 'Please choose a reason.');
+    }
+
+    if (trimmedDetails.length > 800) {
+      throw ArgumentError.value(
+        details,
+        'details',
+        'Report details must be 800 characters or fewer.',
+      );
+    }
+
+    final dateKey = _reportDateKey(DateTime.now());
+    final reportId = _dailyReportId(
+      dateKey: dateKey,
+      reporterId: trimmedReporterId,
+      reportedUserId: trimmedReportedUserId,
+    );
+    final reportRef = _reports.doc(reportId);
+    final now = FieldValue.serverTimestamp();
+
+    await _firestore.runTransaction((transaction) async {
+      final existingReport = await transaction.get(reportRef);
+      if (existingReport.exists) {
+        throw StateError('You can only report this user once per day.');
+      }
+
+      transaction.set(reportRef, <String, dynamic>{
+        'report_id': reportId,
+        'booking_id': bookingId,
+        'reporter_id': trimmedReporterId,
+        'reporter_role': reporterRole,
+        'reported_user_id': trimmedReportedUserId,
+        'reported_user_role': reportedUserRole,
+        'reason': trimmedReason,
+        'details': trimmedDetails,
+        'report_date_key': dateKey,
+        'status': 'open',
+        'created_at': now,
+        'updated_at': now,
+      });
+    });
+  }
+
+  static String _dailyReportId({
+    required String dateKey,
+    required String reporterId,
+    required String reportedUserId,
+  }) {
+    return [
+      'daily',
+      dateKey,
+      _reportIdPart(reporterId),
+      _reportIdPart(reportedUserId),
+    ].join('_');
+  }
+
+  static String _reportDateKey(DateTime value) {
+    final localDate = value.toLocal();
+    final month = localDate.month.toString().padLeft(2, '0');
+    final day = localDate.day.toString().padLeft(2, '0');
+    return '${localDate.year}$month$day';
+  }
+
+  static String _reportIdPart(String value) {
+    return base64Url.encode(utf8.encode(value.trim())).replaceAll('=', '');
   }
 
   String _statusTimestampField(RideStatus status) {
@@ -1158,6 +1457,9 @@ class DriverReviewProfile {
   final String? profileImageUrl;
   final double averageRating;
   final int reviewCount;
+  final double weightedRating;
+  final int? ratingRank;
+  final String ratingBadge;
 
   const DriverReviewProfile({
     required this.driverId,
@@ -1168,37 +1470,84 @@ class DriverReviewProfile {
     required this.profileImageUrl,
     required this.averageRating,
     required this.reviewCount,
+    required this.weightedRating,
+    required this.ratingRank,
+    required this.ratingBadge,
   });
 
   factory DriverReviewProfile.fromData({
     required String driverId,
     required Map<String, dynamic> data,
   }) {
+    final reviewCount =
+        RideTrackingService._readInt(
+          data['driver_review_count'] ?? data['review_count'],
+        ) ??
+        0;
+    final ratingTotal =
+        RideTrackingService._readInt(
+          data['driver_review_rating_total'] ?? data['review_rating_total'],
+        ) ??
+        0;
+    final averageRating = RideTrackingService._readDouble(
+      data['driver_average_rating'] ??
+          data['average_rating'] ??
+          data['rating'] ??
+          data['ratings'],
+    );
+    final storedWeightedRating = RideTrackingService._readDouble(
+      data['driver_weighted_rating'],
+    );
+    final weightedRating = storedWeightedRating > 0
+        ? storedWeightedRating
+        : DriverRating.weightedScore(
+            ratingTotal: ratingTotal,
+            reviewCount: reviewCount,
+          );
+    final ratingRank = RideTrackingService._readInt(data['driver_rating_rank']);
+    final computedBadge = DriverRating.badgeLabel(
+      reviewCount: reviewCount,
+      averageRating: averageRating,
+      rank: ratingRank,
+    );
+
     return DriverReviewProfile(
       driverId: driverId,
       fullName: RideTrackingService._fullNameFromData(data, fallback: 'Driver'),
       isVerified: (data['is_verified'] ?? data['isVerified'] ?? false) == true,
       isActive: (data['is_active'] ?? data['isActive'] ?? false) == true,
       isBanned: (data['is_banned'] ?? data['isBanned'] ?? false) == true,
-      profileImageUrl: RideTrackingService._readNullableString(
-        data['selfie_url'] ?? data['profile_image_url'],
-      ),
-      averageRating: RideTrackingService._readDouble(
-        data['driver_average_rating'] ??
-            data['average_rating'] ??
-            data['rating'] ??
-            data['ratings'],
-      ),
-      reviewCount:
-          RideTrackingService._readInt(
-            data['driver_review_count'] ?? data['review_count'],
+      profileImageUrl: RideTrackingService._profileImageUrlFromData(data),
+      averageRating: averageRating,
+      reviewCount: reviewCount,
+      weightedRating: weightedRating,
+      ratingRank: ratingRank,
+      ratingBadge:
+          RideTrackingService._readNullableString(
+            data['driver_rating_badge'],
           ) ??
-          0,
+          computedBadge,
     );
   }
 
   String get ratingLabel =>
       reviewCount == 0 ? 'No ratings yet' : averageRating.toStringAsFixed(1);
+
+  String get weightedRatingLabel =>
+      reviewCount == 0 ? 'Not ranked' : weightedRating.toStringAsFixed(2);
+
+  String get reviewCountLabel =>
+      '$reviewCount review${reviewCount == 1 ? '' : 's'}';
+
+  String get displayBadge => ratingBadge.isNotEmpty
+      ? ratingBadge
+      : DriverRating.badgeLabel(
+          reviewCount: reviewCount,
+          averageRating: averageRating,
+          rank: ratingRank,
+        );
+
+  bool get hasRank => ratingRank != null && ratingRank! >= 1;
 }
 
 class DriverReviewRecord {
@@ -1313,9 +1662,7 @@ class PassengerReviewProfile {
           : '$firstName $lastName'.trim(),
       passengerType: resolvedType == 'student' ? 'student' : 'regular',
       isVerified: (data['is_verified'] ?? data['isVerified'] ?? false) == true,
-      profileImageUrl: _readNullableString(
-        data['selfie_url'] ?? data['id_image_url'],
-      ),
+      profileImageUrl: RideTrackingService._profileImageUrlFromData(data),
       averageRating: averageRating > 0
           ? averageRating
           : reviewCount == 0
@@ -1329,11 +1676,6 @@ class PassengerReviewProfile {
 
   String get ratingLabel =>
       reviewCount == 0 ? 'No ratings yet' : averageRating.toStringAsFixed(1);
-
-  static String? _readNullableString(Object? value) {
-    final text = value?.toString().trim() ?? '';
-    return text.isEmpty || text == 'null' ? null : text;
-  }
 }
 
 class AvailableDriver {
@@ -1343,6 +1685,10 @@ class AvailableDriver {
   final bool isVerified;
   final bool supportsOnlinePayments;
   final double rating;
+  final int reviewCount;
+  final double weightedRating;
+  final int? ratingRank;
+  final String ratingBadge;
   final RideDriverLocation location;
 
   const AvailableDriver({
@@ -1352,6 +1698,10 @@ class AvailableDriver {
     required this.isVerified,
     required this.supportsOnlinePayments,
     required this.rating,
+    required this.reviewCount,
+    required this.weightedRating,
+    required this.ratingRank,
+    required this.ratingBadge,
     required this.location,
   });
 
@@ -1363,23 +1713,71 @@ class AvailableDriver {
     final firstName = (userData['first_name'] ?? '').toString().trim();
     final lastName = (userData['last_name'] ?? '').toString().trim();
     final fullName = '$firstName $lastName'.trim();
+    final reviewCount =
+        RideTrackingService._readInt(
+          userData['driver_review_count'] ?? userData['review_count'],
+        ) ??
+        0;
+    final ratingTotal =
+        RideTrackingService._readInt(
+          userData['driver_review_rating_total'] ??
+              userData['review_rating_total'],
+        ) ??
+        0;
+    final rating = _readRating(
+      userData['driver_average_rating'] ??
+          userData['average_rating'] ??
+          userData['rating'] ??
+          userData['ratings'],
+    );
+    final storedWeightedRating = RideTrackingService._readDouble(
+      userData['driver_weighted_rating'],
+    );
+    final weightedRating = storedWeightedRating > 0
+        ? storedWeightedRating
+        : DriverRating.weightedScore(
+            ratingTotal: ratingTotal,
+            reviewCount: reviewCount,
+          );
+    final ratingRank = RideTrackingService._readInt(
+      userData['driver_rating_rank'],
+    );
+    final computedBadge = DriverRating.badgeLabel(
+      reviewCount: reviewCount,
+      averageRating: rating,
+      rank: ratingRank,
+    );
 
     return AvailableDriver(
       driverId: driverId,
       fullName: fullName.isEmpty ? 'Verified driver' : fullName,
-      profileImageUrl: _readNullableString(userData['selfie_url']),
+      profileImageUrl: RideTrackingService._profileImageUrlFromData(userData),
       isVerified:
           (userData['is_verified'] ?? userData['isVerified'] ?? false) == true,
       supportsOnlinePayments: userData['accepts_online_payments'] == true,
-      rating: _readRating(
-        userData['driver_average_rating'] ??
-            userData['average_rating'] ??
-            userData['rating'] ??
-            userData['ratings'],
-      ),
+      rating: rating,
+      reviewCount: reviewCount,
+      weightedRating: weightedRating,
+      ratingRank: ratingRank,
+      ratingBadge:
+          _readNullableString(userData['driver_rating_badge']) ?? computedBadge,
       location: location,
     );
   }
+
+  String get ratingLabel =>
+      reviewCount == 0 ? 'No ratings' : rating.toStringAsFixed(1);
+
+  String get reviewCountLabel =>
+      '$reviewCount review${reviewCount == 1 ? '' : 's'}';
+
+  String get displayBadge => ratingBadge.isNotEmpty
+      ? ratingBadge
+      : DriverRating.badgeLabel(
+          reviewCount: reviewCount,
+          averageRating: rating,
+          rank: ratingRank,
+        );
 
   static String? _readNullableString(Object? value) {
     final text = value?.toString().trim() ?? '';
@@ -1391,6 +1789,6 @@ class AvailableDriver {
       return value.toDouble();
     }
 
-    return double.tryParse(value?.toString() ?? '') ?? 5.0;
+    return double.tryParse(value?.toString() ?? '') ?? 0.0;
   }
 }

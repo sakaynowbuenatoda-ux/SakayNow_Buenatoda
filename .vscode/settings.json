@@ -1,8 +1,5 @@
 {
     "java.configuration.updateBuildConfiguration": "interactive",
-    "dart.flutterAdditionalArgs": [
-        "--dart-define-from-file=.env"
-    ],
     "cSpell.words": [
         "outDir"
     ]

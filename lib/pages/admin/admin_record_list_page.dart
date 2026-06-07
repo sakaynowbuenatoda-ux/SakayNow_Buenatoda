@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../widgets/confirmation_dialog.dart';
-import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'admin_models.dart';
 import 'admin_navigation.dart';
 import 'admin_service.dart';
@@ -13,6 +12,20 @@ enum AdminRecordListType {
   studentAccounts,
   completedTrips,
   activeTrips,
+}
+
+enum AdminRecordSort {
+  newest,
+  alphabetical;
+
+  String get label {
+    switch (this) {
+      case AdminRecordSort.newest:
+        return 'Newest';
+      case AdminRecordSort.alphabetical:
+        return 'Alphabetical';
+    }
+  }
 }
 
 class AdminRecordListPage extends StatefulWidget {
@@ -32,6 +45,7 @@ class AdminRecordListPage extends StatefulWidget {
 class _AdminRecordListPageState extends State<AdminRecordListPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
+  AdminRecordSort _sort = AdminRecordSort.newest;
 
   @override
   void initState() {
@@ -50,28 +64,32 @@ class _AdminRecordListPageState extends State<AdminRecordListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: PassengerUi.background,
+      backgroundColor: AdminUi.background,
       appBar: AppBar(
-        backgroundColor: PassengerUi.surface,
-        surfaceTintColor: PassengerUi.surface,
+        backgroundColor: AdminUi.surface,
+        surfaceTintColor: AdminUi.surface,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: PassengerUi.title),
+          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
         ),
-        title: Text(widget.listType.title, style: PassengerUi.cardTitle),
+        title: Text(widget.listType.title, style: AdminUi.cardTitle),
       ),
       body: widget.listType.isUserList
           ? _AdminUserRecordList(
               adminId: widget.adminId,
               listType: widget.listType,
               query: _query,
+              sort: _sort,
               searchController: _searchController,
+              onSortChanged: (value) => setState(() => _sort = value),
             )
           : _AdminBookingRecordList(
               listType: widget.listType,
               query: _query,
+              sort: _sort,
               searchController: _searchController,
+              onSortChanged: (value) => setState(() => _sort = value),
             ),
     );
   }
@@ -81,20 +99,29 @@ class _AdminUserRecordList extends StatelessWidget {
   final String adminId;
   final AdminRecordListType listType;
   final String query;
+  final AdminRecordSort sort;
   final TextEditingController searchController;
+  final ValueChanged<AdminRecordSort> onSortChanged;
 
   const _AdminUserRecordList({
     required this.adminId,
     required this.listType,
     required this.query,
+    required this.sort,
     required this.searchController,
+    required this.onSortChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return PassengerPageContainer(
+    final usersStream = listType == AdminRecordListType.activeDrivers
+        ? AdminService.watchActiveDrivers()
+        : AdminService.watchUsers();
+
+    return AdminPageContainer(
+      maxContentWidth: AdminUi.listContentWidth,
       child: StreamBuilder<List<AdminUserRecord>>(
-        stream: AdminService.watchUsers(),
+        stream: usersStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return AdminErrorCard(
@@ -110,12 +137,15 @@ class _AdminUserRecordList extends StatelessWidget {
               .where(listType.matchesUser)
               .where((user) => _matchesUserSearch(user, query))
               .toList(growable: false);
+          _sortUsers(users, sort);
 
           return _AdminRecordListLayout(
             listType: listType,
             count: users.length,
             searchController: searchController,
             searchHint: listType.userSearchHint,
+            sort: sort,
+            onSortChanged: onSortChanged,
             empty: users.isEmpty
                 ? AdminEmptyCollection(
                     icon: listType.icon,
@@ -147,7 +177,7 @@ class _AdminUserRecordList extends StatelessWidget {
                                   'This will block ${user.fullName} from using verification-gated app features until access is restored.',
                               confirmLabel: 'Restrict',
                               icon: Icons.block_rounded,
-                              confirmColor: PassengerUi.primary,
+                              confirmColor: AdminUi.primary,
                               action: () => AdminService.restrictUser(
                                 userId: user.userId,
                                 adminId: adminId,
@@ -180,17 +210,22 @@ class _AdminUserRecordList extends StatelessWidget {
 class _AdminBookingRecordList extends StatelessWidget {
   final AdminRecordListType listType;
   final String query;
+  final AdminRecordSort sort;
   final TextEditingController searchController;
+  final ValueChanged<AdminRecordSort> onSortChanged;
 
   const _AdminBookingRecordList({
     required this.listType,
     required this.query,
+    required this.sort,
     required this.searchController,
+    required this.onSortChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return PassengerPageContainer(
+    return AdminPageContainer(
+      maxContentWidth: AdminUi.listContentWidth,
       child: StreamBuilder<List<AdminUserRecord>>(
         stream: AdminService.watchUsers(),
         builder: (context, usersSnapshot) {
@@ -236,12 +271,15 @@ class _AdminBookingRecordList extends StatelessWidget {
                     ),
                   )
                   .toList(growable: false);
+              _sortBookings(bookings, sort, usersById);
 
               return _AdminRecordListLayout(
                 listType: listType,
                 count: bookings.length,
                 searchController: searchController,
                 searchHint: listType.bookingSearchHint,
+                sort: sort,
+                onSortChanged: onSortChanged,
                 empty: bookings.isEmpty
                     ? AdminEmptyCollection(
                         icon: listType.icon,
@@ -285,6 +323,8 @@ class _AdminRecordListLayout extends StatelessWidget {
   final int count;
   final TextEditingController searchController;
   final String searchHint;
+  final AdminRecordSort sort;
+  final ValueChanged<AdminRecordSort> onSortChanged;
   final Widget? empty;
   final List<Widget> children;
 
@@ -293,6 +333,8 @@ class _AdminRecordListLayout extends StatelessWidget {
     required this.count,
     required this.searchController,
     required this.searchHint,
+    required this.sort,
+    required this.onSortChanged,
     required this.empty,
     required this.children,
   });
@@ -302,25 +344,23 @@ class _AdminRecordListLayout extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        PassengerPageHeader(
+        AdminCountPageHeader(
           title: listType.title,
-          subtitle: '',
+          subtitle: listType.metricHelper,
+          count: count.toString(),
+          countLabel: listType.metricLabel,
           icon: listType.icon,
           accentColor: listType.accentColor,
-          dense: true,
         ),
         SizedBox(height: 12),
-        _AdminSearchField(controller: searchController, hintText: searchHint),
-        SizedBox(height: 12),
-        AdminMetricCard(
-          label: listType.metricLabel,
-          value: count.toString(),
-          helper: listType.metricHelper,
-          icon: listType.icon,
-          accentColor: listType.accentColor,
+        _AdminRecordControls(
+          searchController: searchController,
+          searchHint: searchHint,
+          sort: sort,
+          onSortChanged: onSortChanged,
         ),
         SizedBox(height: 16),
-        Text(listType.sectionTitle, style: PassengerUi.sectionTitle),
+        Text(listType.sectionTitle, style: AdminUi.sectionTitle),
         SizedBox(height: 12),
         if (empty != null) empty! else ...children,
       ],
@@ -349,20 +389,89 @@ class _AdminSearchField extends StatelessWidget {
                 icon: const Icon(Icons.close_rounded),
               ),
         filled: true,
-        fillColor: PassengerUi.surface,
+        fillColor: AdminUi.surface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: PassengerUi.border),
+          borderRadius: AdminUi.radius,
+          borderSide: BorderSide(color: AdminUi.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: PassengerUi.border),
+          borderRadius: AdminUi.radius,
+          borderSide: BorderSide(color: AdminUi.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: PassengerUi.primary, width: 1.4),
+          borderRadius: AdminUi.radius,
+          borderSide: BorderSide(color: AdminUi.accent, width: 1.4),
         ),
       ),
+    );
+  }
+}
+
+class _AdminRecordControls extends StatelessWidget {
+  final TextEditingController searchController;
+  final String searchHint;
+  final AdminRecordSort sort;
+  final ValueChanged<AdminRecordSort> onSortChanged;
+
+  const _AdminRecordControls({
+    required this.searchController,
+    required this.searchHint,
+    required this.sort,
+    required this.onSortChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 640;
+    final search = _AdminSearchField(
+      controller: searchController,
+      hintText: searchHint,
+    );
+    final sortField = _AdminSortField(sort: sort, onChanged: onSortChanged);
+
+    if (compact) {
+      return Column(children: [search, SizedBox(height: 10), sortField]);
+    }
+
+    return Row(
+      children: [
+        Expanded(child: search),
+        SizedBox(width: 12),
+        SizedBox(width: 210, child: sortField),
+      ],
+    );
+  }
+}
+
+class _AdminSortField extends StatelessWidget {
+  final AdminRecordSort sort;
+  final ValueChanged<AdminRecordSort> onChanged;
+
+  const _AdminSortField({required this.sort, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<AdminRecordSort>(
+      value: sort,
+      isExpanded: true,
+      decoration: AdminUi.inputDecoration(
+        hintText: '',
+        labelText: 'Sort',
+        prefixIcon: const Icon(Icons.sort_rounded),
+      ),
+      items: AdminRecordSort.values
+          .map(
+            (value) => DropdownMenuItem<AdminRecordSort>(
+              value: value,
+              child: Text(value.label),
+            ),
+          )
+          .toList(growable: false),
+      onChanged: (value) {
+        if (value != null) {
+          onChanged(value);
+        }
+      },
     );
   }
 }
@@ -398,16 +507,16 @@ class _AdminUserListCard extends StatelessWidget {
           AdminActionButton(
             label: 'Restore',
             icon: Icons.restart_alt_rounded,
-            backgroundColor: PassengerUi.successBackground,
-            foregroundColor: PassengerUi.successText,
+            backgroundColor: AdminUi.successBackground,
+            foregroundColor: AdminUi.successText,
             onPressed: onRestore,
           )
         else if (!user.isAdmin)
           AdminActionButton(
             label: 'Restrict',
             icon: Icons.block_rounded,
-            backgroundColor: PassengerUi.dangerSoft,
-            foregroundColor: PassengerUi.primary,
+            backgroundColor: AdminUi.dangerSoft,
+            foregroundColor: AdminUi.primary,
             onPressed: onRestrict,
           ),
       ],
@@ -516,6 +625,50 @@ bool _matchesBookingSearch(
   return haystack.contains(query);
 }
 
+void _sortUsers(List<AdminUserRecord> users, AdminRecordSort sort) {
+  switch (sort) {
+    case AdminRecordSort.newest:
+      users.sort((a, b) {
+        final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+      return;
+    case AdminRecordSort.alphabetical:
+      users.sort(
+        (a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
+      );
+      return;
+  }
+}
+
+void _sortBookings(
+  List<AdminBookingRecord> bookings,
+  AdminRecordSort sort,
+  Map<String, AdminUserRecord> usersById,
+) {
+  switch (sort) {
+    case AdminRecordSort.newest:
+      bookings.sort((a, b) {
+        final aDate = a.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = b.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+      return;
+    case AdminRecordSort.alphabetical:
+      bookings.sort((a, b) {
+        final aName =
+            usersById[a.passengerId]?.fullName.toLowerCase() ??
+            a.dropoffLocation.toLowerCase();
+        final bName =
+            usersById[b.passengerId]?.fullName.toLowerCase() ??
+            b.dropoffLocation.toLowerCase();
+        return aName.compareTo(bName);
+      });
+      return;
+  }
+}
+
 extension AdminRecordListTypeDetails on AdminRecordListType {
   bool get isUserList {
     return this == AdminRecordListType.registeredUsers ||
@@ -556,9 +709,9 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
   String get metricHelper {
     switch (this) {
       case AdminRecordListType.registeredUsers:
-        return 'Matching accounts from Firestore';
+        return 'Passenger and driver accounts';
       case AdminRecordListType.activeDrivers:
-        return 'Verified and active driver accounts';
+        return 'Currently available for bookings';
       case AdminRecordListType.studentAccounts:
         return 'Passenger accounts marked as students';
       case AdminRecordListType.completedTrips:
@@ -603,7 +756,7 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
       case AdminRecordListType.registeredUsers:
         return 'New app accounts will appear here after signup.';
       case AdminRecordListType.activeDrivers:
-        return 'Verified drivers will appear here once they are active.';
+        return 'Drivers will appear here after going active with a fresh location.';
       case AdminRecordListType.studentAccounts:
         return 'Student passenger accounts will appear here after registration.';
       case AdminRecordListType.completedTrips:
@@ -616,7 +769,7 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
   String get userSearchHint {
     switch (this) {
       case AdminRecordListType.registeredUsers:
-        return 'Search users by name, email, role, or status';
+        return 'Search passengers or drivers by name, email, role, or status';
       case AdminRecordListType.activeDrivers:
         return 'Search active drivers';
       case AdminRecordListType.studentAccounts:
@@ -658,24 +811,24 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
   Color get accentColor {
     switch (this) {
       case AdminRecordListType.registeredUsers:
-        return PassengerUi.primary;
+        return AdminUi.primary;
       case AdminRecordListType.activeDrivers:
-        return PassengerUi.secondary;
+        return AdminUi.secondary;
       case AdminRecordListType.studentAccounts:
-        return PassengerUi.accentBlue;
+        return AdminUi.accentBlue;
       case AdminRecordListType.completedTrips:
-        return PassengerUi.successText;
+        return AdminUi.successText;
       case AdminRecordListType.activeTrips:
-        return PassengerUi.accentBlue;
+        return AdminUi.accentBlue;
     }
   }
 
   bool matchesUser(AdminUserRecord user) {
     switch (this) {
       case AdminRecordListType.registeredUsers:
-        return true;
+        return user.isPassengerOrDriver;
       case AdminRecordListType.activeDrivers:
-        return user.isDriver && user.isVerified && user.isActive;
+        return user.canReceiveBookings;
       case AdminRecordListType.studentAccounts:
         return user.isStudentPassenger;
       case AdminRecordListType.completedTrips:

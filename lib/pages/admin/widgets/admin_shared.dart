@@ -3,35 +3,73 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../widgets/firebase_storage_image.dart';
 import '../../../widgets/time_ago_text.dart';
-import '../../../widgets/passenger_widgets/passenger_ui.dart';
 import '../admin_models.dart';
+import 'admin_ui.dart';
+
+export 'admin_ui.dart';
 
 class AdminSectionIntro extends StatelessWidget {
   final String title;
   final String? subtitle;
+  final List<Widget> actions;
 
-  const AdminSectionIntro({super.key, required this.title, this.subtitle});
+  const AdminSectionIntro({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.actions = const <Widget>[],
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: PassengerUi.primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(
-            Icons.admin_panel_settings_rounded,
-            color: PassengerUi.primary,
-          ),
-        ),
-        SizedBox(height: 10),
-        Text(title, style: PassengerUi.sectionTitle.copyWith(fontSize: 22)),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackActions =
+            actions.isNotEmpty &&
+            constraints.maxWidth.isFinite &&
+            constraints.maxWidth < 640;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AdminUi.soft(AdminUi.accent),
+                    borderRadius: AdminUi.radius,
+                  ),
+                  child: Icon(
+                    Icons.admin_panel_settings_rounded,
+                    color: AdminUi.accent,
+                    size: 19,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(title, style: AdminUi.pageTitle)),
+                if (actions.isNotEmpty && !stackActions) ...[
+                  const SizedBox(width: 12),
+                  Wrap(spacing: 10, runSpacing: 10, children: actions),
+                ],
+              ],
+            ),
+            if (actions.isNotEmpty && stackActions) ...[
+              const SizedBox(height: 12),
+              Wrap(spacing: 10, runSpacing: 10, children: actions),
+            ],
+            if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Text(subtitle!, style: AdminUi.bodyText),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -43,7 +81,6 @@ class AdminMetricCard extends StatelessWidget {
   final IconData icon;
   final Color accentColor;
   final VoidCallback? onTap;
-  final String? actionLabel;
 
   const AdminMetricCard({
     super.key,
@@ -53,87 +90,158 @@ class AdminMetricCard extends StatelessWidget {
     required this.icon,
     required this.accentColor,
     this.onTap,
-    this.actionLabel,
   });
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 390;
-    final iconSize = compact ? 36.0 : 46.0;
+    return SizedBox(
+      width: double.infinity,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : AdminUi.metricCardMaxWidth;
+          final dense = width < 176;
+          final veryDense = width < 154;
+          final iconSize = dense ? 28.0 : 30.0;
+          final contentPadding = EdgeInsets.symmetric(
+            horizontal: dense ? 10 : 12,
+            vertical: dense ? 11 : 13,
+          );
+          final lowerText = '$label $helper'.toLowerCase();
+          final isPendingOrQueueMetric =
+              lowerText.contains('pending') ||
+              lowerText.contains('queue') ||
+              lowerText.contains('waiting');
+          final cardColor = isPendingOrQueueMetric
+              ? AdminUi.soft(AdminUi.danger, alpha: 0.025)
+              : AdminUi.surface;
+          final effectiveAccentColor = isPendingOrQueueMetric
+              ? AdminUi.danger
+              : accentColor;
+          final borderColor = AdminUi.primary.withValues(
+            alpha: AdminUi.isDarkMode ? 0.28 : 0.18,
+          );
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: PassengerSurfaceCard(
-        padding: EdgeInsets.all(compact ? 10 : 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: iconSize,
-              height: iconSize,
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(compact ? 11 : 14),
-              ),
-              child: Icon(icon, color: accentColor, size: compact ? 20 : 24),
-            ),
-            SizedBox(height: compact ? 8 : 12),
-            Text(
-              label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: PassengerUi.bodyText.copyWith(
-                fontSize: compact ? 12.5 : 14,
-              ),
-            ),
-            SizedBox(height: compact ? 2 : 4),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: PassengerUi.sectionTitle.copyWith(
-                fontSize: compact ? 17 : 18,
-              ),
-            ),
-            SizedBox(height: compact ? 4 : 6),
-            Text(
-              helper,
-              maxLines: compact ? 2 : 3,
-              overflow: TextOverflow.ellipsis,
-              style: PassengerUi.bodyText.copyWith(
-                fontSize: compact ? 11.5 : 12,
-                height: 1.25,
-              ),
-            ),
-            if (onTap != null) ...[
-              SizedBox(height: compact ? 8 : 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      actionLabel ?? 'Open queue',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: PassengerUi.bodyText.copyWith(
-                        color: accentColor,
-                        fontWeight: FontWeight.w700,
-                        fontSize: compact ? 11.5 : 13,
-                        height: 1.15,
+          return MouseRegion(
+            cursor: onTap == null
+                ? MouseCursor.defer
+                : SystemMouseCursors.click,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: AdminUi.radius,
+                child: Ink(
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: AdminUi.radius,
+                    border: Border.all(color: borderColor),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: AdminUi.isDarkMode ? 0.26 : 0.07,
+                        ),
+                        blurRadius: 18,
+                        offset: const Offset(0, 10),
                       ),
+                      BoxShadow(
+                        color: effectiveAccentColor.withValues(
+                          alpha: isPendingOrQueueMetric
+                              ? (AdminUi.isDarkMode ? 0.06 : 0.025)
+                              : 0,
+                        ),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: contentPadding,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: iconSize,
+                              height: iconSize,
+                              decoration: BoxDecoration(
+                                color: AdminUi.soft(
+                                  effectiveAccentColor,
+                                  alpha: 0.12,
+                                ),
+                                borderRadius: AdminUi.radius,
+                                border: Border.all(
+                                  color: effectiveAccentColor.withValues(
+                                    alpha: 0.10,
+                                  ),
+                                ),
+                              ),
+                              child: Icon(
+                                icon,
+                                color: effectiveAccentColor,
+                                size: dense ? 15 : 16,
+                              ),
+                            ),
+                            SizedBox(width: dense ? 7 : 8),
+                            Expanded(
+                              child: Text(
+                                label,
+                                maxLines: veryDense ? 1 : 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AdminUi.labelText.copyWith(
+                                  fontSize: dense ? 10.5 : 11,
+                                  color: AdminUi.body,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: dense ? 7 : 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                value,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: AdminUi.valueText.copyWith(
+                                  fontSize: dense ? 20 : 22,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.05,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                helper,
+                                maxLines: dense ? 1 : 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: AdminUi.bodyText.copyWith(
+                                  fontSize: dense ? 11 : 11.5,
+                                  height: 1.25,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  SizedBox(width: compact ? 4 : 6),
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    size: compact ? 16 : 18,
-                    color: accentColor,
-                  ),
-                ],
+                ),
               ),
-            ],
-          ],
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -151,25 +259,25 @@ class AdminQueueUserTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
+    return AdminSurfaceCard(
       child: Row(
         children: [
           _AdminUserAvatar(user: user, radius: 24),
-          SizedBox(width: 14),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(user.fullName, style: PassengerUi.cardTitle),
-                SizedBox(height: 6),
+                Text(user.fullName, style: AdminUi.cardTitle),
+                const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
                     AdminUserCard._buildChip(
                       user.roleLabel,
-                      PassengerUi.dangerSoft,
-                      PassengerUi.primary,
+                      AdminUi.soft(AdminUi.neutral),
+                      AdminUi.neutral,
                     ),
                     AdminUserCard._buildChip(
                       user.statusLabel,
@@ -181,7 +289,7 @@ class AdminQueueUserTile extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           OutlinedButton.icon(
             onPressed: onView,
             icon: const Icon(Icons.visibility_outlined, size: 18),
@@ -217,26 +325,26 @@ class AdminCapabilityTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+              color: AdminUi.soft(accentColor),
+              borderRadius: AdminUi.radius,
             ),
-            child: Icon(icon, color: accentColor, size: 22),
+            child: Icon(icon, color: accentColor, size: 19),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: PassengerUi.cardTitle),
-                SizedBox(height: 4),
-                Text(description, style: PassengerUi.bodyText),
-                SizedBox(height: 6),
+                Text(title, style: AdminUi.cardTitle),
+                const SizedBox(height: 4),
+                Text(description, style: AdminUi.bodyText),
+                const SizedBox(height: 6),
                 Text(
                   status,
-                  style: PassengerUi.bodyText.copyWith(
+                  style: AdminUi.bodyText.copyWith(
                     color: accentColor,
                     fontWeight: FontWeight.w700,
                   ),
@@ -273,81 +381,81 @@ class AdminUserCard extends StatelessWidget {
       if (user.isDriver && user.driversLicenseUrl != null) 'License',
     ];
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: PassengerSurfaceCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: PassengerUi.blueSoft,
-                  child: _AdminUserAvatar(user: user, radius: 22),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(user.fullName, style: PassengerUi.cardTitle),
-                      SizedBox(height: 2),
-                      Text(user.email, style: PassengerUi.bodyText),
-                      SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _buildChip(
-                            user.roleLabel,
-                            PassengerUi.dangerSoft,
-                            PassengerUi.primary,
-                          ),
-                          _buildChip(
-                            user.statusLabel,
-                            user.statusBackgroundColor,
-                            user.statusColor,
-                          ),
-                          ...documents.map(
-                            (document) => _buildChip(
-                              document,
-                              PassengerUi.mutedSurface,
-                              PassengerUi.body,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (hintLabel != null && hintLabel!.isNotEmpty) ...[
-              SizedBox(height: 14),
+    return MouseRegion(
+      cursor: onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AdminSurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: AdminUi.soft(AdminUi.accent),
+                    child: _AdminUserAvatar(user: user, radius: 22),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      hintLabel!,
-                      style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(user.fullName, style: AdminUi.cardTitle),
+                        const SizedBox(height: 2),
+                        Text(user.email, style: AdminUi.bodyText),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _buildChip(
+                              user.roleLabel,
+                              AdminUi.soft(AdminUi.neutral),
+                              AdminUi.neutral,
+                            ),
+                            _buildChip(
+                              user.statusLabel,
+                              user.statusBackgroundColor,
+                              user.statusColor,
+                            ),
+                            ...documents.map(
+                              (document) => _buildChip(
+                                document,
+                                AdminUi.mutedSurface,
+                                AdminUi.body,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  if (onTap != null)
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      color: PassengerUi.accentBlue,
-                    ),
                 ],
               ),
+              if (hintLabel != null && hintLabel!.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        hintLabel!,
+                        style: AdminUi.bodyText.copyWith(fontSize: 12.5),
+                      ),
+                    ),
+                    if (onTap != null)
+                      Icon(Icons.arrow_forward_rounded, color: AdminUi.accent),
+                  ],
+                ),
+              ],
+              if (actions.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Wrap(spacing: 10, runSpacing: 10, children: actions),
+              ],
             ],
-            if (actions.isNotEmpty) ...[
-              SizedBox(height: 14),
-              Wrap(spacing: 10, runSpacing: 10, children: actions),
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -359,13 +467,15 @@ class AdminUserCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: fg.withValues(alpha: 0.10)),
       ),
       child: Text(
         label,
         style: GoogleFonts.poppins(
           color: fg,
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: FontWeight.w700,
+          height: 1.1,
         ),
       ),
     );
@@ -412,8 +522,12 @@ class AdminActionButton extends StatelessWidget {
         elevation: 0,
         backgroundColor: backgroundColor,
         foregroundColor: foregroundColor,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: AdminUi.radius),
       ),
     );
   }
@@ -460,7 +574,7 @@ class _AdminAvatarFallback extends StatelessWidget {
       child: Text(
         AdminUserCard._initials(user.fullName),
         style: TextStyle(
-          color: PassengerUi.primary,
+          color: AdminUi.accent,
           fontWeight: FontWeight.w800,
           fontSize: radius * 0.8,
         ),
@@ -483,7 +597,7 @@ class AdminBookingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
+    return AdminSurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -492,30 +606,17 @@ class AdminBookingCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   '$passengerName to ${booking.dropoffLocation}',
-                  style: PassengerUi.cardTitle,
+                  style: AdminUi.cardTitle,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: booking.statusBackgroundColor,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  booking.statusLabel,
-                  style: GoogleFonts.poppins(
-                    color: booking.statusColor,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
+              AdminStatusChip(
+                label: booking.statusLabel,
+                textColor: booking.statusColor,
+                backgroundColor: booking.statusBackgroundColor,
               ),
             ],
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 12),
           _DetailRow(label: 'Pickup', value: booking.pickupLocation),
           _DetailRow(label: 'Drop-off', value: booking.dropoffLocation),
           _DetailRow(label: 'Passenger', value: passengerName),
@@ -550,10 +651,29 @@ class AdminEmptyCollection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerEmptyState(
-      icon: icon,
-      title: title,
-      description: description,
+    return AdminSurfaceCard(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+      child: Column(
+        children: <Widget>[
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AdminUi.mutedSurface,
+              borderRadius: AdminUi.radius,
+            ),
+            child: Icon(icon, size: 23, color: AdminUi.accent),
+          ),
+          const SizedBox(height: 12),
+          Text(title, style: AdminUi.cardTitle, textAlign: TextAlign.center),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: AdminUi.bodyText,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -565,15 +685,16 @@ class AdminErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
+    return AdminSurfaceCard(
+      color: AdminUi.soft(AdminUi.danger, alpha: 0.08),
       child: Row(
         children: [
-          Icon(Icons.error_outline_rounded, color: PassengerUi.primary),
-          SizedBox(width: 12),
+          Icon(Icons.error_outline_rounded, color: AdminUi.danger),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               message,
-              style: PassengerUi.bodyText.copyWith(color: PassengerUi.primary),
+              style: AdminUi.bodyText.copyWith(color: AdminUi.danger),
             ),
           ),
         ],
@@ -598,7 +719,7 @@ class AdminInfoPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
+    return AdminSurfaceCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -606,19 +727,19 @@ class AdminInfoPanel extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+              color: AdminUi.soft(accentColor),
+              borderRadius: AdminUi.radius,
             ),
             child: Icon(icon, color: accentColor),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: PassengerUi.cardTitle),
-                SizedBox(height: 6),
-                Text(description, style: PassengerUi.bodyText),
+                Text(title, style: AdminUi.cardTitle),
+                const SizedBox(height: 6),
+                Text(description, style: AdminUi.bodyText),
               ],
             ),
           ),
@@ -645,11 +766,11 @@ class _DetailRow extends StatelessWidget {
             width: 82,
             child: Text(
               label,
-              style: PassengerUi.bodyText.copyWith(fontWeight: FontWeight.w700),
+              style: AdminUi.bodyText.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
-          SizedBox(width: 8),
-          Expanded(child: Text(value, style: PassengerUi.bodyText)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(value, style: AdminUi.bodyText)),
         ],
       ),
     );
@@ -673,12 +794,12 @@ class _DetailTimeRow extends StatelessWidget {
             width: 82,
             child: Text(
               label,
-              style: PassengerUi.bodyText.copyWith(fontWeight: FontWeight.w700),
+              style: AdminUi.bodyText.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Expanded(
-            child: TimeAgoText(dateTime: value, style: PassengerUi.bodyText),
+            child: TimeAgoText(dateTime: value, style: AdminUi.bodyText),
           ),
         ],
       ),

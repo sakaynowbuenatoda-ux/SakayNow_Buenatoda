@@ -10,6 +10,8 @@ Passengers
   "isVerified": false,
   "isActive": false,
   "isBanned": false,
+  "isDeactivated": false,
+  "account_status": "active",
   "created_at": "server timestamp"
 
 
@@ -22,4 +24,6 @@ Drivers
   "isVerified": false,
   "isActive": false,
   "isBanned": false,
+  "isDeactivated": false,
+  "account_status": "active",
   "created_at": "server timestamp"

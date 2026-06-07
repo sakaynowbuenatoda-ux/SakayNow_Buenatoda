@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 import '../../models/driver_payout_account.dart';
 import '../../models/ride.dart';
@@ -7,7 +8,11 @@ import '../../services/driver_payout_account_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/driver_widgets/driver_payout_account_card.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../driver_ratings/driver_leaderboard_page.dart';
 import 'driver_payout_accounts_page.dart';
+
+const String _leaderboardAnimationAsset =
+    'assets/animations/leaderboard_pulse.json';
 
 class DriverDashboardPage extends StatelessWidget {
   final String driverId;
@@ -37,11 +42,7 @@ class DriverDashboardPage extends StatelessWidget {
           SizedBox(height: 16),
           _DriverRideSummary(
             driverId: driverId,
-            rideTrackingService: rideTrackingService,
-          ),
-          SizedBox(height: 14),
-          _DriverDemandCard(
-            driverId: driverId,
+            isVerified: isVerified,
             rideTrackingService: rideTrackingService,
           ),
           SizedBox(height: 20),
@@ -56,12 +57,6 @@ class DriverDashboardPage extends StatelessWidget {
           ),
           SizedBox(height: 12),
           _DriverPayoutAccountsPreview(driverId: driverId),
-          SizedBox(height: 20),
-          _DriverStandingCard(
-            driverId: driverId,
-            isVerified: isVerified,
-            rideTrackingService: rideTrackingService,
-          ),
         ],
       ),
     );
@@ -70,10 +65,12 @@ class DriverDashboardPage extends StatelessWidget {
 
 class _DriverRideSummary extends StatelessWidget {
   final String driverId;
+  final bool isVerified;
   final RideTrackingService rideTrackingService;
 
   const _DriverRideSummary({
     required this.driverId,
+    required this.isVerified,
     required this.rideTrackingService,
   });
 
@@ -132,6 +129,12 @@ class _DriverRideSummary extends StatelessWidget {
               ],
             ),
             SizedBox(height: 14),
+            _DriverStandingCard(
+              driverId: driverId,
+              isVerified: isVerified,
+              rideTrackingService: rideTrackingService,
+            ),
+            SizedBox(height: 14),
             _DriverLatestRideCard(data: data),
           ],
         );
@@ -178,79 +181,6 @@ class _DriverInsightCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _DriverDemandCard extends StatelessWidget {
-  final String driverId;
-  final RideTrackingService rideTrackingService;
-
-  const _DriverDemandCard({
-    required this.driverId,
-    required this.rideTrackingService,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<Ride>>(
-      stream: rideTrackingService.watchOpenBookings(driverId: driverId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const PassengerSurfaceCard(
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return PassengerEmptyState(
-            icon: Icons.error_outline_rounded,
-            title: 'Unable to load queue',
-            description: snapshot.error.toString(),
-          );
-        }
-
-        final openBookings = snapshot.data ?? <Ride>[];
-        final preferredCount = openBookings
-            .where((ride) => ride.preferredDriverId == driverId)
-            .length;
-
-        return PassengerSurfaceCard(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: PassengerUi.blueSoft,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.pending_actions_rounded,
-                  color: PassengerUi.accentBlue,
-                ),
-              ),
-              SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text('Queue demand', style: PassengerUi.cardTitle),
-                    SizedBox(height: 4),
-                    Text(
-                      openBookings.isEmpty
-                          ? 'No open ride requests right now.'
-                          : '$preferredCount preferred and ${openBookings.length} total open request${openBookings.length == 1 ? '' : 's'} nearby.',
-                      style: PassengerUi.bodyText,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }
@@ -420,50 +350,169 @@ class _DriverStandingCard extends StatelessWidget {
         final profile = snapshot.data;
         final ratingLabel = profile?.ratingLabel ?? 'No ratings yet';
         final reviewCount = profile?.reviewCount ?? 0;
+        final weightedLabel = profile?.weightedRatingLabel ?? 'Not ranked';
+        final ratingRank = profile?.ratingRank;
+        final hasTop20Rank =
+            ratingRank != null && ratingRank >= 1 && ratingRank <= 20;
+        final rankLabel = hasTop20Rank ? '#${profile!.ratingRank}' : '';
 
-        return PassengerSurfaceCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text('Standing', style: PassengerUi.cardTitle),
-              SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  PassengerStatusChip(
-                    label: isVerified ? 'Verified driver' : 'Pending review',
-                    textColor: isVerified
-                        ? PassengerUi.successText
-                        : PassengerUi.primary,
-                    backgroundColor: isVerified
-                        ? PassengerUi.successBackground
-                        : PassengerUi.dangerSoft,
-                  ),
-                  PassengerStatusChip(
-                    label: ratingLabel,
-                    textColor: PassengerUi.successText,
-                    backgroundColor: PassengerUi.successBackground,
-                  ),
-                ],
-              ),
-              SizedBox(height: 12),
-              if (snapshot.hasError)
-                Text(
-                  'Ratings could not be loaded right now. Your verification status is still shown from the active session.',
-                  style: PassengerUi.bodyText,
-                )
-              else
-                Text(
-                  isVerified
-                      ? 'Your verified driver account is ready for ride access. Rating data is based on $reviewCount passenger review${reviewCount == 1 ? '' : 's'}.'
-                      : 'You can access your driver home, but profile editing and active ride features stay limited until admin verification is complete.',
-                  style: PassengerUi.bodyText,
+        return InkWell(
+          borderRadius: PassengerUi.cardRadius,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  DriverLeaderboardPage(highlightDriverId: driverId),
+            ),
+          ),
+          child: PassengerSurfaceCard(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Container(
+                      width: 58,
+                      height: 58,
+                      decoration: BoxDecoration(
+                        color: PassengerUi.warningSoft,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Lottie.asset(
+                        _leaderboardAnimationAsset,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text('Standing', style: PassengerUi.cardTitle),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Tap to view the Top 20 leaderboard.',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: PassengerUi.bodyText.copyWith(fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: PassengerUi.blueSoft,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.leaderboard_rounded,
+                        size: 18,
+                        color: PassengerUi.accentBlue,
+                      ),
+                    ),
+                  ],
                 ),
-            ],
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    _StandingMetricPill(
+                      icon: isVerified
+                          ? Icons.verified_rounded
+                          : Icons.pending_actions_rounded,
+                      label: isVerified ? 'Verified driver' : 'Pending review',
+                      color: isVerified
+                          ? PassengerUi.successText
+                          : PassengerUi.primary,
+                    ),
+                    _StandingMetricPill(
+                      icon: Icons.star_rounded,
+                      label: ratingLabel,
+                      color: PassengerUi.highlightAmber,
+                    ),
+                    _StandingMetricPill(
+                      icon: Icons.rate_review_rounded,
+                      label:
+                          '$reviewCount review${reviewCount == 1 ? '' : 's'}',
+                      color: PassengerUi.accentBlue,
+                    ),
+                    if (rankLabel.isNotEmpty)
+                      _StandingMetricPill(
+                        icon: Icons.workspace_premium_rounded,
+                        label: rankLabel,
+                        color: PassengerUi.highlightAmber,
+                      ),
+                    _StandingMetricPill(
+                      icon: Icons.trending_up_rounded,
+                      label: 'Rank Score $weightedLabel',
+                      color: PassengerUi.secondary,
+                    ),
+                    if (snapshot.connectionState == ConnectionState.waiting)
+                      _StandingMetricPill(
+                        icon: Icons.sync_rounded,
+                        label: 'Syncing',
+                        color: PassengerUi.body,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (snapshot.hasError)
+                  Text(
+                    'Ratings could not be loaded right now. Your verification status is still shown from the active session.',
+                    style: PassengerUi.bodyText,
+                  )
+                else
+                  Text(
+                    isVerified
+                        ? 'Rank score combines your average rating with review volume for fair leaderboard placement.'
+                        : 'You can access your driver home, but profile editing and active ride features stay limited until admin verification is complete.',
+                    style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
+                  ),
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+class _StandingMetricPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _StandingMetricPill({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: PassengerUi.valueText.copyWith(fontSize: 11.5),
+          ),
+        ],
+      ),
     );
   }
 }

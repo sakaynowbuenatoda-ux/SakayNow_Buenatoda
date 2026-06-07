@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../models/driver_rating.dart';
+
 class ProfileViewData {
   final String userId;
   final String firstName;
@@ -10,6 +12,9 @@ class ProfileViewData {
   final String gender;
   final String age;
   final bool isVerified;
+  final String? profilePictureUrl;
+  final String? profilePicturePath;
+  final Timestamp? profilePictureUpdatedAt;
   final String? idImageUrl;
   final String? selfieUrl;
   final String? nbiClearanceUrl;
@@ -17,6 +22,9 @@ class ProfileViewData {
   final Timestamp? createdAt;
   final double averageRating;
   final int reviewCount;
+  final double weightedRating;
+  final int? ratingRank;
+  final String ratingBadge;
 
   ProfileViewData({
     required this.userId,
@@ -28,6 +36,9 @@ class ProfileViewData {
     required this.gender,
     required this.age,
     required this.isVerified,
+    required this.profilePictureUrl,
+    required this.profilePicturePath,
+    required this.profilePictureUpdatedAt,
     required this.idImageUrl,
     required this.selfieUrl,
     required this.nbiClearanceUrl,
@@ -35,6 +46,9 @@ class ProfileViewData {
     required this.createdAt,
     required this.averageRating,
     required this.reviewCount,
+    required this.weightedRating,
+    required this.ratingRank,
+    required this.ratingBadge,
   });
 
   factory ProfileViewData.fromMap(
@@ -69,6 +83,30 @@ class ProfileViewData {
           ? data['driver_review_count'] ?? data['review_count']
           : data['passenger_review_count'] ?? data['review_count'],
     );
+    final ratingTotal = _readInt(
+      data['driver_review_rating_total'] ?? data['review_rating_total'],
+    );
+    final storedWeightedRating = _readDouble(data['driver_weighted_rating']);
+    final weightedRating = normalizedRole == 'driver'
+        ? storedWeightedRating > 0
+              ? storedWeightedRating
+              : DriverRating.weightedScore(
+                  ratingTotal: ratingTotal > 0
+                      ? ratingTotal
+                      : (averageRating * reviewCount).round(),
+                  reviewCount: reviewCount,
+                )
+        : 0.0;
+    final ratingRank = normalizedRole == 'driver'
+        ? _readNullableInt(data['driver_rating_rank'])
+        : null;
+    final computedBadge = normalizedRole == 'driver'
+        ? DriverRating.badgeLabel(
+            reviewCount: reviewCount,
+            averageRating: averageRating,
+            rank: ratingRank,
+          )
+        : '';
 
     return ProfileViewData(
       userId: fallbackUserId,
@@ -85,6 +123,13 @@ class ProfileViewData {
               data['isVerrified'] ??
               false) ==
           true,
+      profilePictureUrl: _normalizeOptional(
+        data['profile_picture_url'] ?? data['profile_image_url'],
+      ),
+      profilePicturePath: _normalizeOptional(data['profile_picture_path']),
+      profilePictureUpdatedAt: _readTimestamp(
+        data['profile_picture_updated_at'] ?? data['profile_image_updated_at'],
+      ),
       idImageUrl: _normalizeOptional(data['id_image_url']),
       selfieUrl: _normalizeOptional(data['selfie_url']),
       nbiClearanceUrl: _normalizeOptional(data['nbi_clearance_url']),
@@ -92,6 +137,10 @@ class ProfileViewData {
       createdAt: data['created_at'] as Timestamp?,
       averageRating: averageRating,
       reviewCount: reviewCount,
+      weightedRating: weightedRating,
+      ratingRank: ratingRank,
+      ratingBadge:
+          _normalizeOptional(data['driver_rating_badge']) ?? computedBadge,
     );
   }
 
@@ -122,6 +171,26 @@ class ProfileViewData {
     }
 
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static int? _readNullableInt(dynamic value) {
+    if (value is num) {
+      return value.round();
+    }
+
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  static Timestamp? _readTimestamp(dynamic value) {
+    if (value is Timestamp) {
+      return value;
+    }
+
+    if (value is DateTime) {
+      return Timestamp.fromDate(value);
+    }
+
+    return null;
   }
 
   String get fullName {
@@ -190,7 +259,67 @@ class ProfileViewData {
   String get ratingLabel =>
       reviewCount == 0 ? 'No ratings yet' : averageRating.toStringAsFixed(1);
 
-  String? get profileImageUrl => selfieUrl ?? idImageUrl;
+  bool get hasRank => ratingRank != null && ratingRank! >= 1;
+  bool get hasTop20Rank =>
+      ratingRank != null &&
+      ratingRank! >= 1 &&
+      ratingRank! <= DriverRating.leaderboardLimit;
+
+  String get rankLabel {
+    if (!isDriver) {
+      return 'Not ranked';
+    }
+
+    if (hasTop20Rank) {
+      return '#$ratingRank';
+    }
+
+    return 'Unranked';
+  }
+
+  String get weightedRatingLabel => isDriver && reviewCount > 0
+      ? weightedRating.toStringAsFixed(2)
+      : 'Not ranked';
+
+  String get displayBadge {
+    if (!isDriver) {
+      return '';
+    }
+
+    if (ratingBadge.isNotEmpty) {
+      return ratingBadge;
+    }
+
+    return DriverRating.badgeLabel(
+      reviewCount: reviewCount,
+      averageRating: averageRating,
+      rank: ratingRank,
+    );
+  }
+
+  String? get profileImageUrl => profilePictureUrl ?? selfieUrl;
+
+  DateTime? get profilePictureLastUpdatedAt =>
+      profilePictureUpdatedAt?.toDate();
+
+  DateTime? get profilePictureNextUpdateAt =>
+      profilePictureLastUpdatedAt?.add(profilePictureUpdateCooldown);
+
+  bool get canUpdateProfilePicture {
+    final nextUpdateAt = profilePictureNextUpdateAt;
+    return nextUpdateAt == null || !DateTime.now().isBefore(nextUpdateAt);
+  }
+
+  String get profilePictureNextUpdateLabel {
+    final date = profilePictureNextUpdateAt;
+    if (date == null) {
+      return '';
+    }
+
+    return '${_monthName(date.month)} ${date.day}, ${date.year}';
+  }
+
+  static const Duration profilePictureUpdateCooldown = Duration(days: 7);
 
   static String _titleCase(String value) {
     return value

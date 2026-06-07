@@ -133,6 +133,7 @@ class _PolicyScaffold extends StatelessWidget {
         title: Text(title, style: PassengerUi.cardTitle),
       ),
       body: PassengerPageContainer(
+        maxContentWidth: PassengerUi.settingsContentWidth,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[

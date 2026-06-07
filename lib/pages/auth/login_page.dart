@@ -42,7 +42,11 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       await SessionService.signIn(email: email, password: password);
+      if (!mounted) return;
       _showMessage('Login successful.');
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     } on StateError catch (e) {
       _showMessage(e.message);
     } on FirebaseException catch (e) {

@@ -32,6 +32,7 @@ class _AppPreferencesPageState extends State<AppPreferencesPage> {
             title: Text('App Preferences', style: PassengerUi.cardTitle),
           ),
           body: PassengerPageContainer(
+            maxContentWidth: PassengerUi.settingsContentWidth,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -41,7 +42,7 @@ class _AppPreferencesPageState extends State<AppPreferencesPage> {
                 ),
                 SizedBox(height: 8),
                 Text(
-                  'Adjust appearance, language, and reading size preferences for the app experience.',
+                  'Adjust appearance and reading size preferences for the app experience.',
                   style: PassengerUi.bodyText,
                 ),
                 SizedBox(height: 18),
@@ -68,32 +69,6 @@ class _AppPreferencesPageState extends State<AppPreferencesPage> {
                   selectedValue: _controller.themePreference,
                   onChanged: (value) {
                     _controller.setThemePreference(value);
-                  },
-                ),
-                SizedBox(height: 14),
-                _PreferenceGroupCard<AppLanguagePreference>(
-                  title: 'Language',
-                  subtitle: 'Select the preferred app language.',
-                  icon: Icons.translate_rounded,
-                  accentColor: PassengerUi.accentBlue,
-                  options: const <_PreferenceOption<AppLanguagePreference>>[
-                    _PreferenceOption(
-                      value: AppLanguagePreference.english,
-                      title: 'English',
-                      subtitle: 'Use English across labels and interface text.',
-                      icon: Icons.language_rounded,
-                    ),
-                    _PreferenceOption(
-                      value: AppLanguagePreference.filipino,
-                      title: 'Filipino',
-                      subtitle:
-                          'Use Filipino for the app interface when available.',
-                      icon: Icons.flag_rounded,
-                    ),
-                  ],
-                  selectedValue: _controller.languagePreference,
-                  onChanged: (value) {
-                    _controller.setLanguagePreference(value);
                   },
                 ),
                 SizedBox(height: 14),

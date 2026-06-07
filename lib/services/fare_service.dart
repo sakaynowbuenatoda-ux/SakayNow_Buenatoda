@@ -2,15 +2,19 @@ import 'dart:math' as math;
 
 import '../config/map_config.dart';
 import '../models/fare_estimate.dart';
+import '../models/fare_settings.dart';
 import '../models/ride_location.dart';
 
 class FareService {
   const FareService();
 
-  static const int oneBarangayFare = 20;
-  static const int buenavistaFiveBarangayFare = 30;
-  static const int outsideBuenavistaMinFare = 30;
-  static const int outsideBuenavistaMaxFare = 100;
+  static const int oneBarangayFare = FareSettings.defaultOneBarangayFare;
+  static const int buenavistaFiveBarangayFare =
+      FareSettings.defaultBuenavistaFiveBarangayFare;
+  static const int outsideBuenavistaMinFare =
+      FareSettings.defaultOutsideBuenavistaMinFare;
+  static const int outsideBuenavistaMaxFare =
+      FareSettings.defaultOutsideBuenavistaMaxFare;
   static const double barangayHopDistanceMeters = 1700;
 
   static const List<String> buenavistaBarangays = <String>[
@@ -56,7 +60,9 @@ class FareService {
     required RideLocation dropoffLocation,
     required int distanceMeters,
     bool studentDiscountEligible = false,
+    FareSettings settings = FareSettings.defaults,
   }) {
+    final activeSettings = settings.normalized();
     final normalizedDistance = distanceMeters < 0 ? 0 : distanceMeters;
     final pickupBarangay = detectBuenavistaBarangay(pickupLocation);
     final dropoffBarangay = detectBuenavistaBarangay(dropoffLocation);
@@ -73,7 +79,8 @@ class FareService {
     if (!outsideBuenavista && hopEstimate <= 1) {
       return _applyDiscounts(
         FareEstimate(
-          amount: oneBarangayFare,
+          amount: activeSettings.oneBarangayFare,
+          currency: activeSettings.currency,
           ruleCode: 'buenavista_one_barangay',
           ruleLabel: 'Buenavista 1 barangay',
           distanceMeters: normalizedDistance,
@@ -83,13 +90,15 @@ class FareService {
           dropoffBarangay: dropoffBarangay,
         ),
         studentDiscountEligible: studentDiscountEligible,
+        settings: activeSettings,
       );
     }
 
     if (!outsideBuenavista && hopEstimate <= 5) {
       return _applyDiscounts(
         FareEstimate(
-          amount: buenavistaFiveBarangayFare,
+          amount: activeSettings.buenavistaFiveBarangayFare,
+          currency: activeSettings.currency,
           ruleCode: 'buenavista_up_to_five_barangays',
           ruleLabel: 'Buenavista up to 5 barangays',
           distanceMeters: normalizedDistance,
@@ -99,12 +108,14 @@ class FareService {
           dropoffBarangay: dropoffBarangay,
         ),
         studentDiscountEligible: studentDiscountEligible,
+        settings: activeSettings,
       );
     }
 
     return _applyDiscounts(
       FareEstimate(
-        amount: _distanceFare(normalizedDistance),
+        amount: _distanceFare(normalizedDistance, activeSettings),
+        currency: activeSettings.currency,
         ruleCode: outsideBuenavista
             ? 'outside_buenavista_distance'
             : 'buenavista_extended_distance',
@@ -118,14 +129,19 @@ class FareService {
         dropoffBarangay: dropoffBarangay,
       ),
       studentDiscountEligible: studentDiscountEligible,
+      settings: activeSettings,
     );
   }
 
   FareEstimate _applyDiscounts(
     FareEstimate estimate, {
     required bool studentDiscountEligible,
+    required FareSettings settings,
   }) {
-    return estimate.applyStudentDiscount(isEligible: studentDiscountEligible);
+    return estimate.applyStudentDiscount(
+      isEligible: studentDiscountEligible,
+      discountRate: settings.studentDiscountRate,
+    );
   }
 
   String? detectBuenavistaBarangay(RideLocation location) {
@@ -192,24 +208,24 @@ class FareService {
     return (distanceMeters / barangayHopDistanceMeters).ceil().clamp(1, 99);
   }
 
-  int _distanceFare(int distanceMeters) {
+  int _distanceFare(int distanceMeters, FareSettings settings) {
     if (distanceMeters <= 6000) {
-      return outsideBuenavistaMinFare;
+      return settings.outsideBuenavistaMinFare;
     }
 
     if (distanceMeters <= 9000) {
-      return 40;
+      return settings.outsideBuenavistaNineKmFare;
     }
 
     if (distanceMeters <= 12000) {
-      return 60;
+      return settings.outsideBuenavistaTwelveKmFare;
     }
 
     if (distanceMeters <= 16000) {
-      return 80;
+      return settings.outsideBuenavistaSixteenKmFare;
     }
 
-    return outsideBuenavistaMaxFare;
+    return settings.outsideBuenavistaMaxFare;
   }
 
   String _normalize(String value) {

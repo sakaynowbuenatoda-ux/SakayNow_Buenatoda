@@ -201,6 +201,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
           notificationUnreadCount: _notificationUnreadCount,
           onStatusChanged: _handleAvailabilityChanged,
           onNotificationsTap: _openNotifications,
+          onBrandTap: () => _selectTab(0),
           onProfileSelected: _handleProfileSelected,
         ),
         body: AnimatedTabSwitcher(

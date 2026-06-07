@@ -17,6 +17,43 @@ service firebase.storage {
         ).data.role == 'admin';
     }
 
+    function userDocument(userId) {
+      return /databases/(default)/documents/users/$(userId);
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function profilePictureCooldownPassed(userId) {
+      return firestore.exists(userDocument(userId))
+        && (
+          (
+            !firestore.get(userDocument(userId)).data.keys().hasAny([
+              'profile_picture_updated_at'
+            ])
+            || !(firestore.get(userDocument(userId)).data.profile_picture_updated_at is timestamp)
+            || request.time >= firestore.get(userDocument(userId)).data.profile_picture_updated_at + duration.value(7, 'd')
+          )
+          && (
+            !firestore.get(userDocument(userId)).data.keys().hasAny([
+              'profile_image_updated_at'
+            ])
+            || !(firestore.get(userDocument(userId)).data.profile_image_updated_at is timestamp)
+            || request.time >= firestore.get(userDocument(userId)).data.profile_image_updated_at + duration.value(7, 'd')
+          )
+        );
+    }
+
+    match /users/{userId}/profile_pictures/{fileName} {
+      allow read: if signedIn();
+      allow create, update: if isSelf(userId)
+        && isImage()
+        && request.resource.size < 5 * 1024 * 1024
+        && profilePictureCooldownPassed(userId);
+      allow delete: if isSelf(userId) || isAdmin();
+    }
+
     match /users/{userId}/{fileName} {
       allow read: if isSelf(userId) || isAdmin()
         || (signedIn() && fileName == 'selfie.jpg');

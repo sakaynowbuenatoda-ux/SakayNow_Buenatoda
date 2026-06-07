@@ -4,8 +4,13 @@ import '../../../widgets/passenger_widgets/passenger_ui.dart';
 
 class ProfileHeader extends StatelessWidget {
   final String title;
+  final bool showBackButton;
 
-  const ProfileHeader({super.key, required this.title});
+  const ProfileHeader({
+    super.key,
+    required this.title,
+    this.showBackButton = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -14,15 +19,17 @@ class ProfileHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          style: IconButton.styleFrom(
-            backgroundColor: PassengerUi.surface,
-            side: BorderSide(color: PassengerUi.border),
+        if (showBackButton) ...<Widget>[
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: IconButton.styleFrom(
+              backgroundColor: PassengerUi.surface,
+              side: BorderSide(color: PassengerUi.border),
+            ),
+            icon: Icon(Icons.arrow_back_rounded, color: PassengerUi.title),
           ),
-          icon: Icon(Icons.arrow_back_rounded, color: PassengerUi.title),
-        ),
-        SizedBox(width: 12),
+          SizedBox(width: 12),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

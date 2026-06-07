@@ -32,26 +32,6 @@ class _NotificationsPageState extends State<NotificationsPage> {
           icon: Icon(Icons.arrow_back_rounded, color: PassengerUi.title),
         ),
         title: Text('Notifications', style: PassengerUi.cardTitle),
-        actions: [
-          if (user != null)
-            StreamBuilder<int>(
-              stream: _notificationService.watchUnreadCount(user.uid),
-              builder: (context, snapshot) {
-                final unreadCount = snapshot.data ?? 0;
-                if (unreadCount == 0) {
-                  return const SizedBox.shrink();
-                }
-
-                return TextButton(
-                  onPressed: _isMarkingAllRead
-                      ? null
-                      : () => _markAllRead(user.uid),
-                  child: Text(_isMarkingAllRead ? 'Saving' : 'Mark all read'),
-                );
-              },
-            ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: user == null
           ? const _NotificationsSignedOutState()
@@ -70,27 +50,51 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
                 final notifications =
                     snapshot.data ?? const <AppNotification>[];
-                if (notifications.isEmpty) {
-                  return const _NotificationsEmptyState();
-                }
 
                 return SafeArea(
-                  child: ListView.separated(
+                  child: Padding(
                     padding: EdgeInsets.fromLTRB(
                       PassengerUi.horizontalPagePadding(context),
                       12,
                       PassengerUi.horizontalPagePadding(context),
-                      24 + MediaQuery.of(context).viewPadding.bottom,
+                      0,
                     ),
-                    itemCount: notifications.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final notification = notifications[index];
-                      return _NotificationTile(
-                        notification: notification,
-                        onTap: () => _openNotification(notification),
-                      );
-                    },
+                    child: Column(
+                      children: <Widget>[
+                        _NotificationsHeader(
+                          hasUnread: notifications.any(
+                            (notification) => !notification.isRead,
+                          ),
+                          isMarkingAllRead: _isMarkingAllRead,
+                          onMarkAllRead: () => _markAllRead(user.uid),
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: notifications.isEmpty
+                              ? const _NotificationsEmptyState()
+                              : ListView.separated(
+                                  padding: EdgeInsets.only(
+                                    bottom:
+                                        24 +
+                                        MediaQuery.of(
+                                          context,
+                                        ).viewPadding.bottom,
+                                  ),
+                                  itemCount: notifications.length,
+                                  separatorBuilder: (_, _) =>
+                                      const SizedBox(height: 10),
+                                  itemBuilder: (context, index) {
+                                    final notification = notifications[index];
+                                    return _NotificationTile(
+                                      notification: notification,
+                                      onTap: () =>
+                                          _openNotification(notification),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -133,6 +137,49 @@ class _NotificationsPageState extends State<NotificationsPage> {
         setState(() => _isMarkingAllRead = false);
       }
     }
+  }
+}
+
+class _NotificationsHeader extends StatelessWidget {
+  final bool hasUnread;
+  final bool isMarkingAllRead;
+  final VoidCallback onMarkAllRead;
+
+  const _NotificationsHeader({
+    required this.hasUnread,
+    required this.isMarkingAllRead,
+    required this.onMarkAllRead,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            'Notifications',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: PassengerUi.sectionTitle.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        TextButton.icon(
+          onPressed: hasUnread && !isMarkingAllRead ? onMarkAllRead : null,
+          icon: isMarkingAllRead
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.done_all_rounded, size: 18),
+          label: Text(isMarkingAllRead ? 'Saving' : 'Mark all read'),
+        ),
+      ],
+    );
   }
 }
 
@@ -240,6 +287,8 @@ class _NotificationTile extends StatelessWidget {
         return Icons.verified_rounded;
       case 'account_restricted':
         return Icons.block_rounded;
+      case 'account_deactivated':
+        return Icons.no_accounts_rounded;
       case 'account_restored':
         return Icons.lock_open_rounded;
       case 'booking_request':
@@ -286,10 +335,10 @@ class _NotificationsEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
+    return Center(
       child: Padding(
-        padding: PassengerUi.pagePadding(context, baseBottom: 24),
-        child: const PassengerEmptyState(
+        padding: const EdgeInsets.only(bottom: 24),
+        child: PassengerEmptyState(
           icon: Icons.notifications_none_rounded,
           title: 'No notifications yet',
           description: 'Booking, account, and review updates will appear here.',

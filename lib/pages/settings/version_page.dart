@@ -66,78 +66,83 @@ class _VersionPageState extends State<VersionPage>
                     horizontal: 28,
                     vertical: 24,
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(
-                        'SakayNow BuenaToda',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: PassengerUi.primary,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: PassengerUi.settingsContentWidth,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          'SakayNow BuenaToda',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: PassengerUi.primary,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 34),
-                      Text(
-                        'Version',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: PassengerUi.primary.withValues(alpha: 0.82),
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0,
+                        const SizedBox(height: 34),
+                        Text(
+                          'Version',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: PassengerUi.primary.withValues(alpha: 0.82),
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '1.0',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: PassengerUi.accentBlue,
-                          fontSize: 76,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0,
-                          height: 1,
+                        const SizedBox(height: 8),
+                        Text(
+                          '1.0',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: PassengerUi.accentBlue,
+                            fontSize: 76,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0,
+                            height: 1,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 28),
-                      Text(
-                        'from Developer team',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: PassengerUi.primary.withValues(alpha: 0.68),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0,
+                        const SizedBox(height: 28),
+                        Text(
+                          'from Developer team',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: PassengerUi.primary.withValues(alpha: 0.68),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        'Version notes',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: PassengerUi.primary.withValues(alpha: 0.62),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0,
+                        const SizedBox(height: 14),
+                        Text(
+                          'Version notes',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: PassengerUi.primary.withValues(alpha: 0.62),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      const _VersionNotes(),
-                      const SizedBox(height: 12),
-                      Text(
-                        'All rights reserved',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: PassengerUi.primary.withValues(alpha: 0.52),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0,
+                        const SizedBox(height: 8),
+                        const _VersionNotes(),
+                        const SizedBox(height: 12),
+                        Text(
+                          'All rights reserved',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: PassengerUi.primary.withValues(alpha: 0.52),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

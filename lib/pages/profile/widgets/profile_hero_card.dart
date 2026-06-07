@@ -6,8 +6,15 @@ import '../models/profile_view_data.dart';
 
 class ProfileHeroCard extends StatelessWidget {
   final ProfileViewData profile;
+  final VoidCallback? onAvatarTap;
+  final bool isUploadingProfilePicture;
 
-  const ProfileHeroCard({super.key, required this.profile});
+  const ProfileHeroCard({
+    super.key,
+    required this.profile,
+    this.onAvatarTap,
+    this.isUploadingProfilePicture = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +47,12 @@ class ProfileHeroCard extends StatelessWidget {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      _ProfileAvatar(profile: profile, compact: compact),
+                      _ProfileAvatar(
+                        profile: profile,
+                        compact: compact,
+                        onTap: onAvatarTap,
+                        isUploading: isUploadingProfilePicture,
+                      ),
                       SizedBox(height: 14),
                       _HeroDetails(profile: profile, compact: compact),
                     ],
@@ -50,7 +62,12 @@ class ProfileHeroCard extends StatelessWidget {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    _ProfileAvatar(profile: profile, compact: compact),
+                    _ProfileAvatar(
+                      profile: profile,
+                      compact: compact,
+                      onTap: onAvatarTap,
+                      isUploading: isUploadingProfilePicture,
+                    ),
                     SizedBox(width: compact ? 12 : 16),
                     Expanded(
                       child: _HeroDetails(profile: profile, compact: compact),
@@ -89,6 +106,24 @@ class ProfileHeroCard extends StatelessWidget {
                         value: profile.reviewCount.toString(),
                       ),
                     ),
+                    if (profile.isDriver)
+                      SizedBox(
+                        width: cardWidth,
+                        child: _MainInfoItem(
+                          icon: Icons.leaderboard_rounded,
+                          label: 'Rank',
+                          value: profile.rankLabel,
+                        ),
+                      ),
+                    if (profile.isDriver)
+                      SizedBox(
+                        width: cardWidth,
+                        child: _MainInfoItem(
+                          icon: Icons.trending_up_rounded,
+                          label: 'Rank Score',
+                          value: profile.weightedRatingLabel,
+                        ),
+                      ),
                   ],
                 );
               },
@@ -161,31 +196,17 @@ class _VerifiedBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 8 : 10,
-        vertical: compact ? 6 : 7,
+        horizontal: compact ? 7 : 8,
+        vertical: compact ? 7 : 8,
       ),
       decoration: BoxDecoration(
         color: PassengerUi.successBackground,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(
-            Icons.verified_rounded,
-            size: compact ? 14 : 16,
-            color: PassengerUi.successText,
-          ),
-          SizedBox(width: 4),
-          Text(
-            'Verified',
-            style: TextStyle(
-              fontSize: compact ? 11.5 : 12,
-              fontWeight: FontWeight.w800,
-              color: PassengerUi.successText,
-            ),
-          ),
-        ],
+      child: Icon(
+        Icons.verified_rounded,
+        size: compact ? 15 : 17,
+        color: PassengerUi.successText,
       ),
     );
   }
@@ -194,16 +215,25 @@ class _VerifiedBadge extends StatelessWidget {
 class _ProfileAvatar extends StatelessWidget {
   final ProfileViewData profile;
   final bool compact;
+  final VoidCallback? onTap;
+  final bool isUploading;
 
-  const _ProfileAvatar({required this.profile, required this.compact});
+  const _ProfileAvatar({
+    required this.profile,
+    required this.compact,
+    required this.onTap,
+    required this.isUploading,
+  });
 
   @override
   Widget build(BuildContext context) {
     final String? imageUrl = profile.profileImageUrl;
+    final avatarSize = compact ? 72.0 : 82.0;
+    final editIconSize = compact ? 25.0 : 27.0;
 
-    return Container(
-      width: compact ? 72 : 82,
-      height: compact ? 72 : 82,
+    final avatar = Container(
+      width: avatarSize,
+      height: avatarSize,
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
         shape: BoxShape.circle,
@@ -213,13 +243,90 @@ class _ProfileAvatar extends StatelessWidget {
         ),
       ),
       child: ClipOval(
-        child: FirebaseStorageImage(
-          imageUrl: imageUrl,
-          fit: BoxFit.cover,
-          fallback: _AvatarFallback(
-            initials: profile.initials,
-            compact: compact,
-          ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            FirebaseStorageImage(
+              imageUrl: imageUrl,
+              fit: BoxFit.cover,
+              fallback: _AvatarFallback(
+                initials: profile.initials,
+                compact: compact,
+              ),
+            ),
+            if (isUploading)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.36),
+                ),
+                child: Center(
+                  child: SizedBox(
+                    width: compact ? 18 : 20,
+                    height: compact ? 18 : 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    final content = SizedBox(
+      width: avatarSize,
+      height: avatarSize,
+      child: Stack(
+        children: <Widget>[
+          avatar,
+          if (onTap != null)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: editIconSize,
+                height: editIconSize,
+                decoration: BoxDecoration(
+                  color: PassengerUi.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.70),
+                    width: 1.4,
+                  ),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.16),
+                      blurRadius: 7,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.photo_camera_outlined,
+                  size: compact ? 14 : 15,
+                  color: PassengerUi.accentBlue,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+
+    if (onTap == null) {
+      return content;
+    }
+
+    return Tooltip(
+      message: 'Change profile picture',
+      child: Semantics(
+        button: true,
+        label: 'Change profile picture',
+        child: GestureDetector(
+          onTap: isUploading ? null : onTap,
+          behavior: HitTestBehavior.opaque,
+          child: content,
         ),
       ),
     );

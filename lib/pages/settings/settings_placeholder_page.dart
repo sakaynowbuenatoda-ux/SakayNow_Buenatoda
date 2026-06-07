@@ -29,6 +29,7 @@ class SettingsPlaceholderPage extends StatelessWidget {
         title: Text(title, style: PassengerUi.cardTitle),
       ),
       body: PassengerPageContainer(
+        maxContentWidth: PassengerUi.settingsContentWidth,
         child: PassengerEmptyState(
           icon: icon,
           title: '$title Coming Soon',

@@ -101,6 +101,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         title: Text('Notifications', style: PassengerUi.cardTitle),
       ),
       body: PassengerPageContainer(
+        maxContentWidth: PassengerUi.settingsContentWidth,
         child: _isLoading
             ? const _NotificationLoadingState()
             : Column(

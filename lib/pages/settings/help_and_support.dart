@@ -1,12 +1,77 @@
 import 'package:flutter/material.dart';
 
+import '../../services/chat_service.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../messages/chat_page.dart';
 
-class HelpAndSupportPage extends StatelessWidget {
-  const HelpAndSupportPage({super.key});
+class HelpAndSupportPage extends StatefulWidget {
+  final String? userId;
+  final String userName;
+  final String userRole;
+
+  const HelpAndSupportPage({
+    super.key,
+    required this.userId,
+    required this.userName,
+    required this.userRole,
+  });
+
+  @override
+  State<HelpAndSupportPage> createState() => _HelpAndSupportPageState();
+}
+
+class _HelpAndSupportPageState extends State<HelpAndSupportPage> {
+  final ChatService _chatService = ChatService();
+  bool _isOpeningChat = false;
+
+  Future<void> _openAdminChat() async {
+    final userId = widget.userId?.trim() ?? '';
+    if (userId.isEmpty || _isOpeningChat) {
+      return;
+    }
+
+    setState(() => _isOpeningChat = true);
+    try {
+      final conversationId = await _chatService.ensureSupportConversation(
+        userId: userId,
+        userName: widget.userName,
+        userRole: widget.userRole,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatPage(
+            conversationId: conversationId,
+            currentUserId: userId,
+            currentUserRole: widget.userRole,
+            title: 'SakayNow Support',
+            subtitle: 'Admin',
+          ),
+        ),
+      );
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to open support: $error')));
+    } finally {
+      if (mounted) {
+        setState(() => _isOpeningChat = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final canMessageAdmin = widget.userId?.trim().isNotEmpty == true;
+
     return Scaffold(
       backgroundColor: PassengerUi.background,
       appBar: AppBar(
@@ -20,6 +85,7 @@ class HelpAndSupportPage extends StatelessWidget {
         title: Text('Help and Support', style: PassengerUi.cardTitle),
       ),
       body: PassengerPageContainer(
+        maxContentWidth: PassengerUi.settingsContentWidth,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -58,9 +124,22 @@ class HelpAndSupportPage extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: () {},
-                      icon: Icon(Icons.chat_bubble_outline_rounded),
-                      label: Text('Message Admin'),
+                      onPressed: canMessageAdmin && !_isOpeningChat
+                          ? _openAdminChat
+                          : null,
+                      icon: _isOpeningChat
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: PassengerUi.surface,
+                              ),
+                            )
+                          : Icon(Icons.chat_bubble_outline_rounded),
+                      label: Text(
+                        _isOpeningChat ? 'Opening chat...' : 'Message Admin',
+                      ),
                     ),
                   ),
                 ],

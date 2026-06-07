@@ -9,6 +9,7 @@ import '../../services/chat_service.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/time_ago_text.dart';
+import '../profile/view_user_profile.dart';
 
 class ChatPage extends StatefulWidget {
   final String conversationId;
@@ -94,39 +95,46 @@ class _ChatPageState extends State<ChatPage> {
   }) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      backgroundColor: PassengerUi.background,
+      backgroundColor: widget.currentUserRole == 'admin'
+          ? PassengerUi.mutedSurface
+          : PassengerUi.background,
       appBar: AppBar(
         backgroundColor: PassengerUi.background,
         surfaceTintColor: PassengerUi.background,
         titleSpacing: 0,
-        title: _ChatHeader(target: target),
+        title: _ChatHeader(target: target, onTap: _profileTapFor(target)),
       ),
       body: SafeArea(
         top: false,
         bottom: false,
-        child: Column(
-          children: <Widget>[
-            Expanded(
-              child: _MessageList(
-                chatService: _chatService,
-                conversationId: widget.conversationId,
-                currentUserId: widget.currentUserId,
-                conversation: conversation,
-                target: target,
-                scrollController: _scrollController,
-                onMessagesRendered: () {
-                  _scrollToBottom();
-                  unawaited(_markConversationRead());
-                },
+        child: _ChatBodyFrame(
+          maxContentWidth: widget.currentUserRole == 'admin'
+              ? PassengerUi.settingsContentWidth
+              : null,
+          child: Column(
+            children: <Widget>[
+              Expanded(
+                child: _MessageList(
+                  chatService: _chatService,
+                  conversationId: widget.conversationId,
+                  currentUserId: widget.currentUserId,
+                  conversation: conversation,
+                  target: target,
+                  scrollController: _scrollController,
+                  onMessagesRendered: () {
+                    _scrollToBottom();
+                    unawaited(_markConversationRead());
+                  },
+                ),
               ),
-            ),
-            _MessageComposer(
-              controller: _messageController,
-              isSending: _isSending,
-              canSend: _hasText && !_isSending,
-              onSend: _sendMessage,
-            ),
-          ],
+              _MessageComposer(
+                controller: _messageController,
+                isSending: _isSending,
+                canSend: _hasText && !_isSending,
+                onSend: _sendMessage,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -144,6 +152,24 @@ class _ChatPageState extends State<ChatPage> {
       }
       return profile;
     });
+  }
+
+  VoidCallback? _profileTapFor(_ChatTarget target) {
+    final userId = target.userId?.trim() ?? '';
+    if (widget.currentUserRole != 'admin' || userId.isEmpty) {
+      return null;
+    }
+
+    return () {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ViewUserProfilePage(
+            adminId: widget.currentUserId,
+            userId: userId,
+          ),
+        ),
+      );
+    };
   }
 
   ChatParticipantProfile? _cachedProfileFor(String? userId) {
@@ -293,6 +319,37 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
+class _ChatBodyFrame extends StatelessWidget {
+  final double? maxContentWidth;
+  final Widget child;
+
+  const _ChatBodyFrame({required this.maxContentWidth, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final maxWidth = maxContentWidth;
+    if (maxWidth == null) {
+      return child;
+    }
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: PassengerUi.background,
+            border: Border.symmetric(
+              vertical: BorderSide(color: PassengerUi.border),
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 class _MessageList extends StatelessWidget {
   final ChatService chatService;
   final String conversationId;
@@ -406,12 +463,13 @@ class _MessageList extends StatelessWidget {
 
 class _ChatHeader extends StatelessWidget {
   final _ChatTarget target;
+  final VoidCallback? onTap;
 
-  const _ChatHeader({required this.target});
+  const _ChatHeader({required this.target, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final content = Row(
       children: <Widget>[
         _ChatAvatar(target: target, size: 42),
         const SizedBox(width: 10),
@@ -439,6 +497,33 @@ class _ChatHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+
+    if (onTap == null) {
+      return content;
+    }
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Row(
+            children: <Widget>[
+              Expanded(child: content),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.open_in_new_rounded,
+                size: 17,
+                color: PassengerUi.body,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -500,7 +585,6 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxWidth = MediaQuery.sizeOf(context).width * 0.72;
     final backgroundColor = isMine ? PassengerUi.dark : PassengerUi.surface;
     final foregroundColor = isMine ? Colors.white : PassengerUi.title;
     final detailColor = isMine
@@ -512,37 +596,43 @@ class _MessageBubble extends StatelessWidget {
       bottomLeft: Radius.circular(isMine ? 16 : 5),
       bottomRight: Radius.circular(isMine ? 5 : 16),
     );
-    final bubble = ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: maxWidth),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: borderRadius,
-          border: isMine ? null : Border.all(color: PassengerUi.border),
-          boxShadow: isMine ? null : PassengerUi.cardShadow,
-        ),
-        child: Column(
-          crossAxisAlignment: isMine
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              message.text,
-              style: PassengerUi.bodyText.copyWith(
-                color: foregroundColor,
-                height: 1.35,
-              ),
+    final bubble = LayoutBuilder(
+      builder: (context, constraints) {
+        final maxBubbleWidth = constraints.maxWidth * 0.72;
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: borderRadius,
+              border: isMine ? null : Border.all(color: PassengerUi.border),
+              boxShadow: isMine ? null : PassengerUi.cardShadow,
             ),
-            const SizedBox(height: 6),
-            _MessageMeta(
-              timeLabel: TimeAgo.format(message.createdAt),
-              color: detailColor,
-              status: status,
+            child: Column(
+              crossAxisAlignment: isMine
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  message.text,
+                  style: PassengerUi.bodyText.copyWith(
+                    color: foregroundColor,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _MessageMeta(
+                  timeLabel: TimeAgo.format(message.createdAt),
+                  color: detailColor,
+                  status: status,
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
 
     if (isMine) {
@@ -631,8 +721,8 @@ class _MessageComposer extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: PassengerUi.background,
-        border: Border(top: BorderSide(color: PassengerUi.border)),
+        color: PassengerUi.surface,
+        border: Border(top: BorderSide(color: PassengerUi.border, width: 1.2)),
       ),
       child: Padding(
         padding: EdgeInsets.fromLTRB(14, 10, 14, bottomPadding),
@@ -644,9 +734,15 @@ class _MessageComposer extends StatelessWidget {
                 constraints: const BoxConstraints(minHeight: 50),
                 decoration: BoxDecoration(
                   color: PassengerUi.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: PassengerUi.border, width: 1.2),
-                  boxShadow: PassengerUi.cardShadow,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: PassengerUi.primary, width: 1.4),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
                 child: TextField(
                   controller: controller,
@@ -655,11 +751,13 @@ class _MessageComposer extends StatelessWidget {
                   textInputAction: TextInputAction.newline,
                   style: PassengerUi.bodyText.copyWith(
                     color: PassengerUi.title,
+                    fontWeight: FontWeight.w600,
                   ),
                   decoration: InputDecoration(
                     hintText: 'Type a message',
                     hintStyle: PassengerUi.bodyText.copyWith(
-                      color: PassengerUi.hint,
+                      color: PassengerUi.accentBlue,
+                      fontWeight: FontWeight.w600,
                     ),
                     filled: false,
                     border: InputBorder.none,
@@ -681,7 +779,7 @@ class _MessageComposer extends StatelessWidget {
                 onPressed: canSend ? onSend : null,
                 style: IconButton.styleFrom(
                   backgroundColor: canSend
-                      ? PassengerUi.dark
+                      ? PassengerUi.primary
                       : PassengerUi.mutedSurface,
                   foregroundColor: canSend ? Colors.white : PassengerUi.body,
                   disabledBackgroundColor: PassengerUi.mutedSurface,

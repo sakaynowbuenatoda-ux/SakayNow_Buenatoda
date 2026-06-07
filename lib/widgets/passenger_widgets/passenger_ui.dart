@@ -5,6 +5,7 @@ class PassengerUi {
   const PassengerUi._();
 
   static const double pageBottomSpacing = 68;
+  static const double settingsContentWidth = 760;
 
   static bool get isDarkMode => AppPreferencesController.instance.isDarkMode;
 
@@ -137,8 +138,13 @@ class PassengerUi {
 
 class PassengerPageContainer extends StatelessWidget {
   final Widget child;
+  final double? maxContentWidth;
 
-  const PassengerPageContainer({super.key, required this.child});
+  const PassengerPageContainer({
+    super.key,
+    required this.child,
+    this.maxContentWidth,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -164,7 +170,15 @@ class PassengerPageContainer extends StatelessWidget {
             physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics(),
             ),
-            child: child,
+            child: maxContentWidth == null
+                ? child
+                : Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: maxContentWidth!),
+                      child: child,
+                    ),
+                  ),
           ),
         ),
       ),

@@ -1,19 +1,31 @@
 import {createHmac, timingSafeEqual} from "node:crypto";
 
 import {initializeApp} from "firebase-admin/app";
-import {FieldValue, Timestamp, getFirestore} from "firebase-admin/firestore";
+import {getAuth} from "firebase-admin/auth";
+import {
+  FieldValue,
+  Timestamp,
+  getFirestore,
+  type DocumentData,
+  type Query,
+} from "firebase-admin/firestore";
 import {getMessaging} from "firebase-admin/messaging";
+import {getStorage} from "firebase-admin/storage";
 import {
   onDocumentCreated,
   onDocumentUpdated,
+  onDocumentWritten,
 } from "firebase-functions/v2/firestore";
 import {defineSecret} from "firebase-functions/params";
 import {HttpsError, onCall, onRequest} from "firebase-functions/v2/https";
+import {onSchedule} from "firebase-functions/v2/scheduler";
 
 initializeApp();
 
 const firestore = getFirestore();
+const auth = getAuth();
 const messaging = getMessaging();
+const storage = getStorage();
 const paymongoSecretKey = defineSecret("PAYMONGO_SECRET_KEY");
 const paymongoWebhookSecret = defineSecret("PAYMONGO_WEBHOOK_SECRET");
 const xenditSecretKey = defineSecret("XENDIT_SECRET_KEY");
@@ -26,11 +38,21 @@ const checkoutCancelUrl = process.env.PAYMONGO_CANCEL_URL ??
   "https://sakaynow-buenatoda.web.app/payment/cancelled";
 const checkoutAllowedMethods = new Set(["gcash", "paymaya", "card"]);
 const xenditAllowedMethods = new Set(["GCASH", "PAYMAYA", "CREDIT_CARD"]);
-const regularMinimumRideFare = 20;
-const minimumStudentDiscountedFare = 17;
+const regularMinimumRideFare = 25;
+const minimumStudentDiscountedFare = 21;
 const maximumRideFare = 100;
 const studentDiscountRate = 0.15;
 const studentDiscountCode = "verified_student";
+const fareSettingsCollection = "fare_settings";
+const currentFareSettingsDocument = "current";
+const adminLogsCollection = "admin_logs";
+const driverRatingPriorAverage = 4.0;
+const driverRatingMinimumReviews = 20;
+const driverLeaderboardLimit = 20;
+const risingDriverAverage = 4.7;
+const deactivationRestoreWindowDays = 60;
+const transactionRetentionYears = 5;
+const scheduledCleanupLimit = 250;
 
 type TokenTarget = {
   token: string;
@@ -74,6 +96,37 @@ type XenditInvoiceResponse = {
   invoice_url?: string;
   message?: string;
   error_code?: string;
+};
+
+type RevieweeTarget = {
+  id: string;
+  role: "driver" | "passenger";
+};
+
+type FareValidationSettings = {
+  regularMinimumRideFare: number;
+  minimumStudentDiscountedFare: number;
+  maximumRideFare: number;
+  studentDiscountRate: number;
+};
+
+type AdminLogParams = {
+  logDocumentId?: string;
+  action: string;
+  adminId: string;
+  adminName?: string;
+  summary: string;
+  targetId?: string;
+  targetName?: string;
+  targetRole?: string;
+  metadata?: Record<string, unknown>;
+};
+
+const defaultFareValidationSettings: FareValidationSettings = {
+  regularMinimumRideFare,
+  minimumStudentDiscountedFare,
+  maximumRideFare,
+  studentDiscountRate,
 };
 
 export const createXenditCheckoutSession = onCall(
@@ -135,7 +188,8 @@ export const createXenditCheckoutSession = onCall(
     const passenger = await firestore.collection("users").doc(uid).get();
     const passengerData = passenger.data() ?? {};
     const amount = readFareAmount(booking);
-    if (!isAllowedFareAmount({amount, booking, passengerData})) {
+    const fareSettings = await loadFareValidationSettings();
+    if (!isAllowedFareAmount({amount, booking, passengerData, fareSettings})) {
       throw new HttpsError(
         "failed-precondition",
         "Booking fare is not ready for checkout.",
@@ -241,7 +295,8 @@ export const createPayMongoCheckoutSession = onCall(
     const passenger = await firestore.collection("users").doc(uid).get();
     const passengerData = passenger.data() ?? {};
     const amount = readFareAmount(booking);
-    if (!isAllowedFareAmount({amount, booking, passengerData})) {
+    const fareSettings = await loadFareValidationSettings();
+    if (!isAllowedFareAmount({amount, booking, passengerData, fareSettings})) {
       throw new HttpsError(
         "failed-precondition",
         "Booking fare is not ready for checkout.",
@@ -286,6 +341,114 @@ export const createPayMongoCheckoutSession = onCall(
   },
 );
 
+export const createAdminAccount = onCall(
+  {
+    region: "asia-southeast1",
+  },
+  async (request) => {
+    const requesterId = request.auth?.uid;
+    if (!requesterId) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in as the main admin to create admin accounts.",
+      );
+    }
+
+    const requesterSnapshot = await firestore
+      .collection("users")
+      .doc(requesterId)
+      .get();
+    const requester = requesterSnapshot.data();
+    if (!requesterSnapshot.exists || !requester || !isMainAdmin(requester)) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only the main admin account can create admin accounts.",
+      );
+    }
+
+    const email = readRequiredString(request.data, "email").toLowerCase();
+    const password = readRequiredString(request.data, "password");
+    const firstName = readRequiredString(request.data, "first_name");
+    const lastName = readRequiredString(request.data, "last_name");
+    const rawAge = readRequiredString(request.data, "age");
+    const gender = readRequiredString(request.data, "gender").toLowerCase();
+    const age = Number.parseInt(rawAge, 10);
+
+    validateAdminAccountInput({
+      email,
+      password,
+      firstName,
+      lastName,
+      age,
+      gender,
+    });
+
+    let createdUserId: string | undefined;
+    try {
+      const createdUser = await auth.createUser({
+        email,
+        password,
+        displayName: `${firstName} ${lastName}`.trim(),
+        disabled: false,
+      });
+      createdUserId = createdUser.uid;
+
+      await firestore.collection("users").doc(createdUser.uid).set({
+        user_id: createdUser.uid,
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        role: "admin",
+        age,
+        gender,
+        is_verified: true,
+        is_active: true,
+        is_banned: false,
+        is_deactivated: false,
+        account_status: "active",
+        created_by: requesterId,
+        created_at: FieldValue.serverTimestamp(),
+        reviewed_by: requesterId,
+        reviewed_at: FieldValue.serverTimestamp(),
+      });
+
+      await writeAdminLog({
+        action: "admin_account_created",
+        adminId: requesterId,
+        adminName: fullName(requester),
+        summary: `${fullName(requester)} created admin account ${
+          `${firstName} ${lastName}`.trim()
+        }.`,
+        targetId: createdUser.uid,
+        targetName: `${firstName} ${lastName}`.trim(),
+        targetRole: "admin",
+        metadata: {email},
+      });
+
+      return {user_id: createdUser.uid};
+    } catch (error) {
+      if (createdUserId) {
+        await auth.deleteUser(createdUserId).catch(() => undefined);
+      }
+
+      const code = (error as {code?: string}).code;
+      if (code === "auth/email-already-exists") {
+        throw new HttpsError("already-exists", "That email is already used.");
+      }
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+
+      throw new HttpsError(
+        "internal",
+        (error as {message?: string}).message ??
+          "Unable to create admin account.",
+      );
+    }
+  },
+);
+
 export const payMongoWebhook = onRequest(
   {
     region: "asia-southeast1",
@@ -327,6 +490,7 @@ export const payMongoWebhook = onRequest(
       type: eventType,
       provider: "paymongo",
       received_at: FieldValue.serverTimestamp(),
+      retention_expires_at: retentionExpiresFromNow(),
       payload: request.body,
     });
 
@@ -381,6 +545,7 @@ export const xenditWebhook = onRequest(
       type: `invoice.${invoice.status.toLowerCase()}`,
       provider: "xendit",
       received_at: FieldValue.serverTimestamp(),
+      retention_expires_at: retentionExpiresFromNow(),
       payload: request.body,
     });
 
@@ -538,6 +703,64 @@ export const notifyAccountStatusChanged = onDocumentUpdated(
     const isVerified = isVerifiedAccount(after);
     const wasBanned = isBannedAccount(before);
     const isBanned = isBannedAccount(after);
+    const wasDeactivated = isDeactivatedAccount(before);
+    const isDeactivated = isDeactivatedAccount(after);
+    const isDeleted = isDeletedAccount(after);
+
+    if (!wasDeactivated && isDeactivated) {
+      const deactivatedAt = timestampFromUnknown(after.deactivated_at) ??
+        Timestamp.now();
+      const restoreDeadline = timestampAfterDays(
+        deactivatedAt,
+        deactivationRestoreWindowDays,
+      );
+
+      await change.after.ref.set(
+        {
+          deactivation_restore_deadline: restoreDeadline,
+          deactivation_purge_after: restoreDeadline,
+          restored_at: FieldValue.delete(),
+          restored_by: FieldValue.delete(),
+          updated_at: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+
+      await createAppNotification({
+        userId,
+        role,
+        type: "account_deactivated",
+        title: "Account deactivated",
+        body:
+          "Your account can be restored by an admin within 60 days.",
+        channel: "account",
+        sourceId: `account_deactivated_${userId}`,
+        data: {
+          user_id: userId,
+          role,
+        },
+        sendPush: true,
+      });
+      return;
+    }
+
+    if (wasDeactivated && !isDeactivated && !isDeleted) {
+      await createAppNotification({
+        userId,
+        role,
+        type: "account_restored",
+        title: "Account restored",
+        body: "Your SakayNow account access has been restored.",
+        channel: "account",
+        sourceId: `account_restored_${userId}`,
+        data: {
+          user_id: userId,
+          role,
+        },
+        sendPush: true,
+      });
+      return;
+    }
 
     if (!wasBanned && isBanned) {
       await createAppNotification({
@@ -591,6 +814,232 @@ export const notifyAccountStatusChanged = onDocumentUpdated(
         sendPush: true,
       });
     }
+  },
+);
+
+export const logAdminUserAction = onDocumentUpdated(
+  {
+    region: "asia-southeast1",
+    document: "users/{userId}",
+  },
+  async (event) => {
+    const change = event.data;
+    if (!change) {
+      return;
+    }
+
+    const userId = event.params.userId;
+    const before = change.before.data();
+    const after = change.after.data();
+    const role = normalizedUserRole(after);
+    if (role === "admin") {
+      return;
+    }
+
+    const reviewedBy = readOptionalString(after.reviewed_by);
+    const restoredBy = readOptionalString(after.restored_by);
+    const targetName = fullName(after);
+    const baseLog = {
+      logDocumentId: `user_${event.id}`,
+      targetId: userId,
+      targetName,
+      targetRole: role,
+      metadata: {user_id: userId},
+    };
+
+    if (
+      isDeactivatedAccount(before) &&
+      !isDeactivatedAccount(after) &&
+      !isDeletedAccount(after) &&
+      restoredBy
+    ) {
+      await writeAdminLog({
+        ...baseLog,
+        action: "deactivated_user_restored",
+        adminId: restoredBy,
+        summary: `${targetName} was restored from deactivation.`,
+      });
+      return;
+    }
+
+    if (!isBannedAccount(before) && isBannedAccount(after) && reviewedBy) {
+      await writeAdminLog({
+        ...baseLog,
+        action: "user_restricted",
+        adminId: reviewedBy,
+        summary: `${targetName} was restricted.`,
+      });
+      return;
+    }
+
+    if (isBannedAccount(before) && !isBannedAccount(after) && reviewedBy) {
+      await writeAdminLog({
+        ...baseLog,
+        action: "user_restored",
+        adminId: reviewedBy,
+        summary: `${targetName} was restored after restriction.`,
+      });
+      return;
+    }
+
+    if (
+      !isVerifiedAccount(before) &&
+      isVerifiedAccount(after) &&
+      reviewedBy
+    ) {
+      await writeAdminLog({
+        ...baseLog,
+        action: "user_approved",
+        adminId: reviewedBy,
+        summary: `${targetName} was verified.`,
+      });
+    }
+  },
+);
+
+export const stampBookingRetention = onDocumentWritten(
+  {
+    region: "asia-southeast1",
+    document: "bookings/{bookingId}",
+  },
+  async (event) => {
+    const snapshot = event.data?.after;
+    if (!snapshot?.exists) {
+      return;
+    }
+
+    const booking = snapshot.data() ?? {};
+    if (timestampFromUnknown(booking.retention_expires_at)) {
+      return;
+    }
+
+    const baseTimestamp = timestampFromUnknown(
+      booking.timestamp ?? booking.created_at ?? booking.updated_at,
+    ) ?? Timestamp.now();
+
+    await snapshot.ref.set(
+      {
+        retention_expires_at: timestampAfterYears(
+          baseTimestamp,
+          transactionRetentionYears,
+        ),
+      },
+      {merge: true},
+    );
+  },
+);
+
+export const logFareSettingsUpdated = onDocumentWritten(
+  {
+    region: "asia-southeast1",
+    document: "fare_settings/{settingId}",
+  },
+  async (event) => {
+    const snapshot = event.data?.after;
+    if (!snapshot?.exists || event.params.settingId !== "current") {
+      return;
+    }
+
+    const settings = snapshot.data() ?? {};
+    const adminId = readOptionalString(settings.updated_by);
+    if (!adminId) {
+      return;
+    }
+
+    await writeAdminLog({
+      logDocumentId: `fare_${event.id}`,
+      action: "fare_settings_updated",
+      adminId,
+      summary: "Fare settings were updated.",
+      targetId: event.params.settingId,
+      targetName: "Fare Settings",
+      targetRole: "system",
+      metadata: {
+        one_barangay_fare: settings.one_barangay_fare,
+        buenavista_five_barangay_fare:
+          settings.buenavista_five_barangay_fare,
+        outside_buenavista_min_fare: settings.outside_buenavista_min_fare,
+        outside_buenavista_max_fare: settings.outside_buenavista_max_fare,
+      },
+    });
+  },
+);
+
+export const stampPaymentEventRetention = onDocumentWritten(
+  {
+    region: "asia-southeast1",
+    document: "payment_events/{eventId}",
+  },
+  async (event) => {
+    const snapshot = event.data?.after;
+    if (!snapshot?.exists) {
+      return;
+    }
+
+    const paymentEvent = snapshot.data() ?? {};
+    if (timestampFromUnknown(paymentEvent.retention_expires_at)) {
+      return;
+    }
+
+    const baseTimestamp = timestampFromUnknown(paymentEvent.received_at) ??
+      Timestamp.now();
+    await snapshot.ref.set(
+      {
+        retention_expires_at: timestampAfterYears(
+          baseTimestamp,
+          transactionRetentionYears,
+        ),
+      },
+      {merge: true},
+    );
+  },
+);
+
+export const purgeExpiredDeactivatedAccounts = onSchedule(
+  {
+    region: "asia-southeast1",
+    schedule: "every day 02:00",
+    timeZone: "Asia/Manila",
+  },
+  async () => {
+    const now = Timestamp.now();
+    const snapshot = await firestore
+      .collection("users")
+      .where("deactivation_purge_after", "<=", now)
+      .limit(scheduledCleanupLimit)
+      .get();
+
+    await Promise.all(snapshot.docs.map(async (doc) => {
+      const user = doc.data();
+      if (!isDeactivatedAccount(user) || isDeletedAccount(user)) {
+        return;
+      }
+
+      await anonymizeExpiredUserAccount(doc.id, user);
+    }));
+  },
+);
+
+export const purgeExpiredTransactionRecords = onSchedule(
+  {
+    region: "asia-southeast1",
+    schedule: "every day 03:00",
+    timeZone: "Asia/Manila",
+  },
+  async () => {
+    const now = Timestamp.now();
+    await deleteExpiredCollectionRecords({
+      collectionName: "bookings",
+      fallbackDateFields: ["timestamp", "created_at", "updated_at"],
+      now,
+      retentionField: "retention_expires_at",
+    });
+    await deleteExpiredCollectionRecords({
+      collectionName: "payment_events",
+      fallbackDateFields: ["received_at"],
+      now,
+      retentionField: "retention_expires_at",
+    });
   },
 );
 
@@ -786,6 +1235,255 @@ export const notifyReviewReceived = onDocumentCreated(
     });
   },
 );
+
+export const syncRevieweeRatingStats = onDocumentWritten(
+  {
+    region: "asia-southeast1",
+    document: "reviews/{reviewId}",
+  },
+  async (event) => {
+    const change = event.data;
+    if (!change) {
+      return;
+    }
+
+    const affectedReviewees = new Map<string, RevieweeTarget>();
+    addAffectedReviewee(
+      affectedReviewees,
+      change.before.exists ? change.before.data() : undefined,
+    );
+    addAffectedReviewee(
+      affectedReviewees,
+      change.after.exists ? change.after.data() : undefined,
+    );
+
+    let shouldRefreshDriverRanks = false;
+    for (const target of affectedReviewees.values()) {
+      await recomputeRevieweeRatingStats(target);
+      shouldRefreshDriverRanks =
+        shouldRefreshDriverRanks || target.role === "driver";
+    }
+
+    if (shouldRefreshDriverRanks) {
+      await refreshTopDriverRanks();
+    }
+  },
+);
+
+function addAffectedReviewee(
+  targets: Map<string, RevieweeTarget>,
+  review: Record<string, unknown> | undefined,
+) {
+  if (!review) {
+    return;
+  }
+
+  const id = readOptionalString(review.reviewee_id);
+  const role = readOptionalString(review.reviewee_role);
+  if (!id || (role !== "driver" && role !== "passenger")) {
+    return;
+  }
+
+  targets.set(`${role}:${id}`, {id, role});
+}
+
+async function recomputeRevieweeRatingStats(target: RevieweeTarget) {
+  const userRef = firestore.collection("users").doc(target.id);
+  const userSnapshot = await userRef.get();
+  if (!userSnapshot.exists) {
+    return;
+  }
+
+  const reviewsSnapshot = await firestore
+    .collection("reviews")
+    .where("reviewee_id", "==", target.id)
+    .get();
+
+  let ratingTotal = 0;
+  let reviewCount = 0;
+  reviewsSnapshot.docs.forEach((doc) => {
+    const review = doc.data();
+    if (readOptionalString(review.reviewee_role) !== target.role) {
+      return;
+    }
+
+    const rating = readNumber(review.rating);
+    if (rating === undefined || rating < 1 || rating > 5) {
+      return;
+    }
+
+    ratingTotal += Math.round(rating);
+    reviewCount += 1;
+  });
+
+  const averageRating = reviewCount === 0 ? 0 : ratingTotal / reviewCount;
+  const now = FieldValue.serverTimestamp();
+
+  if (target.role === "driver") {
+    const weightedRating = driverWeightedRating({
+      ratingTotal,
+      reviewCount,
+    });
+
+    await userRef.set(
+      {
+        driver_review_rating_total: ratingTotal,
+        driver_review_count: reviewCount,
+        driver_average_rating: averageRating,
+        driver_weighted_rating: weightedRating,
+        driver_rating_badge: driverRatingBadge({
+          reviewCount,
+          averageRating,
+        }),
+        driver_rating_updated_at: now,
+        review_rating_total: ratingTotal,
+        review_count: reviewCount,
+        average_rating: averageRating,
+        updated_at: now,
+      },
+      {merge: true},
+    );
+    return;
+  }
+
+  await userRef.set(
+    {
+      passenger_review_rating_total: ratingTotal,
+      passenger_review_count: reviewCount,
+      passenger_average_rating: averageRating,
+      review_rating_total: ratingTotal,
+      review_count: reviewCount,
+      average_rating: averageRating,
+      updated_at: now,
+    },
+    {merge: true},
+  );
+}
+
+async function refreshTopDriverRanks() {
+  const topSnapshot = await firestore
+    .collection("users")
+    .where("role", "==", "driver")
+    .where("is_verified", "==", true)
+    .where("is_banned", "==", false)
+    .orderBy("driver_weighted_rating", "desc")
+    .orderBy("driver_review_count", "desc")
+    .limit(driverLeaderboardLimit)
+    .get();
+  const previousRankedSnapshot = await firestore
+    .collection("users")
+    .where("role", "==", "driver")
+    .where("driver_rating_rank", "in", driverRankValues())
+    .get();
+
+  const rankedDrivers = topSnapshot.docs
+    .filter((doc) => driverReviewCountFromData(doc.data()) > 0)
+    .slice(0, driverLeaderboardLimit);
+  const rankedDriverIds = new Set(rankedDrivers.map((doc) => doc.id));
+  const batch = firestore.batch();
+  let writeCount = 0;
+
+  rankedDrivers.forEach((doc, index) => {
+    const rank = index + 1;
+    batch.set(
+      doc.ref,
+      {
+        driver_rating_rank: rank,
+        driver_rating_badge: `#${rank}`,
+        driver_rating_updated_at: FieldValue.serverTimestamp(),
+        updated_at: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+    );
+    writeCount += 1;
+  });
+
+  previousRankedSnapshot.docs.forEach((doc) => {
+    if (rankedDriverIds.has(doc.id)) {
+      return;
+    }
+
+    const data = doc.data();
+    batch.set(
+      doc.ref,
+      {
+        driver_rating_rank: FieldValue.delete(),
+        driver_rating_badge: driverRatingBadgeFromData(data),
+        driver_rating_updated_at: FieldValue.serverTimestamp(),
+        updated_at: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+    );
+    writeCount += 1;
+  });
+
+  if (writeCount > 0) {
+    await batch.commit();
+  }
+}
+
+function driverRankValues() {
+  return Array.from(
+    {length: driverLeaderboardLimit},
+    (_, index) => index + 1,
+  );
+}
+
+function driverWeightedRating(params: {
+  ratingTotal: number;
+  reviewCount: number;
+}) {
+  if (params.reviewCount <= 0) {
+    return 0;
+  }
+
+  return (
+    params.ratingTotal +
+    driverRatingPriorAverage * driverRatingMinimumReviews
+  ) / (params.reviewCount + driverRatingMinimumReviews);
+}
+
+function driverRatingBadgeFromData(data: Record<string, unknown>) {
+  return driverRatingBadge({
+    reviewCount: driverReviewCountFromData(data),
+    averageRating: readNumber(data.driver_average_rating) ?? 0,
+  });
+}
+
+function driverReviewCountFromData(data: Record<string, unknown>) {
+  return Math.round(readNumber(data.driver_review_count) ?? 0);
+}
+
+function driverRatingBadge(params: {
+  reviewCount: number;
+  averageRating: number;
+  rank?: number;
+}) {
+  if (
+    params.rank !== undefined &&
+    params.rank >= 1 &&
+    params.rank <= driverLeaderboardLimit
+  ) {
+    return `#${params.rank}`;
+  }
+
+  if (params.reviewCount < 5) {
+    return "New Driver";
+  }
+
+  if (
+    params.reviewCount < driverRatingMinimumReviews &&
+    params.averageRating >= risingDriverAverage
+  ) {
+    return "Rising Driver";
+  }
+
+  if (params.reviewCount >= 50) {
+    return "Highly Reviewed";
+  }
+
+  return "";
+}
 
 async function createAppNotification(params: AppNotificationParams) {
   const notificationId = notificationDocumentId(params);
@@ -1171,6 +1869,17 @@ function isBannedAccount(data: Record<string, unknown>) {
   return isTruthy(data.is_banned) || isTruthy(data.isBanned);
 }
 
+function isDeactivatedAccount(data: Record<string, unknown>) {
+  return isTruthy(data.is_deactivated) ||
+    isTruthy(data.isDeactivated) ||
+    readOptionalString(data.account_status)?.toLowerCase() === "deactivated";
+}
+
+function isDeletedAccount(data: Record<string, unknown>) {
+  return readOptionalString(data.account_status)?.toLowerCase() === "deleted" ||
+    data.account_anonymized_at instanceof Timestamp;
+}
+
 function isTruthy(value: unknown) {
   return value === true || value?.toString().toLowerCase() === "true";
 }
@@ -1477,6 +2186,38 @@ function timestampFromDateString(value: string) {
     Timestamp.fromDate(date);
 }
 
+function timestampFromUnknown(value: unknown) {
+  if (value instanceof Timestamp) {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return Timestamp.fromDate(value);
+  }
+
+  const text = readOptionalString(value);
+  if (!text) {
+    return undefined;
+  }
+
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? undefined : Timestamp.fromDate(date);
+}
+
+function timestampAfterDays(value: Timestamp, days: number) {
+  return Timestamp.fromMillis(value.toMillis() + days * 24 * 60 * 60 * 1000);
+}
+
+function timestampAfterYears(value: Timestamp, years: number) {
+  const date = value.toDate();
+  date.setFullYear(date.getFullYear() + years);
+  return Timestamp.fromDate(date);
+}
+
+function retentionExpiresFromNow() {
+  return timestampAfterYears(Timestamp.now(), transactionRetentionYears);
+}
+
 async function notificationRecipientIds(params: {
   conversation: Record<string, unknown>;
   senderId: string;
@@ -1621,6 +2362,243 @@ async function removeInvalidTokens(params: {
   await Promise.all(deletes);
 }
 
+async function anonymizeExpiredUserAccount(
+  userId: string,
+  user: Record<string, unknown>,
+) {
+  await deleteAuthUser(userId);
+  await deleteUserStorageFiles(userId);
+  await deleteUserSubcollections(userId);
+  await deleteUserNotifications(userId);
+
+  const allowedTombstoneFields = new Set([
+    "user_id",
+    "role",
+    "created_at",
+    "deactivated_at",
+    "account_anonymized_at",
+    "account_status",
+    "is_active",
+    "is_banned",
+    "is_deactivated",
+    "is_verified",
+    "updated_at",
+  ]);
+  const updates: Record<string, unknown> = {};
+  for (const key of Object.keys(user)) {
+    if (!allowedTombstoneFields.has(key)) {
+      updates[key] = FieldValue.delete();
+    }
+  }
+
+  updates.user_id = userId;
+  updates.role = normalizedUserRole(user);
+  updates.is_active = false;
+  updates.is_banned = false;
+  updates.is_deactivated = false;
+  updates.is_verified = false;
+  updates.account_status = "deleted";
+  updates.account_anonymized_at = FieldValue.serverTimestamp();
+  updates.updated_at = FieldValue.serverTimestamp();
+  updates.privacy_deletion_reason = "expired_deactivation_window";
+
+  await firestore.collection("users").doc(userId).set(updates, {merge: true});
+}
+
+async function deleteAuthUser(userId: string) {
+  try {
+    await auth.deleteUser(userId);
+  } catch (error) {
+    const code = (error as {code?: string}).code;
+    if (code !== "auth/user-not-found") {
+      throw error;
+    }
+  }
+}
+
+async function deleteUserStorageFiles(userId: string) {
+  await storage.bucket().deleteFiles({
+    force: true,
+    prefix: `users/${userId}/`,
+  });
+}
+
+async function deleteUserSubcollections(userId: string) {
+  const userRef = firestore.collection("users").doc(userId);
+  await Promise.all([
+    deleteQuerySnapshot(userRef.collection("payment_methods")),
+    deleteQuerySnapshot(userRef.collection("payout_accounts")),
+    deleteQuerySnapshot(userRef.collection("fcm_tokens")),
+  ]);
+}
+
+async function deleteUserNotifications(userId: string) {
+  await deleteQuerySnapshot(
+    firestore.collection("notifications").where("user_id", "==", userId),
+  );
+}
+
+async function deleteExpiredCollectionRecords(params: {
+  collectionName: string;
+  fallbackDateFields: string[];
+  now: Timestamp;
+  retentionField: string;
+}) {
+  await deleteQuerySnapshot(
+    firestore
+      .collection(params.collectionName)
+      .where(params.retentionField, "<=", params.now),
+  );
+
+  const cutoff = timestampAfterYears(params.now, -transactionRetentionYears);
+  for (const field of params.fallbackDateFields) {
+    const snapshot = await firestore
+      .collection(params.collectionName)
+      .where(field, "<=", cutoff)
+      .limit(scheduledCleanupLimit)
+      .get();
+    const batch = firestore.batch();
+    let deleteCount = 0;
+
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      if (timestampFromUnknown(data[params.retentionField])) {
+        return;
+      }
+
+      batch.delete(doc.ref);
+      deleteCount += 1;
+    });
+
+    if (deleteCount > 0) {
+      await batch.commit();
+    }
+  }
+}
+
+async function deleteQuerySnapshot(query: Query<DocumentData>) {
+  while (true) {
+    const snapshot = await query.limit(scheduledCleanupLimit).get();
+    if (snapshot.empty) {
+      return;
+    }
+
+    const batch = firestore.batch();
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+
+    if (snapshot.size < scheduledCleanupLimit) {
+      return;
+    }
+  }
+}
+
+async function writeAdminLog(params: AdminLogParams) {
+  if (!params.adminId) {
+    return;
+  }
+
+  const logRef = params.logDocumentId ?
+    firestore.collection(adminLogsCollection).doc(params.logDocumentId) :
+    firestore.collection(adminLogsCollection).doc();
+  const adminName = params.adminName ?? await adminNameForId(params.adminId);
+
+  await logRef.set(
+    {
+      log_id: logRef.id,
+      action: params.action,
+      admin_id: params.adminId,
+      admin_name: adminName,
+      summary: params.summary,
+      created_at: FieldValue.serverTimestamp(),
+      ...(params.targetId ? {target_id: params.targetId} : {}),
+      ...(params.targetName ? {target_name: params.targetName} : {}),
+      ...(params.targetRole ? {target_role: params.targetRole} : {}),
+      ...(params.metadata ? {metadata: params.metadata} : {}),
+    },
+    {merge: false},
+  );
+}
+
+async function adminNameForId(adminId: string) {
+  const snapshot = await firestore.collection("users").doc(adminId).get();
+  const data = snapshot.data();
+  if (!snapshot.exists || !data) {
+    return "Admin";
+  }
+
+  const name = fullName(data);
+  return name === "SakayNow Passenger" ? "Admin" : name;
+}
+
+function isMainAdmin(user: Record<string, unknown>) {
+  return normalizedUserRole(user) === "admin" &&
+    (readOptionalString(user.first_name)?.toLowerCase() ?? "") === "admin";
+}
+
+function validateAdminAccountInput(params: {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  age: number;
+  gender: string;
+}) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(params.email)) {
+    throw new HttpsError("invalid-argument", "Enter a valid email address.");
+  }
+
+  if (params.password.length < 8 || /\s/.test(params.password)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Password must be at least 8 characters with no spaces.",
+    );
+  }
+
+  if (!/[A-Za-z]/.test(params.password) || !/\d/.test(params.password)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Password must include letters and at least one number.",
+    );
+  }
+
+  validateAccountName(params.firstName, "First name", {reserved: true});
+  validateAccountName(params.lastName, "Last name");
+
+  if (!Number.isInteger(params.age) || params.age < 18 || params.age > 100) {
+    throw new HttpsError("invalid-argument", "Admin age must be 18 to 100.");
+  }
+
+  if (!["male", "female", "other"].includes(params.gender)) {
+    throw new HttpsError("invalid-argument", "Select a valid gender.");
+  }
+}
+
+function validateAccountName(
+  value: string,
+  fieldName: string,
+  options: {reserved?: boolean} = {},
+) {
+  const name = value.trim();
+  if (name.length < 2) {
+    throw new HttpsError(
+      "invalid-argument",
+      `${fieldName} must be at least 2 characters.`,
+    );
+  }
+
+  if (/\d/.test(name)) {
+    throw new HttpsError(
+      "invalid-argument",
+      `${fieldName} cannot contain numbers.`,
+    );
+  }
+
+  if (options.reserved && name.toLowerCase() === "admin") {
+    throw new HttpsError("invalid-argument", "The name admin is reserved.");
+  }
+}
+
 function checkoutDataFromEvent(event: unknown): {
   sessionId?: string;
   paymentId?: string;
@@ -1744,20 +2722,95 @@ function readOptionalBool(value: unknown, fallback: boolean) {
   return fallback;
 }
 
+async function loadFareValidationSettings(): Promise<FareValidationSettings> {
+  const snapshot = await firestore
+    .collection(fareSettingsCollection)
+    .doc(currentFareSettingsDocument)
+    .get();
+  const data = snapshot.data();
+  if (!snapshot.exists || !data) {
+    return defaultFareValidationSettings;
+  }
+
+  const oneBarangayFare = readPositiveNumber(
+    data.one_barangay_fare,
+    regularMinimumRideFare,
+  );
+  const fiveBarangayFare = Math.max(
+    oneBarangayFare,
+    readPositiveNumber(
+      data.buenavista_five_barangay_fare,
+      regularMinimumRideFare,
+    ),
+  );
+  const outsideMinimumFare = readPositiveNumber(
+    data.outside_buenavista_min_fare,
+    regularMinimumRideFare,
+  );
+  const outsideNineKmFare = Math.max(
+    outsideMinimumFare,
+    readPositiveNumber(data.outside_buenavista_9km_fare, 40),
+  );
+  const outsideTwelveKmFare = Math.max(
+    outsideNineKmFare,
+    readPositiveNumber(data.outside_buenavista_12km_fare, 60),
+  );
+  const outsideSixteenKmFare = Math.max(
+    outsideTwelveKmFare,
+    readPositiveNumber(data.outside_buenavista_16km_fare, 80),
+  );
+  const outsideMaximumFare = Math.max(
+    outsideSixteenKmFare,
+    readPositiveNumber(data.outside_buenavista_max_fare, maximumRideFare),
+  );
+  const discountRate = Math.min(
+    1,
+    Math.max(
+      0,
+      readNumber(data.student_discount_rate) ?? studentDiscountRate,
+    ),
+  );
+  const minimumRegularFare = Math.min(
+    oneBarangayFare,
+    fiveBarangayFare,
+    outsideMinimumFare,
+  );
+
+  return {
+    regularMinimumRideFare: minimumRegularFare,
+    minimumStudentDiscountedFare: Math.max(
+      1,
+      Math.round(minimumRegularFare * (1 - discountRate)),
+    ),
+    maximumRideFare: outsideMaximumFare,
+    studentDiscountRate: discountRate,
+  };
+}
+
+function readPositiveNumber(value: unknown, fallback: number) {
+  const parsed = readNumber(value);
+  if (parsed === undefined || parsed <= 0) {
+    return fallback;
+  }
+
+  return Math.round(parsed);
+}
+
 function isAllowedFareAmount(params: {
   amount: number;
   booking: Record<string, unknown>;
   passengerData: Record<string, unknown>;
+  fareSettings: FareValidationSettings;
 }) {
-  if (params.amount > maximumRideFare) {
+  if (params.amount > params.fareSettings.maximumRideFare) {
     return false;
   }
 
-  if (params.amount >= regularMinimumRideFare) {
+  if (params.amount >= params.fareSettings.regularMinimumRideFare) {
     return true;
   }
 
-  if (params.amount < minimumStudentDiscountedFare) {
+  if (params.amount < params.fareSettings.minimumStudentDiscountedFare) {
     return false;
   }
 
@@ -1768,6 +2821,7 @@ function hasVerifiedStudentDiscount(params: {
   amount: number;
   booking: Record<string, unknown>;
   passengerData: Record<string, unknown>;
+  fareSettings: FareValidationSettings;
 }) {
   const passengerType =
     readOptionalString(params.passengerData.passenger_type)?.toLowerCase() ??
@@ -1798,15 +2852,17 @@ function hasVerifiedStudentDiscount(params: {
     !discountApplied ||
     discountCode !== studentDiscountCode ||
     discountRate === undefined ||
-    Math.abs(discountRate - studentDiscountRate) > 0.001 ||
+    Math.abs(discountRate - params.fareSettings.studentDiscountRate) > 0.001 ||
     baseFare === undefined ||
-    baseFare < regularMinimumRideFare ||
-    baseFare > maximumRideFare
+    baseFare < params.fareSettings.regularMinimumRideFare ||
+    baseFare > params.fareSettings.maximumRideFare
   ) {
     return false;
   }
 
-  return Math.round(baseFare * (1 - studentDiscountRate)) === params.amount;
+  return Math.round(
+    baseFare * (1 - params.fareSettings.studentDiscountRate),
+  ) === params.amount;
 }
 
 function readMap(value: unknown): Record<string, unknown> {

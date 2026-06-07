@@ -27,6 +27,60 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "role",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "is_verified",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "is_banned",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "driver_weighted_rating",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "driver_review_count",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "role",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "driver_rating_rank",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "is_deactivated",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "deactivated_at",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

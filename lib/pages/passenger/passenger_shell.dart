@@ -170,6 +170,7 @@ class _PassengerShellState extends State<PassengerShell> {
         showVerifiedBadge: widget.isVerified,
         notificationUnreadCount: _notificationUnreadCount,
         onNotificationsTap: _openNotifications,
+        onBrandTap: () => _selectTab(0),
         onProfileSelected: _handleProfileSelected,
       ),
       body: AnimatedTabSwitcher(

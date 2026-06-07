@@ -51,6 +51,7 @@ class DevelopersPage extends StatelessWidget {
         title: Text('Developers', style: PassengerUi.cardTitle),
       ),
       body: PassengerPageContainer(
+        maxContentWidth: PassengerUi.settingsContentWidth,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[

@@ -7,6 +7,7 @@ import '../passenger/passenger_payment_methods_page.dart';
 import '../profile/profile_details.dart';
 import 'app_preferences_page.dart';
 import 'change_password_page.dart';
+import 'deactivate_account_page.dart';
 import 'developers.dart';
 import 'help_and_support.dart';
 import 'notification_settings_page.dart';
@@ -21,6 +22,7 @@ class SettingsPage extends StatelessWidget {
   final String role;
   final bool isVerified;
   final String passengerType;
+  final bool embeddedInAdmin;
 
   const SettingsPage({
     super.key,
@@ -28,6 +30,7 @@ class SettingsPage extends StatelessWidget {
     required this.role,
     this.isVerified = false,
     this.passengerType = 'regular',
+    this.embeddedInAdmin = false,
   });
 
   void _openPlaceholder(
@@ -103,6 +106,15 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
         ),
+      SettingsTileData(
+        title: 'Deactivate Account',
+        subtitle: 'Disable your account after password confirmation.',
+        icon: Icons.no_accounts_outlined,
+        accentColor: Colors.red.shade600,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const DeactivateAccountPage()),
+        ),
+      ),
     ];
 
     final appItems = <SettingsTileData>[
@@ -162,9 +174,18 @@ class SettingsPage extends StatelessWidget {
         subtitle: 'Get assistance for account, ride, or app-related concerns.',
         icon: Icons.help_outline_rounded,
         accentColor: PassengerUi.secondary,
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const HelpAndSupportPage())),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => HelpAndSupportPage(
+              userId: currentUserId,
+              userName:
+                  FirebaseAuth.instance.currentUser?.displayName ??
+                  FirebaseAuth.instance.currentUser?.email ??
+                  'SakayNow User',
+              userRole: normalizedRole,
+            ),
+          ),
+        ),
       ),
       SettingsTileData(
         title: 'Terms and Conditions',
@@ -195,6 +216,37 @@ class SettingsPage extends StatelessWidget {
       ),
     ];
 
+    final content = PassengerPageContainer(
+      maxContentWidth: embeddedInAdmin ? 760 : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          PassengerPageHeader(
+            title: 'Settings',
+            subtitle:
+                'Personalize your account, alerts, security, and app display.',
+            icon: Icons.tune_rounded,
+            accentColor: PassengerUi.primary,
+          ),
+          SizedBox(height: 16),
+          SettingsSectionCard(title: 'Account Settings', items: accountItems),
+          SizedBox(height: 14),
+          SettingsSectionCard(title: 'App Settings', items: appItems),
+          SizedBox(height: 14),
+          SettingsSectionCard(
+            title: 'Privacy and Security',
+            items: privacyItems,
+          ),
+          SizedBox(height: 14),
+          SettingsSectionCard(items: miscItems),
+        ],
+      ),
+    );
+
+    if (embeddedInAdmin) {
+      return content;
+    }
+
     return Scaffold(
       backgroundColor: PassengerUi.background,
       appBar: AppBar(
@@ -207,31 +259,7 @@ class SettingsPage extends StatelessWidget {
         ),
         title: Text('Settings', style: PassengerUi.cardTitle),
       ),
-      body: PassengerPageContainer(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            PassengerPageHeader(
-              title: 'Settings',
-              subtitle:
-                  'Personalize your account, alerts, security, and app display.',
-              icon: Icons.tune_rounded,
-              accentColor: PassengerUi.primary,
-            ),
-            SizedBox(height: 16),
-            SettingsSectionCard(title: 'Account Settings', items: accountItems),
-            SizedBox(height: 14),
-            SettingsSectionCard(title: 'App Settings', items: appItems),
-            SizedBox(height: 14),
-            SettingsSectionCard(
-              title: 'Privacy and Security',
-              items: privacyItems,
-            ),
-            SizedBox(height: 14),
-            SettingsSectionCard(items: miscItems),
-          ],
-        ),
-      ),
+      body: content,
     );
   }
 }

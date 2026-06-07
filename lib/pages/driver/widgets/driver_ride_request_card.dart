@@ -5,9 +5,11 @@ import '../../../models/ride_status.dart';
 import '../../../services/ride_tracking_service.dart';
 import '../../../widgets/firebase_storage_image.dart';
 import '../../../widgets/passenger_widgets/passenger_ui.dart';
+import '../../profile/passenger_profile.dart';
 
 class DriverRideRequestCard extends StatelessWidget {
   final Ride ride;
+  final String driverId;
   final bool isAccepting;
   final bool isDeclining;
   final VoidCallback onAccept;
@@ -17,6 +19,7 @@ class DriverRideRequestCard extends StatelessWidget {
   DriverRideRequestCard({
     super.key,
     required this.ride,
+    required this.driverId,
     required this.isAccepting,
     required this.isDeclining,
     required this.onAccept,
@@ -40,9 +43,26 @@ class DriverRideRequestCard extends StatelessWidget {
             children: <Widget>[
               Row(
                 children: <Widget>[
-                  _PassengerAvatar(profile: passenger),
-                  const SizedBox(width: 10),
-                  Expanded(child: _PassengerSummary(profile: passenger)),
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: ride.passengerId.trim().isEmpty
+                          ? null
+                          : () => _openPassengerProfile(context),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          children: <Widget>[
+                            _PassengerAvatar(profile: passenger),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _PassengerSummary(profile: passenger),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   PassengerStatusChip(
                     label: ride.status.label,
@@ -144,6 +164,18 @@ class DriverRideRequestCard extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  void _openPassengerProfile(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PassengerProfilePage(
+          passengerId: ride.passengerId,
+          driverId: driverId,
+          bookingId: ride.bookingId,
+        ),
+      ),
     );
   }
 }

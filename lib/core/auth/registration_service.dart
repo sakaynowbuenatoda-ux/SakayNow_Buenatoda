@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import 'signup_validators.dart';
+
 class RegistrationService {
   RegistrationService._();
 
@@ -22,6 +24,10 @@ class RegistrationService {
     required File idFile,
     required File selfieFile,
   }) async {
+    if (SignupValidators.isReservedAdminName(firstName)) {
+      throw ArgumentError('The name admin is reserved.');
+    }
+
     final parsedAge = int.tryParse(age.trim());
     final profileData = <String, dynamic>{
       'first_name': firstName.trim(),
@@ -31,6 +37,8 @@ class RegistrationService {
       'is_verified': false,
       'is_active': false,
       'is_banned': false,
+      'is_deactivated': false,
+      'account_status': 'active',
     };
 
     if (parsedAge != null) {
@@ -71,6 +79,10 @@ class RegistrationService {
     required File licenseFile,
     required File selfieFile,
   }) async {
+    if (SignupValidators.isReservedAdminName(firstName)) {
+      throw ArgumentError('The name admin is reserved.');
+    }
+
     final parsedAge = int.tryParse(age.trim());
     final profileData = <String, dynamic>{
       'first_name': firstName.trim(),
@@ -79,6 +91,8 @@ class RegistrationService {
       'is_verified': false,
       'is_active': false,
       'is_banned': false,
+      'is_deactivated': false,
+      'account_status': 'active',
     };
 
     if (parsedAge != null) {

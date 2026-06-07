@@ -10,6 +10,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   final String firstName;
   final String? profileImageUrl;
   final VoidCallback onNotificationsTap;
+  final VoidCallback? onBrandTap;
   final int notificationUnreadCount;
   final ValueChanged<String>? onProfileSelected;
 
@@ -23,6 +24,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     required this.firstName,
     this.profileImageUrl,
     required this.onNotificationsTap,
+    this.onBrandTap,
     this.notificationUnreadCount = 0,
     this.onProfileSelected,
     this.isDriver = false,
@@ -101,7 +103,11 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ),
-      title: _AppLogo(compact: compact, showBrandText: !isDriver),
+      title: _AppLogo(
+        compact: compact,
+        showBrandText: !isDriver,
+        onTap: onBrandTap,
+      ),
       actions: [
         if (isDriver)
           Padding(
@@ -141,40 +147,52 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
 class _AppLogo extends StatelessWidget {
   final bool compact;
   final bool showBrandText;
+  final VoidCallback? onTap;
 
-  const _AppLogo({required this.compact, required this.showBrandText});
+  const _AppLogo({
+    required this.compact,
+    required this.showBrandText,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 6 : 10,
-        vertical: compact ? 6 : 8,
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(compact ? 8 : 10),
-            child: Image.asset(
-              AppAssets.logo,
-              width: compact ? 32 : 36,
-              height: compact ? 32 : 36,
-              fit: BoxFit.cover,
-            ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(compact ? 12 : 14),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 6 : 10,
+            vertical: compact ? 6 : 8,
           ),
-          if (showBrandText) ...[
-            SizedBox(width: compact ? 6 : 8),
-            Text(
-              'SakayNow',
-              style: GoogleFonts.poppins(
-                color: PassengerUi.primary,
-                fontSize: compact ? 16 : 18,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0,
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(compact ? 8 : 10),
+                child: Image.asset(
+                  AppAssets.logo,
+                  width: compact ? 32 : 36,
+                  height: compact ? 32 : 36,
+                  fit: BoxFit.cover,
+                ),
               ),
-            ),
-          ],
-        ],
+              if (showBrandText) ...[
+                SizedBox(width: compact ? 6 : 8),
+                Text(
+                  'SakayNow',
+                  style: GoogleFonts.poppins(
+                    color: PassengerUi.primary,
+                    fontSize: compact ? 16 : 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

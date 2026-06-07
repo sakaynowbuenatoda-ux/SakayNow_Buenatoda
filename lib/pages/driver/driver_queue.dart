@@ -78,6 +78,7 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
                         ),
                         child: DriverRideRequestCard(
                           ride: entry.value,
+                          driverId: widget.driverId,
                           isAccepting:
                               _acceptingBookingId == entry.value.bookingId,
                           isDeclining:

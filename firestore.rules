@@ -37,11 +37,36 @@ service cloud.firestore {
         && userData.isBanned != true;
     }
 
+    function isNotDeactivated(userData) {
+      return userData.is_deactivated != true
+        && userData.isDeactivated != true
+        && userData.account_status != 'deactivated'
+        && userData.account_status != 'deleted';
+    }
+
+    function isUsableAccount(userData) {
+      return isNotBanned(userData)
+        && isNotDeactivated(userData);
+    }
+
     function isVerifiedDriver() {
       return signedIn()
         && signedInUser().role == 'driver'
         && isVerifiedUser(signedInUser())
-        && isNotBanned(signedInUser());
+        && isUsableAccount(signedInUser());
+    }
+
+    function isPublicVerifiedDriverProfile(userData) {
+      return userData.role == 'driver'
+        && userData.is_verified == true
+        && userData.is_banned == false
+        && isNotDeactivated(userData);
+    }
+
+    function isLeaderboardDriverProfile(userData) {
+      return userData.role == 'driver'
+        && userData.is_verified == true
+        && userData.is_banned == false;
     }
 
     function isConversationParticipant(conversationData) {
@@ -63,36 +88,300 @@ service cloud.firestore {
         || (isAdmin() && isSupportConversation(conversationData));
     }
 
-    function isRatingAggregateUpdate() {
-      return signedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+    function ratingAggregateKeys() {
+      return [
           'average_rating',
           'review_count',
           'review_rating_total',
           'driver_average_rating',
           'driver_review_count',
           'driver_review_rating_total',
+          'driver_weighted_rating',
+          'driver_rating_rank',
+          'driver_rating_badge',
+          'driver_rating_updated_at',
           'passenger_average_rating',
           'passenger_review_count',
-          'updated_at'
-        ]);
+          'passenger_review_rating_total'
+        ];
+    }
+
+    function hasNoRatingAggregateChanges() {
+      return !request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasAny(ratingAggregateKeys());
+    }
+
+    function profilePictureKeys() {
+      return [
+        'profile_picture_url',
+        'profile_picture_path',
+        'profile_picture_updated_at',
+        'profile_image_url',
+        'profile_image_updated_at'
+      ];
+    }
+
+    function profilePictureAllowedUpdateKeys() {
+      return [
+        'profile_picture_url',
+        'profile_picture_path',
+        'profile_picture_updated_at',
+        'updated_at'
+      ];
+    }
+
+    function hasProfilePictureChanges() {
+      return request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasAny(profilePictureKeys());
+    }
+
+    function profilePictureCooldownPassed() {
+      return (
+          !resource.data.keys().hasAny(['profile_picture_updated_at'])
+          || !(resource.data.profile_picture_updated_at is timestamp)
+          || request.time >= resource.data.profile_picture_updated_at + duration.value(7, 'd')
+        )
+        && (
+          !resource.data.keys().hasAny(['profile_image_updated_at'])
+          || !(resource.data.profile_image_updated_at is timestamp)
+          || request.time >= resource.data.profile_image_updated_at + duration.value(7, 'd')
+        );
+    }
+
+    function isValidProfilePictureUpdate(userId) {
+      return isSelf(userId)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly(profilePictureAllowedUpdateKeys())
+        && request.resource.data.profile_picture_url is string
+        && request.resource.data.profile_picture_url.size() > 0
+        && request.resource.data.profile_picture_url.size() <= 2048
+        && request.resource.data.profile_picture_path is string
+        && request.resource.data.profile_picture_path.matches(
+          'users/' + userId + '/profile_pictures/[^/]+'
+        )
+        && request.resource.data.profile_picture_updated_at is timestamp
+        && request.resource.data.profile_picture_updated_at <= request.time
+        && request.resource.data.updated_at is timestamp
+        && request.resource.data.updated_at <= request.time
+        && profilePictureCooldownPassed();
+    }
+
+    function isValidSelfProfileDetailsUpdate(userId) {
+      return isSelf(userId)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly(['age', 'gender', 'updated_at'])
+        && request.resource.data.age is int
+        && request.resource.data.age >= 13
+        && request.resource.data.age <= 100
+        && request.resource.data.gender in ['male', 'female', 'other']
+        && request.resource.data.updated_at is timestamp
+        && request.resource.data.updated_at <= request.time
+        && hasNoRatingAggregateChanges();
+    }
+
+    function reviewAllowedKeys() {
+      return [
+        'review_id',
+        'booking_id',
+        'reviewer_id',
+        'reviewer_role',
+        'reviewer_name',
+        'reviewee_id',
+        'reviewee_role',
+        'rating',
+        'comment',
+        'created_at',
+        'updated_at'
+      ];
+    }
+
+    function hasBasicReviewShape(reviewId, reviewData) {
+      return reviewData.keys().hasOnly(reviewAllowedKeys())
+        && reviewData.review_id == reviewId
+        && reviewData.booking_id is string
+        && reviewData.reviewer_id is string
+        && reviewData.reviewee_id is string
+        && reviewData.reviewer_role in ['driver', 'passenger']
+        && reviewData.reviewee_role in ['driver', 'passenger']
+        && reviewData.rating is int
+        && reviewData.rating >= 1
+        && reviewData.rating <= 5;
+    }
+
+    function reviewBookingPath(reviewData) {
+      return /databases/$(database)/documents/bookings/$(reviewData.booking_id);
+    }
+
+    function reviewBookingExists(reviewData) {
+      return exists(reviewBookingPath(reviewData));
+    }
+
+    function reviewBooking(reviewData) {
+      return get(reviewBookingPath(reviewData)).data;
+    }
+
+    function hasValidReviewDocumentId(reviewId, reviewData) {
+      return (
+          reviewData.reviewer_role == 'passenger'
+          && reviewData.reviewee_role == 'driver'
+          && reviewId == reviewData.booking_id
+            + '_passenger_'
+            + reviewData.reviewer_id
+            + '_driver_'
+            + reviewData.reviewee_id
+        )
+        || (
+          reviewData.reviewer_role == 'driver'
+          && reviewData.reviewee_role == 'passenger'
+          && reviewId == reviewData.booking_id
+            + '_driver_'
+            + reviewData.reviewer_id
+            + '_passenger_'
+            + reviewData.reviewee_id
+        );
+    }
+
+    function isPassengerDriverReview(reviewData) {
+      return reviewData.reviewer_role == 'passenger'
+        && reviewData.reviewee_role == 'driver'
+        && reviewData.reviewer_id == request.auth.uid
+        && reviewBookingExists(reviewData)
+        && reviewBooking(reviewData).passenger_id == request.auth.uid
+        && reviewBooking(reviewData).driver_id == reviewData.reviewee_id
+        && reviewBooking(reviewData).status == 'completed'
+        && !reviewBooking(reviewData).keys().hasAny(['passenger_driver_review']);
+    }
+
+    function isDriverPassengerReview(reviewData) {
+      return reviewData.reviewer_role == 'driver'
+        && reviewData.reviewee_role == 'passenger'
+        && reviewData.reviewer_id == request.auth.uid
+        && reviewBookingExists(reviewData)
+        && reviewBooking(reviewData).driver_id == request.auth.uid
+        && reviewBooking(reviewData).passenger_id == reviewData.reviewee_id
+        && reviewBooking(reviewData).status == 'completed'
+        && !reviewBooking(reviewData).keys().hasAny(['driver_passenger_review']);
+    }
+
+    function isValidRideReview(reviewId) {
+      return signedIn()
+        && hasBasicReviewShape(reviewId, request.resource.data)
+        && hasValidReviewDocumentId(reviewId, request.resource.data)
+        && (
+          isPassengerDriverReview(request.resource.data)
+          || isDriverPassengerReview(request.resource.data)
+        );
     }
 
     function isValidSignup(userId) {
       return isSelf(userId)
+        && request.resource.data.keys().hasOnly([
+          'user_id',
+          'first_name',
+          'last_name',
+          'email',
+          'role',
+          'passenger_type',
+          'age',
+          'gender',
+          'is_verified',
+          'is_active',
+          'is_banned',
+          'is_deactivated',
+          'account_status',
+          'created_at'
+        ])
         && request.resource.data.user_id == userId
         && request.resource.data.email is string
         && request.resource.data.first_name is string
+        && !request.resource.data.first_name.matches('^\\s*[Aa][Dd][Mm][Ii][Nn]\\s*$')
         && request.resource.data.last_name is string
         && request.resource.data.role in ['passenger', 'driver']
         && request.resource.data.is_verified == false
         && request.resource.data.is_active == false
         && request.resource.data.is_banned == false
-        && request.resource.data.created_at == request.time
+        && request.resource.data.is_deactivated == false
+        && request.resource.data.account_status == 'active'
+        && request.resource.data.created_at is timestamp
+        && request.resource.data.created_at <= request.time
         && (
           request.resource.data.role != 'passenger'
           || request.resource.data.passenger_type in ['regular', 'student']
+        )
+        && (
+          !request.resource.data.keys().hasAny(['age'])
+          || request.resource.data.age is int
+        )
+        && (
+          !request.resource.data.keys().hasAny(['gender'])
+          || request.resource.data.gender in ['male', 'female', 'other']
         );
+    }
+
+    function isValidSelfDeactivation(userId) {
+      return isSelf(userId)
+        && request.resource.data.user_id == resource.data.user_id
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.is_verified == resource.data.is_verified
+        && request.resource.data.is_banned == resource.data.is_banned
+        && request.resource.data.is_active == false
+        && request.resource.data.is_deactivated == true
+        && request.resource.data.account_status == 'deactivated'
+        && request.resource.data.deactivated_at == request.time
+        && request.resource.data.updated_at == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'is_active',
+          'is_deactivated',
+          'account_status',
+          'deactivated_at',
+          'updated_at'
+        ])
+        && hasNoRatingAggregateChanges();
+    }
+
+    function fareSettingsAllowedKeys() {
+      return [
+        'currency',
+        'one_barangay_fare',
+        'buenavista_five_barangay_fare',
+        'outside_buenavista_min_fare',
+        'outside_buenavista_9km_fare',
+        'outside_buenavista_12km_fare',
+        'outside_buenavista_16km_fare',
+        'outside_buenavista_max_fare',
+        'student_discount_rate',
+        'updated_by',
+        'updated_at'
+      ];
+    }
+
+    function isValidFareSettings(settingsData) {
+      return settingsData.keys().hasOnly(fareSettingsAllowedKeys())
+        && settingsData.currency == 'PHP'
+        && settingsData.one_barangay_fare is int
+        && settingsData.one_barangay_fare > 0
+        && settingsData.buenavista_five_barangay_fare is int
+        && settingsData.buenavista_five_barangay_fare >= settingsData.one_barangay_fare
+        && settingsData.outside_buenavista_min_fare is int
+        && settingsData.outside_buenavista_min_fare > 0
+        && settingsData.outside_buenavista_9km_fare is int
+        && settingsData.outside_buenavista_9km_fare >= settingsData.outside_buenavista_min_fare
+        && settingsData.outside_buenavista_12km_fare is int
+        && settingsData.outside_buenavista_12km_fare >= settingsData.outside_buenavista_9km_fare
+        && settingsData.outside_buenavista_16km_fare is int
+        && settingsData.outside_buenavista_16km_fare >= settingsData.outside_buenavista_12km_fare
+        && settingsData.outside_buenavista_max_fare is int
+        && settingsData.outside_buenavista_max_fare >= settingsData.outside_buenavista_16km_fare
+        && settingsData.student_discount_rate is number
+        && settingsData.student_discount_rate >= 0
+        && settingsData.student_discount_rate <= 1
+        && settingsData.updated_by == request.auth.uid
+        && settingsData.updated_at == request.time;
     }
 
     match /users/{userId} {
@@ -101,23 +390,40 @@ service cloud.firestore {
         || isAdmin()
         || (
           signedIn()
+          && isPublicVerifiedDriverProfile(resource.data)
+        )
+        || (
+          signedIn()
+          && isLeaderboardDriverProfile(resource.data)
+        )
+        || (
+          signedIn()
           && resource.data.role == 'driver'
           && isVerifiedUser(resource.data)
           && isNotBanned(resource.data)
         )
         || (
-          signedIn()
-          && resource.data.role == 'passenger'
-          && isVerifiedDriver()
+            signedIn()
+            && resource.data.role == 'passenger'
+            && isVerifiedDriver()
         );
+      allow update: if isValidSelfDeactivation(userId);
+      allow update: if isValidProfilePictureUpdate(userId);
+      allow update: if isValidSelfProfileDetailsUpdate(userId);
       allow update: if isSelf(userId)
         && request.resource.data.user_id == resource.data.user_id
         && request.resource.data.email == resource.data.email
         && request.resource.data.role == resource.data.role
         && request.resource.data.is_verified == resource.data.is_verified
         && request.resource.data.is_active == resource.data.is_active
-        && request.resource.data.is_banned == resource.data.is_banned;
-      allow update: if isRatingAggregateUpdate();
+        && request.resource.data.is_banned == resource.data.is_banned
+        && request.resource.data.is_deactivated == resource.data.is_deactivated
+        && request.resource.data.account_status == resource.data.account_status
+        && hasNoRatingAggregateChanges()
+        && (
+          !hasProfilePictureChanges()
+          || isValidProfilePictureUpdate(userId)
+        );
       allow update, delete: if isAdmin();
 
       match /payment_methods/{methodId} {
@@ -186,6 +492,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /fare_settings/{settingId} {
+      allow read: if settingId == 'current';
+      allow create, update: if settingId == 'current'
+        && isAdmin()
+        && isValidFareSettings(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
     match /rides/{rideId} {
       allow read, write: if signedIn();
     }
@@ -203,13 +517,10 @@ service cloud.firestore {
 
     match /reviews/{reviewId} {
       allow read: if signedIn();
-      allow create, update: if signedIn()
-        && request.resource.data.reviewer_id == request.auth.uid
-        && request.resource.data.rating is int
-        && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 5
-        && request.resource.data.reviewer_role in ['driver', 'passenger']
-        && request.resource.data.reviewee_role in ['driver', 'passenger'];
+      allow create: if isValidRideReview(reviewId)
+        && request.resource.data.created_at == request.time
+        && request.resource.data.updated_at == request.time;
+      allow update: if false;
       allow delete: if isAdmin();
     }
 
@@ -270,6 +581,11 @@ service cloud.firestore {
     }
 
     match /payment_events/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /admin_logs/{logId} {
       allow read: if isAdmin();
       allow write: if false;
     }

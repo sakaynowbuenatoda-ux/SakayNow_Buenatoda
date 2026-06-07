@@ -16,7 +16,7 @@ class SessionService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static Stream<User?> authStateChanges() => _auth.userChanges();
+  static Stream<User?> authStateChanges() => _auth.authStateChanges();
 
   static Future<void> signIn({
     required String email,
@@ -126,7 +126,11 @@ class SessionService {
   static Widget buildHomeForUser(AppUser user) {
     switch (user.userRole) {
       case UserRole.admin:
-        return AdminHomePage(userId: user.userId, firstName: user.firstName);
+        return AdminHomePage(
+          userId: user.userId,
+          firstName: user.firstName,
+          profileImageUrl: user.profileImageUrl,
+        );
       case UserRole.driver:
         return DriverShell(
           userId: user.userId,

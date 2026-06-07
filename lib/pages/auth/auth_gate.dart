@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 
 import '../../core/session/app_user.dart';
 import '../../core/session/session_service.dart';
+import '../../services/chat_service.dart';
+import '../messages/chat_page.dart';
 import 'account_status_page.dart';
 import 'auth_ui.dart';
 import 'loading_screen.dart';
-import 'login_page.dart';
+import 'welcome_page.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -22,7 +24,7 @@ class AuthGate extends StatelessWidget {
 
         final firebaseUser = authSnapshot.data;
         if (firebaseUser == null) {
-          return LoginPage();
+          return const WelcomePage();
         }
 
         return StreamBuilder<AppUser>(
@@ -51,6 +53,33 @@ class AuthGate extends StatelessWidget {
                     'This account is currently restricted. Please contact the SakayNow admin team if you believe this is a mistake.',
                 primaryLabel: 'Back to login',
                 onPrimaryPressed: (context) => SessionService.signOut(),
+                secondaryLabel: 'Contact Admin',
+                onSecondaryPressed: (context) =>
+                    _openAdminSupportChat(context, appUser),
+              );
+            }
+
+            if (appUser.isDeleted) {
+              return AccountStatusPage(
+                icon: Icons.no_accounts_rounded,
+                title: 'Account permanently deleted',
+                description:
+                    'This account has passed the 60-day restoration window and its personal profile data has been permanently removed. Booking and transaction records may be retained for up to 5 years for safety, payment, audit, legal, and dispute purposes.',
+                primaryLabel: 'Back to login',
+                onPrimaryPressed: (context) => SessionService.signOut(),
+              );
+            }
+
+            if (appUser.isDeactivated) {
+              return AccountStatusPage(
+                icon: Icons.no_accounts_rounded,
+                title: 'Account deactivated',
+                description: _deactivatedAccountDescription(appUser),
+                primaryLabel: 'Back to login',
+                onPrimaryPressed: (context) => SessionService.signOut(),
+                secondaryLabel: 'Contact Admin',
+                onSecondaryPressed: (context) =>
+                    _openAdminSupportChat(context, appUser),
               );
             }
 
@@ -60,6 +89,84 @@ class AuthGate extends StatelessWidget {
       },
     );
   }
+}
+
+Future<void> _openAdminSupportChat(BuildContext context, AppUser user) async {
+  final chatService = ChatService();
+  final userName = _displayNameFor(user);
+
+  try {
+    final conversationId = await chatService.ensureSupportConversation(
+      userId: user.userId,
+      userName: userName,
+      userRole: user.role,
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatPage(
+          conversationId: conversationId,
+          currentUserId: user.userId,
+          currentUserRole: user.role,
+          title: 'SakayNow Support',
+          subtitle: 'Admin',
+        ),
+      ),
+    );
+  } catch (error) {
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Unable to contact admin: $error')));
+  }
+}
+
+String _displayNameFor(AppUser user) {
+  final fullName = '${user.firstName} ${user.lastName}'.trim();
+  if (fullName.isNotEmpty) {
+    return fullName;
+  }
+
+  if (user.email.trim().isNotEmpty) {
+    return user.email.trim();
+  }
+
+  return 'SakayNow User';
+}
+
+String _deactivatedAccountDescription(AppUser user) {
+  final restoreDeadline = user.deactivationRestoreDeadline;
+  final deadlineText = restoreDeadline == null
+      ? 'within 60 days from deactivation'
+      : 'until ${_formatDate(restoreDeadline)}';
+
+  return 'This account is deactivated and can only be restored by an admin $deadlineText. After the 60-day restoration window, personal account identity is permanently removed. Booking and transaction records may be retained for up to 5 years for safety, payment, audit, legal, and dispute purposes.';
+}
+
+String _formatDate(DateTime value) {
+  const months = <String>[
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  return '${months[value.month - 1]} ${value.day}, ${value.year}';
 }
 
 class _AuthErrorState extends StatelessWidget {

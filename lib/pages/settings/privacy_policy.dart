@@ -79,8 +79,12 @@ class PrivacyPolicyPage extends StatelessWidget {
     _PrivacySection(
       number: '6',
       title: 'Data Retention',
-      body:
-          'Your data is retained only as long as necessary for service purposes or legal compliance.',
+      bullets: <String>[
+        'Deactivated accounts can be restored by an admin within 60 days from deactivation.',
+        'After the 60-day restoration window, personal account identity is permanently anonymized or deleted from active account records.',
+        'Booking and transaction records may be retained for up to 5 years for safety, payment, audit, legal, and dispute purposes.',
+        'Personal data is not retained indefinitely and is disposed of securely when it is no longer needed for declared, legitimate purposes.',
+      ],
     ),
     _PrivacySection(
       number: '7',
@@ -131,6 +135,7 @@ class PrivacyPolicyPage extends StatelessWidget {
         title: Text('Privacy Policy', style: PassengerUi.cardTitle),
       ),
       body: PassengerPageContainer(
+        maxContentWidth: PassengerUi.settingsContentWidth,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[

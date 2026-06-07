@@ -6,12 +6,15 @@ import '../../controllers/ride_tracking_controller.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../pages/messages/ride_chat_navigation.dart';
+import '../../pages/profile/passenger_profile.dart';
+import '../../services/ride_tracking_service.dart';
 import '../../services/xendit_checkout_service.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/passenger_widgets/ride_status_strip.dart';
+import '../../widgets/reviews/review_dialogs.dart';
 
 class RideMonitoringPage extends StatefulWidget {
   final String bookingId;
@@ -31,12 +34,15 @@ class RideMonitoringPage extends StatefulWidget {
 
 class _RideMonitoringPageState extends State<RideMonitoringPage> {
   late final RideTrackingController _controller;
+  final RideTrackingService _rideTrackingService = RideTrackingService();
   final XenditCheckoutService _xenditCheckoutService = XenditCheckoutService();
   static const Duration _terminalStatusDialogDuration = Duration(seconds: 10);
 
   RideStatus? _shownTerminalStatus;
+  Ride? _terminalStatusRide;
   OverlayEntry? _terminalStatusOverlay;
   Timer? _terminalStatusTimer;
+  final Set<String> _promptedReviewBookingIds = <String>{};
   bool _isOpeningCheckout = false;
 
   @override
@@ -73,17 +79,18 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
         return;
       }
 
-      _showTerminalStatusDialog(ride.status);
+      _showTerminalStatusDialog(ride);
     });
   }
 
-  void _showTerminalStatusDialog(RideStatus status) {
+  void _showTerminalStatusDialog(Ride ride) {
     _removeTerminalStatusDialog();
+    _terminalStatusRide = ride;
 
     final entry = OverlayEntry(
       builder: (context) => _TerminalStatusOverlay(
-        status: status,
-        onDismiss: _removeTerminalStatusDialog,
+        status: ride.status,
+        onDismiss: () => _removeTerminalStatusDialog(showFollowUp: true),
       ),
     );
 
@@ -91,15 +98,84 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
     Overlay.of(context).insert(entry);
     _terminalStatusTimer = Timer(
       _terminalStatusDialogDuration,
-      _removeTerminalStatusDialog,
+      () => _removeTerminalStatusDialog(showFollowUp: true),
     );
   }
 
-  void _removeTerminalStatusDialog() {
+  void _removeTerminalStatusDialog({bool showFollowUp = false}) {
+    final ride = _terminalStatusRide;
     _terminalStatusTimer?.cancel();
     _terminalStatusTimer = null;
     _terminalStatusOverlay?.remove();
     _terminalStatusOverlay = null;
+    _terminalStatusRide = null;
+
+    if (showFollowUp && ride != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showPassengerDriverReviewPromptIfNeeded(ride);
+        }
+      });
+    }
+  }
+
+  Future<void> _showPassengerDriverReviewPromptIfNeeded(Ride ride) async {
+    if (widget.viewerRole != RideViewerRole.passenger ||
+        !ride.canPassengerReviewDriver ||
+        !_promptedReviewBookingIds.add(ride.bookingId)) {
+      return;
+    }
+
+    final driverId = ride.driverId;
+    if (driverId == null || driverId.trim().isEmpty) {
+      return;
+    }
+
+    var driverName = 'your driver';
+    try {
+      final driver = await _rideTrackingService.loadDriverProfile(driverId);
+      driverName = driver.fullName;
+    } catch (_) {
+      // The review can still be submitted because the booking holds the driver id.
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final draft = await showPassengerDriverReviewDialog(
+      context,
+      driverName: driverName,
+    );
+    if (draft == null || !mounted) {
+      return;
+    }
+
+    try {
+      await _rideTrackingService.savePassengerDriverReview(
+        bookingId: ride.bookingId,
+        passengerId: widget.userId,
+        driverId: driverId,
+        rating: draft.rating,
+        comment: draft.comment,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Driver review saved.')));
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to save review: $error')));
+    }
   }
 
   @override
@@ -651,6 +727,16 @@ class _RideActions extends StatelessWidget {
           ),
         );
       }
+
+      if (ride.passengerId.trim().isNotEmpty) {
+        actions.add(
+          OutlinedButton.icon(
+            onPressed: () => _openPassengerProfile(context),
+            icon: const Icon(Icons.person_search_rounded),
+            label: const Text('Passenger'),
+          ),
+        );
+      }
     }
 
     if (ride.hasDriver && !ride.status.isTerminal) {
@@ -716,6 +802,18 @@ class _RideActions extends StatelessWidget {
       ride: ride,
       currentUserId: controller.userId,
       currentUserRole: controller.isDriver ? 'driver' : 'passenger',
+    );
+  }
+
+  void _openPassengerProfile(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PassengerProfilePage(
+          passengerId: ride.passengerId,
+          driverId: controller.userId,
+          bookingId: ride.bookingId,
+        ),
+      ),
     );
   }
 

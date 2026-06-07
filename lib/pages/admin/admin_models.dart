@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../../widgets/passenger_widgets/passenger_ui.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import 'widgets/admin_ui.dart';
 
 class AdminUserRecord {
   final String userId;
@@ -14,7 +16,16 @@ class AdminUserRecord {
   final bool isVerified;
   final bool isActive;
   final bool isBanned;
+  final bool isDeactivated;
+  final bool isDeleted;
+  final String accountStatus;
   final DateTime? createdAt;
+  final DateTime? reviewedAt;
+  final DateTime? deactivatedAt;
+  final DateTime? deactivationRestoreDeadline;
+  final DateTime? deactivationPurgeAfter;
+  final DateTime? accountAnonymizedAt;
+  final String? profilePictureUrl;
   final String? idImageUrl;
   final String? selfieUrl;
   final String? nbiClearanceUrl;
@@ -34,7 +45,16 @@ class AdminUserRecord {
     required this.isVerified,
     required this.isActive,
     required this.isBanned,
+    required this.isDeactivated,
+    required this.isDeleted,
+    required this.accountStatus,
     required this.createdAt,
+    required this.reviewedAt,
+    required this.deactivatedAt,
+    required this.deactivationRestoreDeadline,
+    required this.deactivationPurgeAfter,
+    required this.accountAnonymizedAt,
+    required this.profilePictureUrl,
     required this.idImageUrl,
     required this.selfieUrl,
     required this.nbiClearanceUrl,
@@ -47,6 +67,10 @@ class AdminUserRecord {
     DocumentSnapshot<Map<String, dynamic>> document,
   ) {
     final data = document.data() ?? <String, dynamic>{};
+    final accountStatus = (data['account_status'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
 
     return AdminUserRecord(
       userId: (data['user_id'] ?? document.id).toString(),
@@ -63,7 +87,23 @@ class AdminUserRecord {
       isVerified: (data['is_verified'] ?? data['isVerified'] ?? false) == true,
       isActive: (data['is_active'] ?? data['isActive'] ?? false) == true,
       isBanned: (data['is_banned'] ?? data['isBanned'] ?? false) == true,
+      isDeactivated:
+          (data['is_deactivated'] ?? data['isDeactivated'] ?? false) == true ||
+          accountStatus == 'deactivated',
+      isDeleted:
+          accountStatus == 'deleted' || data['account_anonymized_at'] != null,
+      accountStatus: accountStatus,
       createdAt: _readDate(data['created_at']),
+      reviewedAt: _readDate(data['reviewed_at']),
+      deactivatedAt: _readDate(data['deactivated_at']),
+      deactivationRestoreDeadline: _readDate(
+        data['deactivation_restore_deadline'],
+      ),
+      deactivationPurgeAfter: _readDate(data['deactivation_purge_after']),
+      accountAnonymizedAt: _readDate(data['account_anonymized_at']),
+      profilePictureUrl: _readNullableString(
+        data['profile_picture_url'] ?? data['profile_image_url'],
+      ),
       idImageUrl: _readNullableString(data['id_image_url']),
       selfieUrl: _readNullableString(data['selfie_url']),
       nbiClearanceUrl: _readNullableString(data['nbi_clearance_url']),
@@ -85,7 +125,11 @@ class AdminUserRecord {
 
   String get fullName {
     final value = '$firstName $lastName'.trim();
-    return value.isEmpty ? 'Unnamed user' : value;
+    if (value.isNotEmpty) {
+      return value;
+    }
+
+    return isDeleted ? 'Deleted account' : 'Unnamed user';
   }
 
   String get genderLabel {
@@ -98,16 +142,31 @@ class AdminUserRecord {
 
   String get ageLabel => age.isEmpty ? 'Not set' : age;
 
-  String? get profileImageUrl => selfieUrl;
+  String? get profileImageUrl => profilePictureUrl ?? selfieUrl;
 
   bool get isDriver => role == 'driver';
   bool get isPassenger => role == 'passenger';
   bool get isAdmin => role == 'admin';
+  bool get isMainAdmin => isAdmin && firstName.trim().toLowerCase() == 'admin';
+  bool get isPassengerOrDriver => isPassenger || isDriver;
   bool get isStudentPassenger =>
       isPassenger && passengerType.toLowerCase() == 'student';
+  bool get canReceiveBookings =>
+      isDriver &&
+      isVerified &&
+      isActive &&
+      !isBanned &&
+      !isDeactivated &&
+      !isDeleted;
 
-  bool get isPendingVerification => !isAdmin && !isBanned && !isVerified;
+  bool get isPendingVerification =>
+      !isAdmin && !isBanned && !isDeactivated && !isDeleted && !isVerified;
   bool get needsApproval => isPendingVerification;
+  bool get canRestoreDeactivated =>
+      isDeactivated &&
+      !isDeleted &&
+      (deactivationRestoreDeadline == null ||
+          deactivationRestoreDeadline!.isAfter(DateTime.now()));
 
   bool get hasPassengerDocuments =>
       _hasValue(idImageUrl) && _hasValue(selfieUrl);
@@ -121,12 +180,15 @@ class AdminUserRecord {
     if (isAdmin) return 'Admin';
     if (isDriver) return 'Driver';
     if (isStudentPassenger) return 'Student Passenger';
-    return 'Passenger';
+    if (isPassenger) return 'Passenger';
+    return 'User';
   }
 
   String get statusLabel {
     if (isAdmin) return 'Developer managed';
+    if (isDeleted) return 'Deleted';
     if (isBanned) return 'Restricted';
+    if (isDeactivated) return 'Deactivated';
     if (isPendingVerification) return 'Pending verification';
     if (isVerified && isActive) return 'Verified';
     if (isVerified) return 'Verified';
@@ -134,15 +196,19 @@ class AdminUserRecord {
   }
 
   Color get statusColor {
-    if (isBanned) return PassengerUi.primary;
-    if (needsApproval) return PassengerUi.highlightAmber;
-    return PassengerUi.successText;
+    if (isDeleted) return AdminUi.body;
+    if (isBanned) return AdminUi.danger;
+    if (isDeactivated) return AdminUi.danger;
+    if (needsApproval) return AdminUi.highlightAmber;
+    return AdminUi.successText;
   }
 
   Color get statusBackgroundColor {
-    if (isBanned) return PassengerUi.dangerSoft;
-    if (needsApproval) return Color(0xFFF8E8C6);
-    return PassengerUi.successBackground;
+    if (isDeleted) return AdminUi.mutedSurface;
+    if (isBanned) return AdminUi.dangerSoft;
+    if (isDeactivated) return AdminUi.dangerSoft;
+    if (needsApproval) return AdminUi.warningSoft;
+    return AdminUi.successBackground;
   }
 
   static DateTime? _readDate(Object? value) {
@@ -180,6 +246,56 @@ class AdminUserRecord {
     }
 
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+}
+
+class AdminDriverLocationRecord {
+  final String driverId;
+  final String fullName;
+  final LatLng latLng;
+  final double? heading;
+  final DateTime? updatedAt;
+
+  const AdminDriverLocationRecord({
+    required this.driverId,
+    required this.fullName,
+    required this.latLng,
+    required this.heading,
+    required this.updatedAt,
+  });
+
+  factory AdminDriverLocationRecord.fromData({
+    required String driverId,
+    required AdminUserRecord driver,
+    required Map<String, dynamic> locationData,
+  }) {
+    final geoPoint = locationData['geopoint'];
+    final latitude =
+        _readDouble(locationData['latitude']) ??
+        (geoPoint is GeoPoint ? geoPoint.latitude : null);
+    final longitude =
+        _readDouble(locationData['longitude']) ??
+        (geoPoint is GeoPoint ? geoPoint.longitude : null);
+
+    if (latitude == null || longitude == null) {
+      throw StateError('Driver location coordinates are missing.');
+    }
+
+    return AdminDriverLocationRecord(
+      driverId: driverId,
+      fullName: driver.fullName,
+      latLng: LatLng(latitude, longitude),
+      heading: _readDouble(locationData['heading']),
+      updatedAt: AdminUserRecord._readDate(locationData['updated_at']),
+    );
+  }
+
+  static double? _readDouble(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '');
   }
 }
 
@@ -251,17 +367,17 @@ class AdminBookingRecord {
   }
 
   Color get statusColor {
-    if (isCompleted) return PassengerUi.successText;
-    if (isCancelled) return PassengerUi.primary;
-    if (isActiveTrip) return PassengerUi.accentBlue;
-    return PassengerUi.highlightAmber;
+    if (isCompleted) return AdminUi.successText;
+    if (isCancelled) return AdminUi.danger;
+    if (isActiveTrip) return AdminUi.accentBlue;
+    return AdminUi.highlightAmber;
   }
 
   Color get statusBackgroundColor {
-    if (isCompleted) return PassengerUi.successBackground;
-    if (isCancelled) return PassengerUi.dangerSoft;
-    if (isActiveTrip) return Color(0xFFE2EBF1);
-    return Color(0xFFF8E8C6);
+    if (isCompleted) return AdminUi.successBackground;
+    if (isCancelled) return AdminUi.dangerSoft;
+    if (isActiveTrip) return AdminUi.blueSoft;
+    return AdminUi.warningSoft;
   }
 
   static String _readLocation(Object? value) {
@@ -366,5 +482,229 @@ class AdminReviewRecord {
     }
 
     return '';
+  }
+}
+
+class AdminReportRecord {
+  final String reportId;
+  final String bookingId;
+  final String reporterId;
+  final String reporterRole;
+  final String reportedUserId;
+  final String reportedUserRole;
+  final String reason;
+  final String details;
+  final String status;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  const AdminReportRecord({
+    required this.reportId,
+    required this.bookingId,
+    required this.reporterId,
+    required this.reporterRole,
+    required this.reportedUserId,
+    required this.reportedUserRole,
+    required this.reason,
+    required this.details,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory AdminReportRecord.fromDocument(
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final data = document.data() ?? <String, dynamic>{};
+
+    return AdminReportRecord(
+      reportId: (data['report_id'] ?? document.id).toString().trim(),
+      bookingId: (data['booking_id'] ?? '').toString().trim(),
+      reporterId: (data['reporter_id'] ?? '').toString().trim(),
+      reporterRole: (data['reporter_role'] ?? '').toString().trim(),
+      reportedUserId: (data['reported_user_id'] ?? '').toString().trim(),
+      reportedUserRole: (data['reported_user_role'] ?? '').toString().trim(),
+      reason: _readReason(data),
+      details: _readDetails(data),
+      status: (data['status'] ?? 'open').toString().trim().toLowerCase(),
+      createdAt: AdminUserRecord._readDate(data['created_at']),
+      updatedAt: AdminUserRecord._readDate(data['updated_at']),
+    );
+  }
+
+  String get categoryLabel {
+    final value = reason.trim();
+    return value.isEmpty ? 'Other' : value;
+  }
+
+  String get reasonLabel {
+    final value = reason.trim();
+    return value.isEmpty ? 'No reason provided' : value;
+  }
+
+  String get statusLabel {
+    if (status.isEmpty) {
+      return 'Open';
+    }
+
+    final normalized = status.replaceAll('_', ' ');
+    return normalized[0].toUpperCase() + normalized.substring(1);
+  }
+
+  String get reporterRoleLabel => _roleLabel(reporterRole);
+  String get reportedUserRoleLabel => _roleLabel(reportedUserRole);
+
+  DateTime? get sortDate => createdAt ?? updatedAt;
+
+  bool get isOpen => status.isEmpty || status == 'open' || status == 'pending';
+
+  static String _readReason(Map<String, dynamic> data) {
+    final candidates = <Object?>[
+      data['reason'],
+      data['category'],
+      data['report_category'],
+      data['type'],
+    ];
+
+    for (final candidate in candidates) {
+      final text = candidate?.toString().trim() ?? '';
+      if (text.isNotEmpty) {
+        return text;
+      }
+    }
+
+    return '';
+  }
+
+  static String _readDetails(Map<String, dynamic> data) {
+    final candidates = <Object?>[
+      data['details'],
+      data['description'],
+      data['message'],
+      data['comment'],
+    ];
+
+    for (final candidate in candidates) {
+      final text = candidate?.toString().trim() ?? '';
+      if (text.isNotEmpty) {
+        return text;
+      }
+    }
+
+    return '';
+  }
+
+  static String _roleLabel(String role) {
+    switch (role.trim().toLowerCase()) {
+      case 'admin':
+        return 'Admin';
+      case 'driver':
+        return 'Driver';
+      case 'passenger':
+        return 'Passenger';
+      default:
+        return 'User';
+    }
+  }
+}
+
+class AdminActionLogRecord {
+  final String logId;
+  final String action;
+  final String adminId;
+  final String adminName;
+  final String summary;
+  final DateTime? createdAt;
+  final String? targetId;
+  final String? targetName;
+  final String? targetRole;
+  final Map<String, dynamic> metadata;
+
+  const AdminActionLogRecord({
+    required this.logId,
+    required this.action,
+    required this.adminId,
+    required this.adminName,
+    required this.summary,
+    required this.createdAt,
+    required this.targetId,
+    required this.targetName,
+    required this.targetRole,
+    required this.metadata,
+  });
+
+  factory AdminActionLogRecord.fromDocument(
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final data = document.data() ?? <String, dynamic>{};
+
+    return AdminActionLogRecord(
+      logId: (data['log_id'] ?? document.id).toString().trim(),
+      action: (data['action'] ?? '').toString().trim(),
+      adminId: (data['admin_id'] ?? '').toString().trim(),
+      adminName: _readRequiredLabel(data['admin_name'], fallback: 'Admin'),
+      summary: _readRequiredLabel(
+        data['summary'],
+        fallback: 'Admin action recorded.',
+      ),
+      createdAt: AdminUserRecord._readDate(data['created_at']),
+      targetId: _readNullableString(data['target_id']),
+      targetName: _readNullableString(data['target_name']),
+      targetRole: _readNullableString(data['target_role']),
+      metadata: _readMetadata(data['metadata']),
+    );
+  }
+
+  String get actionLabel {
+    final normalized = action.replaceAll('_', ' ').trim();
+    if (normalized.isEmpty) {
+      return 'Admin Action';
+    }
+
+    return normalized
+        .split(' ')
+        .where((part) => part.isNotEmpty)
+        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
+  }
+
+  String get targetLabel {
+    final name = targetName?.trim() ?? '';
+    final role = targetRole?.trim() ?? '';
+    if (name.isEmpty && role.isEmpty) {
+      return 'System';
+    }
+
+    if (role.isEmpty) {
+      return name;
+    }
+
+    if (name.isEmpty) {
+      return role;
+    }
+
+    return '$name - $role';
+  }
+
+  static String _readRequiredLabel(Object? value, {required String fallback}) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? fallback : text;
+  }
+
+  static String? _readNullableString(Object? value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? null : text;
+  }
+
+  static Map<String, dynamic> _readMetadata(Object? value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+
+    if (value is Map) {
+      return value.map((key, item) => MapEntry(key.toString(), item));
+    }
+
+    return const <String, dynamic>{};
   }
 }

@@ -48,6 +48,7 @@ class _ViewUserProfilePageState extends State<ViewUserProfilePage> {
 
           if (snapshot.hasError) {
             return PassengerPageContainer(
+              maxContentWidth: AdminUi.detailContentWidth,
               child: AdminErrorCard(
                 message: 'Unable to load user profile: ${snapshot.error}',
               ),
@@ -57,6 +58,7 @@ class _ViewUserProfilePageState extends State<ViewUserProfilePage> {
           final user = snapshot.data;
           if (user == null) {
             return const PassengerPageContainer(
+              maxContentWidth: AdminUi.detailContentWidth,
               child: AdminEmptyCollection(
                 icon: Icons.person_off_outlined,
                 title: 'User not found',
@@ -67,6 +69,7 @@ class _ViewUserProfilePageState extends State<ViewUserProfilePage> {
           }
 
           return PassengerPageContainer(
+            maxContentWidth: AdminUi.detailContentWidth,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

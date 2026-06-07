@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
-import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/time_ago_text.dart';
 import 'admin_models.dart';
 import 'admin_service.dart';
@@ -28,16 +27,16 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: PassengerUi.background,
+      backgroundColor: AdminUi.background,
       appBar: AppBar(
-        backgroundColor: PassengerUi.surface,
-        surfaceTintColor: PassengerUi.surface,
+        backgroundColor: AdminUi.surface,
+        surfaceTintColor: AdminUi.surface,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: PassengerUi.title),
+          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
         ),
-        title: Text('Verification Review', style: PassengerUi.cardTitle),
+        title: Text('Verification Review', style: AdminUi.cardTitle),
       ),
       body: StreamBuilder<AdminUserRecord>(
         stream: AdminService.watchUser(widget.userId),
@@ -47,7 +46,8 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
           }
 
           if (snapshot.hasError) {
-            return PassengerPageContainer(
+            return AdminPageContainer(
+              maxContentWidth: AdminUi.detailContentWidth,
               child: AdminErrorCard(
                 message: 'Unable to load this user review: ${snapshot.error}',
               ),
@@ -56,7 +56,8 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
 
           final user = snapshot.data;
           if (user == null) {
-            return const PassengerPageContainer(
+            return const AdminPageContainer(
+              maxContentWidth: AdminUi.detailContentWidth,
               child: AdminEmptyCollection(
                 icon: Icons.person_off_outlined,
                 title: 'User not found',
@@ -71,22 +72,21 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
               ? 'Tap any image card to inspect the submitted selfie, NBI clearance, or driver\'s license.'
               : 'Tap any image card to inspect the submitted selfie and ID.';
 
-          return PassengerPageContainer(
+          return AdminPageContainer(
+            maxContentWidth: AdminUi.detailContentWidth,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ReviewHeaderCard(user: user),
-                SizedBox(height: 16),
                 _ReviewSummaryCard(user: user),
                 SizedBox(height: 18),
-                Text('Profile Information', style: PassengerUi.sectionTitle),
+                Text('Profile Information', style: AdminUi.sectionTitle),
                 SizedBox(height: 6),
                 Text(
                   'These values come directly from the current user document in Firestore.',
-                  style: PassengerUi.bodyText,
+                  style: AdminUi.bodyText,
                 ),
                 SizedBox(height: 12),
-                PassengerSurfaceCard(
+                AdminSurfaceCard(
                   child: Column(
                     children: [
                       _InfoRow(label: 'User ID', value: user.userId),
@@ -112,9 +112,9 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                   ),
                 ),
                 SizedBox(height: 18),
-                Text('Uploaded Credentials', style: PassengerUi.sectionTitle),
+                Text('Uploaded Credentials', style: AdminUi.sectionTitle),
                 SizedBox(height: 6),
-                Text(credentialsSubtitle, style: PassengerUi.bodyText),
+                Text(credentialsSubtitle, style: AdminUi.bodyText),
                 SizedBox(height: 12),
                 if (documents.isEmpty)
                   const AdminEmptyCollection(
@@ -124,17 +124,12 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                         'This user does not currently have readable document image links saved in Firestore.',
                   )
                 else
-                  ...documents.map(
-                    (document) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _VerificationDocumentCard(
-                        document: document,
-                        onPreview: () => _showImagePreview(
-                          context,
-                          title: document.label,
-                          imageUrl: document.url,
-                        ),
-                      ),
+                  _CredentialGrid(
+                    documents: documents,
+                    onPreview: (document) => _showImagePreview(
+                      context,
+                      title: document.label,
+                      imageUrl: document.url,
                     ),
                   ),
                 SizedBox(height: 18),
@@ -148,7 +143,7 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                               'This will approve ${user.fullName} and unlock verification-gated features for this account.',
                           confirmLabel: 'Verify User',
                           icon: Icons.verified_user_rounded,
-                          confirmColor: PassengerUi.successText,
+                          confirmColor: AdminUi.successText,
                           action: () => AdminService.approveUser(
                             userId: user.userId,
                             adminId: widget.adminId,
@@ -163,7 +158,7 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                               'This will block ${user.fullName} from using verification-gated app features until access is restored.',
                           confirmLabel: 'Restrict',
                           icon: Icons.block_rounded,
-                          confirmColor: PassengerUi.primary,
+                          confirmColor: AdminUi.primary,
                           action: () => AdminService.restrictUser(
                             userId: user.userId,
                             adminId: widget.adminId,
@@ -305,7 +300,7 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
               children: [
                 Row(
                   children: [
-                    Expanded(child: Text(title, style: PassengerUi.cardTitle)),
+                    Expanded(child: Text(title, style: AdminUi.cardTitle)),
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.close_rounded),
@@ -325,10 +320,10 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                         fallback: Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(24),
-                          color: PassengerUi.mutedSurface,
+                          color: AdminUi.mutedSurface,
                           child: Text(
                             'Unable to preview this image right now.',
-                            style: PassengerUi.bodyText,
+                            style: AdminUi.bodyText,
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -345,33 +340,6 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
   }
 }
 
-class _ReviewHeaderCard extends StatelessWidget {
-  final AdminUserRecord user;
-
-  const _ReviewHeaderCard({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: <Widget>[
-          _ReviewAvatar(user: user, size: 48),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              user.fullName,
-              style: PassengerUi.sectionTitle.copyWith(fontSize: 20),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ReviewSummaryCard extends StatelessWidget {
   final AdminUserRecord user;
 
@@ -379,7 +347,7 @@ class _ReviewSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
+    return AdminSurfaceCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -389,30 +357,30 @@ class _ReviewSummaryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(user.fullName, style: PassengerUi.cardTitle),
+                Text(user.fullName, style: AdminUi.cardTitle),
                 SizedBox(height: 4),
-                Text(user.email, style: PassengerUi.bodyText),
+                Text(user.email, style: AdminUi.bodyText),
                 SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    PassengerStatusChip(
+                    AdminStatusChip(
                       label: user.roleLabel,
-                      textColor: PassengerUi.primary,
-                      backgroundColor: PassengerUi.dangerSoft,
+                      textColor: AdminUi.primary,
+                      backgroundColor: AdminUi.dangerSoft,
                     ),
-                    PassengerStatusChip(
+                    AdminStatusChip(
                       label: user.statusLabel,
                       textColor: user.statusColor,
                       backgroundColor: user.statusBackgroundColor,
                     ),
-                    PassengerStatusChip(
+                    AdminStatusChip(
                       label: user.createdAt == null
                           ? 'New account'
                           : 'Joined ${TimeAgo.format(user.createdAt)}',
-                      textColor: PassengerUi.body,
-                      backgroundColor: PassengerUi.mutedSurface,
+                      textColor: AdminUi.body,
+                      backgroundColor: AdminUi.mutedSurface,
                     ),
                   ],
                 ),
@@ -441,12 +409,12 @@ class _ReviewAvatar extends StatelessWidget {
           imageUrl: user.profileImageUrl,
           fit: BoxFit.cover,
           fallback: Container(
-            color: PassengerUi.blueSoft,
+            color: AdminUi.blueSoft,
             alignment: Alignment.center,
             child: Text(
               _initials(user.fullName),
               style: TextStyle(
-                color: PassengerUi.accentBlue,
+                color: AdminUi.accentBlue,
                 fontWeight: FontWeight.w700,
                 fontSize: size * 0.34,
               ),
@@ -490,22 +458,22 @@ class _ActionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (user.isBanned) {
-      return PassengerSurfaceCard(
+      return AdminSurfaceCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Restricted Account', style: PassengerUi.cardTitle),
+            Text('Restricted Account', style: AdminUi.cardTitle),
             SizedBox(height: 8),
             Text(
               'This account is currently restricted. Restore access if the review is complete and the user should be active again.',
-              style: PassengerUi.bodyText,
+              style: AdminUi.bodyText,
             ),
             SizedBox(height: 14),
             AdminActionButton(
               label: 'Restore Access',
               icon: Icons.restart_alt_rounded,
-              backgroundColor: PassengerUi.successBackground,
-              foregroundColor: PassengerUi.successText,
+              backgroundColor: AdminUi.successBackground,
+              foregroundColor: AdminUi.successText,
               onPressed: isProcessing ? null : onRestore,
             ),
           ],
@@ -519,19 +487,19 @@ class _ActionPanel extends StatelessWidget {
         description:
             'This user already has is_verified set to true in Firestore. Verification-gated features should now be available on the user side.',
         icon: Icons.verified_rounded,
-        accentColor: PassengerUi.successText,
+        accentColor: AdminUi.successText,
       );
     }
 
-    return PassengerSurfaceCard(
+    return AdminSurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Admin Actions', style: PassengerUi.cardTitle),
+          Text('Admin Actions', style: AdminUi.cardTitle),
           SizedBox(height: 8),
           Text(
             'Verify this account to switch is_verified from false to true in Firestore and unlock verification-gated features for the user.',
-            style: PassengerUi.bodyText,
+            style: AdminUi.bodyText,
           ),
           SizedBox(height: 14),
           Wrap(
@@ -541,21 +509,56 @@ class _ActionPanel extends StatelessWidget {
               AdminActionButton(
                 label: 'Verify User',
                 icon: Icons.verified_rounded,
-                backgroundColor: PassengerUi.successBackground,
-                foregroundColor: PassengerUi.successText,
+                backgroundColor: AdminUi.successBackground,
+                foregroundColor: AdminUi.successText,
                 onPressed: isProcessing ? null : onVerify,
               ),
               AdminActionButton(
                 label: 'Restrict Account',
                 icon: Icons.block_rounded,
-                backgroundColor: PassengerUi.dangerSoft,
-                foregroundColor: PassengerUi.primary,
+                backgroundColor: AdminUi.dangerSoft,
+                foregroundColor: AdminUi.primary,
                 onPressed: isProcessing ? null : onRestrict,
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _CredentialGrid extends StatelessWidget {
+  final List<_ReviewDocument> documents;
+  final ValueChanged<_ReviewDocument> onPreview;
+
+  const _CredentialGrid({required this.documents, required this.onPreview});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 620 ? 2 : 1;
+        final spacing = 12.0;
+        final itemWidth =
+            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: documents
+              .map((document) {
+                return SizedBox(
+                  width: itemWidth,
+                  child: _VerificationDocumentCard(
+                    document: document,
+                    onPreview: () => onPreview(document),
+                  ),
+                );
+              })
+              .toList(growable: false),
+        );
+      },
     );
   }
 }
@@ -571,62 +574,67 @@ class _VerificationDocumentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return AdminSurfaceCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        borderRadius: AdminUi.radius,
+        onTap: onPreview,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: PassengerUi.mutedSurface,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(document.icon, color: PassengerUi.accentBlue),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: Text(document.label, style: PassengerUi.cardTitle),
-              ),
-              OutlinedButton.icon(
-                onPressed: onPreview,
-                icon: const Icon(Icons.open_in_full_rounded, size: 18),
-                label: const Text('Preview'),
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
-          GestureDetector(
-            onTap: onPreview,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: AspectRatio(
-                aspectRatio: 4 / 3,
-                child: FirebaseStorageImage(
-                  imageUrl: document.url,
-                  fit: BoxFit.cover,
-                  fallback: Container(
-                    color: PassengerUi.mutedSurface,
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.all(20),
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AdminUi.mutedSurface,
+                      borderRadius: AdminUi.radius,
+                    ),
+                    child: Icon(document.icon, color: AdminUi.accent, size: 19),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
                     child: Text(
-                      'Unable to display this image preview.',
-                      style: PassengerUi.bodyText,
-                      textAlign: TextAlign.center,
+                      document.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AdminUi.cardTitle,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Preview',
+                    onPressed: onPreview,
+                    icon: const Icon(Icons.open_in_full_rounded, size: 19),
+                  ),
+                ],
+              ),
+              SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: AspectRatio(
+                  aspectRatio: 16 / 10,
+                  child: FirebaseStorageImage(
+                    imageUrl: document.url,
+                    fit: BoxFit.cover,
+                    fallback: Container(
+                      color: AdminUi.mutedSurface,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Preview unavailable',
+                        style: AdminUi.bodyText,
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-          SizedBox(height: 10),
-          SelectableText(
-            document.url,
-            style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -649,11 +657,11 @@ class _InfoRow extends StatelessWidget {
             width: 112,
             child: Text(
               label,
-              style: PassengerUi.bodyText.copyWith(fontWeight: FontWeight.w700),
+              style: AdminUi.bodyText.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
           SizedBox(width: 10),
-          Expanded(child: SelectableText(value, style: PassengerUi.valueText)),
+          Expanded(child: SelectableText(value, style: AdminUi.valueText)),
         ],
       ),
     );
@@ -682,12 +690,12 @@ class _InfoTimeRow extends StatelessWidget {
             width: 112,
             child: Text(
               label,
-              style: PassengerUi.bodyText.copyWith(fontWeight: FontWeight.w700),
+              style: AdminUi.bodyText.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
           SizedBox(width: 10),
           Expanded(
-            child: TimeAgoText(dateTime: value, style: PassengerUi.valueText),
+            child: TimeAgoText(dateTime: value, style: AdminUi.valueText),
           ),
         ],
       ),

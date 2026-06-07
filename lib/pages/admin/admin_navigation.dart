@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'active_drivers.dart';
+import 'admin_deactivated_users_page.dart';
+import 'admin_restricted_users_page.dart';
 import 'completed_trips.dart';
 import 'registered_users.dart';
 import 'student_accounts.dart';
@@ -48,6 +50,28 @@ class AdminNavigation {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AdminUserReviewPage(userId: userId, adminId: adminId),
+      ),
+    );
+  }
+
+  static void openDeactivatedUsers(
+    BuildContext context, {
+    required String adminId,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AdminDeactivatedUsersPage(adminId: adminId),
+      ),
+    );
+  }
+
+  static void openRestrictedUsers(
+    BuildContext context, {
+    required String adminId,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AdminRestrictedUsersPage(adminId: adminId),
       ),
     );
   }

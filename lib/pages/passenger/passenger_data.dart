@@ -165,7 +165,7 @@ class PassengerMockData {
       destination: 'BCC',
       schedule: 'Apr 16, 2026 - 7:30 AM',
       scheduledAt: DateTime(2026, 4, 16, 7, 30),
-      fare: 'PHP 20',
+      fare: 'PHP 25',
       status: 'completed',
       rating: 5.0,
       driverName: 'Mark Turla',
@@ -174,7 +174,7 @@ class PassengerMockData {
       destination: 'Poblacion Home',
       schedule: 'Apr 15, 2026 - 5:10 PM',
       scheduledAt: DateTime(2026, 4, 15, 17, 10),
-      fare: 'PHP 20',
+      fare: 'PHP 25',
       status: 'completed',
       rating: 4.8,
       driverName: 'Ben & Ben',
@@ -259,7 +259,7 @@ class PassengerMockData {
   ];
 
   static const List<PassengerFareDetail> fareDetails = <PassengerFareDetail>[
-    PassengerFareDetail(label: '1 barangay fare', value: 'PHP 20'),
+    PassengerFareDetail(label: '1 barangay fare', value: 'PHP 25'),
     PassengerFareDetail(label: 'Up to 5 barangays', value: 'PHP 30'),
     PassengerFareDetail(label: 'Extended route fare', value: 'PHP 30-100'),
     PassengerFareDetail(

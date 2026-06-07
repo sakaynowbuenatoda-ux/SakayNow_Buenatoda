@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../models/ride.dart';
 import '../../pages/messages/chat_page.dart';
 import '../../services/chat_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../../widgets/reviews/review_dialogs.dart';
+import '../../widgets/reports/report_user_sheet.dart';
 import '../../widgets/time_ago_text.dart';
 
 class DriverProfilePage extends StatefulWidget {
@@ -30,6 +33,9 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
   bool _reviewsExpanded = false;
   bool _isSaving = false;
   bool _openedInitialReview = false;
+  int _reviewEligibilityRefresh = 0;
+  String? _pendingReviewFutureKey;
+  Future<Ride?>? _pendingReviewFuture;
 
   @override
   Widget build(BuildContext context) {
@@ -83,11 +89,28 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                 const SizedBox(height: 14),
                 _DriverStats(driver: driver),
                 const SizedBox(height: 14),
-                _DriverActions(
-                  isSaving: _isSaving,
-                  onMessage: () => _handleMessage(driver),
-                  onAddReview: () => _handleAddReview(driver),
-                  onReport: () => _handleReport(driver),
+                FutureBuilder<Ride?>(
+                  key: ValueKey(_reviewEligibilityRefresh),
+                  future: _pendingReviewRideFutureFor(driver),
+                  builder: (context, snapshot) {
+                    final isCheckingReview =
+                        snapshot.connectionState == ConnectionState.waiting;
+                    final pendingReviewRide = snapshot.data;
+
+                    return _DriverActions(
+                      isSaving: _isSaving,
+                      isCheckingReview: isCheckingReview,
+                      canAddReview: pendingReviewRide != null,
+                      onMessage: () => _handleMessage(driver),
+                      onAddReview: pendingReviewRide == null
+                          ? null
+                          : () => _handleAddReview(
+                              driver,
+                              pendingReviewRide: pendingReviewRide,
+                            ),
+                      onReport: () => _handleReport(driver),
+                    );
+                  },
                 ),
                 const SizedBox(height: 18),
                 _ReviewsPanel(
@@ -105,14 +128,47 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
     );
   }
 
-  Future<void> _handleAddReview(DriverReviewProfile driver) async {
-    final bookingId = widget.bookingId;
-    if (bookingId == null || bookingId.trim().isEmpty) {
-      _showSnackBar('Open this profile from a completed trip to add a review.');
+  Future<Ride?> _pendingReviewRideFutureFor(DriverReviewProfile driver) {
+    final key =
+        '${driver.driverId}:${widget.passengerId}:${widget.bookingId ?? ''}:$_reviewEligibilityRefresh';
+    if (_pendingReviewFutureKey != key) {
+      _pendingReviewFutureKey = key;
+      _pendingReviewFuture = _rideTrackingService
+          .findPendingPassengerDriverReviewRide(
+            passengerId: widget.passengerId,
+            driverId: driver.driverId,
+            preferredBookingId: widget.bookingId,
+          );
+    }
+
+    return _pendingReviewFuture!;
+  }
+
+  Future<void> _handleAddReview(
+    DriverReviewProfile driver, {
+    Ride? pendingReviewRide,
+  }) async {
+    final ride =
+        pendingReviewRide ??
+        await _rideTrackingService.findPendingPassengerDriverReviewRide(
+          passengerId: widget.passengerId,
+          driverId: driver.driverId,
+          preferredBookingId: widget.bookingId,
+        );
+
+    if (ride == null) {
+      _showSnackBar('No completed ride is pending review for this driver.');
       return;
     }
 
-    final draft = await _showReviewSheet(driver);
+    if (!mounted) {
+      return;
+    }
+
+    final draft = await showPassengerDriverReviewDialog(
+      context,
+      driverName: driver.fullName,
+    );
     if (draft == null || !mounted) {
       return;
     }
@@ -120,7 +176,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
     setState(() => _isSaving = true);
     try {
       await _rideTrackingService.savePassengerDriverReview(
-        bookingId: bookingId,
+        bookingId: ride.bookingId,
         passengerId: widget.passengerId,
         driverId: driver.driverId,
         rating: draft.rating,
@@ -128,6 +184,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
       );
 
       if (mounted) {
+        setState(() => _reviewEligibilityRefresh++);
         _showSnackBar('Driver review saved.');
       }
     } catch (error) {
@@ -222,21 +279,11 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
     }
   }
 
-  Future<_ReviewDraft?> _showReviewSheet(DriverReviewProfile driver) async {
-    return showModalBottomSheet<_ReviewDraft>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _ReviewSheet(driver: driver),
-    );
-  }
-
-  Future<_ReportDraft?> _showReportSheet(DriverReviewProfile driver) async {
-    return showModalBottomSheet<_ReportDraft>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _ReportSheet(driver: driver),
+  Future<UserReportDraft?> _showReportSheet(DriverReviewProfile driver) {
+    return showUserReportSheet(
+      context,
+      title: 'Report ${driver.fullName}',
+      reasons: _reportReasons,
     );
   }
 
@@ -325,17 +372,12 @@ class _DriverHero extends StatelessWidget {
                             textColor: PassengerUi.primary,
                             backgroundColor: PassengerUi.dangerSoft,
                           ),
-                          PassengerStatusChip(
-                            label: driver.isVerified
-                                ? 'Verified badge'
-                                : 'Pending verification',
-                            textColor: driver.isVerified
-                                ? PassengerUi.successText
-                                : PassengerUi.highlightAmber,
-                            backgroundColor: driver.isVerified
-                                ? PassengerUi.successBackground
-                                : PassengerUi.warningSoft,
-                          ),
+                          if (!driver.isVerified)
+                            PassengerStatusChip(
+                              label: 'Pending verification',
+                              textColor: PassengerUi.highlightAmber,
+                              backgroundColor: PassengerUi.warningSoft,
+                            ),
                           if (driver.isBanned)
                             PassengerStatusChip(
                               label: 'Restricted',
@@ -344,6 +386,8 @@ class _DriverHero extends StatelessWidget {
                             ),
                         ],
                       ),
+                      const SizedBox(height: 10),
+                      _DriverRankingStrip(driver: driver),
                     ],
                   ),
                 ),
@@ -404,6 +448,69 @@ class _DriverAvatar extends StatelessWidget {
     }
 
     return parts.map((part) => part[0].toUpperCase()).join();
+  }
+}
+
+class _DriverRankingStrip extends StatelessWidget {
+  final DriverReviewProfile driver;
+
+  const _DriverRankingStrip({required this.driver});
+
+  @override
+  Widget build(BuildContext context) {
+    final ratingRank = driver.ratingRank;
+    final hasTop20Rank =
+        ratingRank != null && ratingRank >= 1 && ratingRank <= 20;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: <Widget>[
+        if (hasTop20Rank)
+          _MiniRankChip(
+            icon: Icons.leaderboard_rounded,
+            label: '#$ratingRank',
+            color: PassengerUi.highlightAmber,
+          ),
+        _MiniRankChip(
+          icon: Icons.trending_up_rounded,
+          label: 'Rank Score ${driver.weightedRatingLabel}',
+          color: PassengerUi.secondary,
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniRankChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _MiniRankChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: PassengerUi.valueText.copyWith(fontSize: 11.5)),
+        ],
+      ),
+    );
   }
 }
 
@@ -471,12 +578,16 @@ class _StatCard extends StatelessWidget {
 
 class _DriverActions extends StatelessWidget {
   final bool isSaving;
+  final bool isCheckingReview;
+  final bool canAddReview;
   final VoidCallback onMessage;
-  final VoidCallback onAddReview;
+  final VoidCallback? onAddReview;
   final VoidCallback onReport;
 
   const _DriverActions({
     required this.isSaving,
+    required this.isCheckingReview,
+    required this.canAddReview,
     required this.onMessage,
     required this.onAddReview,
     required this.onReport,
@@ -495,9 +606,28 @@ class _DriverActions extends StatelessWidget {
             label: const Text('Message'),
           ),
           OutlinedButton.icon(
-            onPressed: isSaving ? null : onAddReview,
-            icon: const Icon(Icons.rate_review_rounded, size: 18),
-            label: const Text('Add Review'),
+            onPressed: isSaving || isCheckingReview || !canAddReview
+                ? null
+                : onAddReview,
+            icon: isCheckingReview
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    canAddReview
+                        ? Icons.rate_review_rounded
+                        : Icons.done_all_rounded,
+                    size: 18,
+                  ),
+            label: Text(
+              isCheckingReview
+                  ? 'Checking'
+                  : canAddReview
+                  ? 'Add Review'
+                  : 'No pending review',
+            ),
           ),
           OutlinedButton.icon(
             onPressed: isSaving ? null : onReport,
@@ -625,228 +755,4 @@ class _ReviewCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ReviewSheet extends StatefulWidget {
-  final DriverReviewProfile driver;
-
-  const _ReviewSheet({required this.driver});
-
-  @override
-  State<_ReviewSheet> createState() => _ReviewSheetState();
-}
-
-class _ReviewSheetState extends State<_ReviewSheet> {
-  final TextEditingController _controller = TextEditingController();
-  int _selectedRating = 5;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _ActionSheetFrame(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            'Review ${widget.driver.fullName}',
-            style: PassengerUi.sectionTitle.copyWith(fontSize: 18),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(5, (index) {
-              final rating = index + 1;
-              final isSelected = rating <= _selectedRating;
-
-              return InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () => setState(() => _selectedRating = rating),
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Icon(
-                    isSelected ? Icons.star_rounded : Icons.star_border_rounded,
-                    size: 34,
-                    color: PassengerUi.highlightAmber,
-                  ),
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _controller,
-            maxLines: 4,
-            maxLength: 600,
-            decoration: InputDecoration(
-              labelText: 'Recent review',
-              hintText: 'Share what went well or what needs improvement.',
-              filled: true,
-              fillColor: PassengerUi.mutedSurface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: PassengerUi.border),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pop(
-                _ReviewDraft(
-                  rating: _selectedRating,
-                  comment: _controller.text.trim(),
-                ),
-              ),
-              icon: const Icon(Icons.check_rounded),
-              label: const Text('Save Review'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReportSheet extends StatefulWidget {
-  final DriverReviewProfile driver;
-
-  const _ReportSheet({required this.driver});
-
-  @override
-  State<_ReportSheet> createState() => _ReportSheetState();
-}
-
-class _ReportSheetState extends State<_ReportSheet> {
-  final TextEditingController _controller = TextEditingController();
-  String _selectedReason = _DriverProfilePageState._reportReasons.first;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _ActionSheetFrame(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            'Report ${widget.driver.fullName}',
-            style: PassengerUi.sectionTitle.copyWith(fontSize: 18),
-          ),
-          const SizedBox(height: 14),
-          DropdownButtonFormField<String>(
-            value: _selectedReason,
-            decoration: InputDecoration(
-              labelText: 'Reason',
-              filled: true,
-              fillColor: PassengerUi.mutedSurface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: PassengerUi.border),
-              ),
-            ),
-            items: _DriverProfilePageState._reportReasons
-                .map(
-                  (reason) => DropdownMenuItem<String>(
-                    value: reason,
-                    child: Text(reason),
-                  ),
-                )
-                .toList(growable: false),
-            onChanged: (value) {
-              if (value != null) {
-                setState(() => _selectedReason = value);
-              }
-            },
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _controller,
-            maxLines: 4,
-            maxLength: 800,
-            decoration: InputDecoration(
-              labelText: 'Details',
-              hintText: 'Add context for the admin team.',
-              filled: true,
-              fillColor: PassengerUi.mutedSurface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: PassengerUi.border),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pop(
-                _ReportDraft(
-                  reason: _selectedReason,
-                  details: _controller.text.trim(),
-                ),
-              ),
-              icon: const Icon(Icons.report_gmailerrorred_rounded),
-              label: const Text('Submit Report'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionSheetFrame extends StatelessWidget {
-  final Widget child;
-
-  const _ActionSheetFrame({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 12,
-          right: 12,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + 12,
-        ),
-        child: SingleChildScrollView(
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-            decoration: BoxDecoration(
-              color: PassengerUi.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: PassengerUi.border),
-              boxShadow: PassengerUi.cardShadow,
-            ),
-            child: child,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReviewDraft {
-  final int rating;
-  final String comment;
-
-  const _ReviewDraft({required this.rating, required this.comment});
-}
-
-class _ReportDraft {
-  final String reason;
-  final String details;
-
-  const _ReportDraft({required this.reason, required this.details});
 }

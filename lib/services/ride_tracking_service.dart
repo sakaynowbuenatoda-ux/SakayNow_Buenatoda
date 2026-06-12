@@ -222,15 +222,11 @@ class RideTrackingService {
                 : document.id;
             final userDoc = await _users.doc(driverId).get();
             final userData = userDoc.data() ?? <String, dynamic>{};
-            final isVerified =
-                (userData['is_verified'] ?? userData['isVerified'] ?? false) ==
-                true;
-            final isBanned =
-                (userData['is_banned'] ?? userData['isBanned'] ?? false) ==
-                true;
+            final isVerified = _isVerifiedFlag(userData);
+            final isBanned = _isBannedFlag(userData);
 
             if (!userDoc.exists ||
-                userData['role'] != 'driver' ||
+                !_isDriverRole(userData) ||
                 !isVerified ||
                 isBanned) {
               continue;
@@ -376,6 +372,16 @@ class RideTrackingService {
         ...data,
         'driver_id': driverId,
       });
+    });
+  }
+
+  Stream<bool> watchDriverAvailability(String driverId) {
+    return _driverLocations.doc(driverId).snapshots().map((snapshot) {
+      if (!snapshot.exists) {
+        return false;
+      }
+
+      return _isAvailableDriverLocation(snapshot.data() ?? <String, dynamic>{});
     });
   }
 
@@ -856,10 +862,9 @@ class RideTrackingService {
       final driverData = driverSnapshot.data() ?? <String, dynamic>{};
       final isVerifiedDriver =
           driverSnapshot.exists &&
-          driverData['role'] == 'driver' &&
-          (driverData['is_verified'] ?? driverData['isVerified'] ?? false) ==
-              true &&
-          (driverData['is_banned'] ?? driverData['isBanned'] ?? false) != true;
+          _isDriverRole(driverData) &&
+          _isVerifiedFlag(driverData) &&
+          !_isBannedFlag(driverData);
 
       if (!isVerifiedDriver) {
         throw StateError('Only verified drivers can accept bookings.');
@@ -963,10 +968,9 @@ class RideTrackingService {
       final driverData = driverSnapshot.data() ?? <String, dynamic>{};
       final isVerifiedDriver =
           driverSnapshot.exists &&
-          driverData['role'] == 'driver' &&
-          (driverData['is_verified'] ?? driverData['isVerified'] ?? false) ==
-              true &&
-          (driverData['is_banned'] ?? driverData['isBanned'] ?? false) != true;
+          _isDriverRole(driverData) &&
+          _isVerifiedFlag(driverData) &&
+          !_isBannedFlag(driverData);
 
       if (!isVerifiedDriver) {
         throw StateError('Only verified drivers can decline bookings.');
@@ -1076,7 +1080,7 @@ class RideTrackingService {
       }
     }
 
-    return _driverLocations.doc(driverId).set(<String, dynamic>{
+    await _driverLocations.doc(driverId).set(<String, dynamic>{
       'driver_id': driverId,
       'is_available': isAvailable,
       'active_booking_id': activeBookingId,
@@ -1112,19 +1116,20 @@ class RideTrackingService {
       accuracy: position.accuracy.isNaN ? null : position.accuracy,
     );
     final locationData = driverLocation.toFirestore();
+    final now = FieldValue.serverTimestamp();
     final batch = _firestore.batch();
 
     batch.set(_driverLocations.doc(driverId), <String, dynamic>{
       ...locationData,
       'is_available': isAvailable,
       'active_booking_id': activeBookingId,
-      'updated_at': FieldValue.serverTimestamp(),
+      'updated_at': now,
     }, SetOptions(merge: true));
 
     if (activeBookingId != null && activeBookingId.isNotEmpty) {
       batch.update(_bookings.doc(activeBookingId), <String, dynamic>{
         'driver_location': locationData,
-        'updated_at': FieldValue.serverTimestamp(),
+        'updated_at': now,
       });
     }
 
@@ -1150,9 +1155,9 @@ class RideTrackingService {
     final data = snapshot.data() ?? <String, dynamic>{};
     final isVerifiedDriver =
         snapshot.exists &&
-        data['role'] == 'driver' &&
-        (data['is_verified'] ?? data['isVerified'] ?? false) == true &&
-        (data['is_banned'] ?? data['isBanned'] ?? false) != true;
+        _isDriverRole(data) &&
+        _isVerifiedFlag(data) &&
+        !_isBannedFlag(data);
 
     if (!isVerifiedDriver) {
       throw StateError('Only verified drivers can go active.');
@@ -1188,6 +1193,26 @@ class RideTrackingService {
     }
 
     return int.tryParse(value?.toString() ?? '');
+  }
+
+  static bool _isVerifiedFlag(Map<String, dynamic> data) {
+    return (data['is_verified'] ??
+            data['isVerified'] ??
+            data['isVerrified'] ??
+            false) ==
+        true;
+  }
+
+  static String _normalizedRole(Map<String, dynamic> data) {
+    return (data['role'] ?? '').toString().trim().toLowerCase();
+  }
+
+  static bool _isDriverRole(Map<String, dynamic> data) {
+    return _normalizedRole(data) == 'driver';
+  }
+
+  static bool _isBannedFlag(Map<String, dynamic> data) {
+    return (data['is_banned'] ?? data['isBanned'] ?? false) == true;
   }
 
   static double _readDouble(Object? value) {
@@ -1514,9 +1539,9 @@ class DriverReviewProfile {
     return DriverReviewProfile(
       driverId: driverId,
       fullName: RideTrackingService._fullNameFromData(data, fallback: 'Driver'),
-      isVerified: (data['is_verified'] ?? data['isVerified'] ?? false) == true,
+      isVerified: RideTrackingService._isVerifiedFlag(data),
       isActive: (data['is_active'] ?? data['isActive'] ?? false) == true,
-      isBanned: (data['is_banned'] ?? data['isBanned'] ?? false) == true,
+      isBanned: RideTrackingService._isBannedFlag(data),
       profileImageUrl: RideTrackingService._profileImageUrlFromData(data),
       averageRating: averageRating,
       reviewCount: reviewCount,
@@ -1661,7 +1686,7 @@ class PassengerReviewProfile {
           ? 'Passenger'
           : '$firstName $lastName'.trim(),
       passengerType: resolvedType == 'student' ? 'student' : 'regular',
-      isVerified: (data['is_verified'] ?? data['isVerified'] ?? false) == true,
+      isVerified: RideTrackingService._isVerifiedFlag(data),
       profileImageUrl: RideTrackingService._profileImageUrlFromData(data),
       averageRating: averageRating > 0
           ? averageRating
@@ -1752,8 +1777,7 @@ class AvailableDriver {
       driverId: driverId,
       fullName: fullName.isEmpty ? 'Verified driver' : fullName,
       profileImageUrl: RideTrackingService._profileImageUrlFromData(userData),
-      isVerified:
-          (userData['is_verified'] ?? userData['isVerified'] ?? false) == true,
+      isVerified: RideTrackingService._isVerifiedFlag(userData),
       supportsOnlinePayments: userData['accepts_online_payments'] == true,
       rating: rating,
       reviewCount: reviewCount,

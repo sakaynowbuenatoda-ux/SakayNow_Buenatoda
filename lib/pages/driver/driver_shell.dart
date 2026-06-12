@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../core/preferences/app_preferences_controller.dart';
 import '../../models/chat_conversation.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
@@ -43,10 +44,10 @@ class DriverShell extends StatefulWidget {
 
 class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   static const int _messagesIndex = 2;
+  static const int _historyIndex = 3;
 
   int _currentIndex = 0;
   late final ValueNotifier<bool> _isActiveNotifier;
-  late List<Widget> _pages;
   final ChatService _chatService = ChatService();
   final NotificationService _notificationService = NotificationService.instance;
   final RideTrackingService _rideTrackingService = RideTrackingService();
@@ -54,6 +55,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   StreamSubscription<List<ChatConversation>>? _conversationSubscription;
   StreamSubscription<int>? _notificationSubscription;
   StreamSubscription<List<Ride>>? _rideCancellationSubscription;
+  StreamSubscription<bool>? _availabilitySubscription;
   final Map<String, RideStatus> _knownRideStatuses = <String, RideStatus>{};
   Timer? _inactivityTimer;
   Timer? _foregroundIdleTimer;
@@ -61,6 +63,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   int _messageUnreadCount = 0;
   int _notificationUnreadCount = 0;
   bool _isMarkingMessagesRead = false;
+  bool _isChangingAvailability = false;
   bool _hasSeededRideStatuses = false;
 
   bool get isActive => _isActiveNotifier.value;
@@ -69,8 +72,9 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    AppPreferencesController.instance.addListener(_handlePreferencesChanged);
     _isActiveNotifier = ValueNotifier<bool>(false);
-    _pages = _buildPages();
+    _watchDriverAvailability();
     _watchUnreadMessages();
     _watchUnreadNotifications();
     _watchRideCancellations();
@@ -80,15 +84,10 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   void didUpdateWidget(covariant DriverShell oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.userId != widget.userId ||
-        oldWidget.firstName != widget.firstName ||
-        oldWidget.isVerified != widget.isVerified) {
-      _pages = _buildPages();
-    }
-
     if (oldWidget.userId != widget.userId) {
       _messageUnreadCount = 0;
       _notificationUnreadCount = 0;
+      _watchDriverAvailability();
       _watchUnreadMessages();
       _watchUnreadNotifications();
       _watchRideCancellations();
@@ -98,13 +97,21 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    AppPreferencesController.instance.removeListener(_handlePreferencesChanged);
     _conversationSubscription?.cancel();
     _notificationSubscription?.cancel();
     _rideCancellationSubscription?.cancel();
+    _availabilitySubscription?.cancel();
     _inactivityTimer?.cancel();
     _foregroundIdleTimer?.cancel();
     _isActiveNotifier.dispose();
     super.dispose();
+  }
+
+  void _handlePreferencesChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -144,7 +151,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     } else if (value == 'messages') {
       _selectTab(_messagesIndex);
     } else if (value == 'history') {
-      setState(() => _currentIndex = 3);
+      _selectTab(_historyIndex);
     } else if (value == 'dashboard') {
       setState(() => _currentIndex = 4);
     }
@@ -171,10 +178,20 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
             isActive: isActive,
             isVerified: widget.isVerified,
             onOpenQueue: () => setState(() => _currentIndex = 1),
+            onOpenHistory: () => _selectTab(_historyIndex),
           );
         },
       ),
-      DriverQueuePage(driverId: widget.userId, isVerified: widget.isVerified),
+      ValueListenableBuilder<bool>(
+        valueListenable: _isActiveNotifier,
+        builder: (context, isActive, _) {
+          return DriverQueuePage(
+            driverId: widget.userId,
+            isVerified: widget.isVerified,
+            isActive: isActive,
+          );
+        },
+      ),
       DriverMessagesPage(userId: widget.userId, firstName: widget.firstName),
       DriverHistoryPage(driverId: widget.userId),
       DriverDashboardPage(
@@ -186,6 +203,8 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final pages = _buildPages();
+
     return Listener(
       onPointerDown: (_) => _recordDriverActivity(),
       onPointerMove: (_) => _recordDriverActivity(),
@@ -207,7 +226,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
         body: AnimatedTabSwitcher(
           index: _currentIndex,
           onRefresh: _handleRefresh,
-          children: _pages,
+          children: pages,
         ),
         bottomNavigationBar: BottomNavWidget(
           currentIndex: _currentIndex,
@@ -286,6 +305,56 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
             // Dashboard/history already surface ride read errors when needed.
           },
         );
+  }
+
+  void _watchDriverAvailability() {
+    unawaited(_availabilitySubscription?.cancel());
+    _availabilitySubscription = _rideTrackingService
+        .watchDriverAvailability(widget.userId)
+        .listen(
+          (isAvailable) {
+            if (!mounted) {
+              return;
+            }
+
+            if (_isChangingAvailability) {
+              return;
+            }
+
+            _setActiveState(isAvailable);
+            if (isAvailable) {
+              _resetForegroundIdleTimer();
+            } else {
+              _cancelForegroundIdleTimer();
+              _cancelBackgroundInactivityTimer();
+            }
+          },
+          onError: (_) {
+            if (!mounted) {
+              return;
+            }
+
+            if (_isChangingAvailability) {
+              return;
+            }
+
+            _setActiveState(false);
+            _cancelForegroundIdleTimer();
+            _cancelBackgroundInactivityTimer();
+          },
+        );
+  }
+
+  void _setActiveState(bool value) {
+    if (_isActiveNotifier.value == value) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() => _isActiveNotifier.value = value);
+    } else {
+      _isActiveNotifier.value = value;
+    }
   }
 
   void _handleRideCancellationSnapshot(List<Ride> rides) {
@@ -371,6 +440,10 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleAvailabilityChanged(bool value) async {
+    if (_isChangingAvailability) {
+      return;
+    }
+
     if (value && !widget.isVerified) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -380,9 +453,10 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
       return;
     }
 
+    _isChangingAvailability = true;
     _cancelBackgroundInactivityTimer();
     _cancelForegroundIdleTimer();
-    setState(() => _isActiveNotifier.value = value);
+    _setActiveState(value);
 
     try {
       if (value) {
@@ -411,12 +485,14 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
-      setState(() => _isActiveNotifier.value = !value);
+      _setActiveState(!value);
       if (!value) {
         _resetForegroundIdleTimer();
       } else {
         _cancelForegroundIdleTimer();
       }
+    } finally {
+      _isChangingAvailability = false;
     }
   }
 
@@ -482,11 +558,9 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     _cancelForegroundIdleTimer();
 
     if (mounted) {
-      if (isActive) {
-        setState(() => _isActiveNotifier.value = false);
-      } else {
-        _isActiveNotifier.value = false;
-      }
+      _setActiveState(false);
+    } else {
+      _isActiveNotifier.value = false;
     }
 
     try {

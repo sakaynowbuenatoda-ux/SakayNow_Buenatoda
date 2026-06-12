@@ -19,8 +19,8 @@ class SettingsPlaceholderPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: PassengerUi.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
+        backgroundColor: PassengerUi.surface,
+        surfaceTintColor: PassengerUi.surface,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),

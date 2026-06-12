@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../preferences/app_preferences_controller.dart';
 import '../../pages/admin/admin_home_page.dart';
 import '../../pages/driver/driver_shell.dart';
 import '../../pages/passenger/passenger_shell.dart';
@@ -85,6 +86,7 @@ class SessionService {
     await prefs.remove('email');
     await prefs.remove('role');
     await prefs.remove('passenger_type');
+    await AppPreferencesController.instance.clearThemePreference();
   }
 
   static Future<void> signOut() async {

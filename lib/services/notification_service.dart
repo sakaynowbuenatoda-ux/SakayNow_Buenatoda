@@ -559,8 +559,11 @@ class NotificationService {
       if (type == 'booking_request' && currentUserRole == 'driver') {
         _pushPageWhenNavigatorIsReady(
           navigator: navigator,
-          builder: (_) =>
-              DriverQueuePage(driverId: currentUserId, isVerified: true),
+          builder: (_) => DriverQueuePage(
+            driverId: currentUserId,
+            isVerified: true,
+            isActive: true,
+          ),
         );
         return;
       }

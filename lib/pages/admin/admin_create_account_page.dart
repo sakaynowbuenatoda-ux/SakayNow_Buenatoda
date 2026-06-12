@@ -254,7 +254,7 @@ class _AdminCreateAccountPageState extends State<AdminCreateAccountPage> {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AdminUi.primary,
-                          foregroundColor: AdminUi.surface,
+                          foregroundColor: AdminUi.onPrimary,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: AdminUi.radius,

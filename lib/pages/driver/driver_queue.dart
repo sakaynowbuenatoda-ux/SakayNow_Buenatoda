@@ -10,11 +10,13 @@ import 'widgets/driver_ride_request_card.dart';
 class DriverQueuePage extends StatefulWidget {
   final String driverId;
   final bool isVerified;
+  final bool isActive;
 
   const DriverQueuePage({
     super.key,
     required this.driverId,
     required this.isVerified,
+    required this.isActive,
   });
 
   @override
@@ -40,59 +42,74 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
             accentColor: PassengerUi.highlightAmber,
           ),
           const SizedBox(height: 16),
-          StreamBuilder<List<Ride>>(
-            stream: _rideTrackingService.watchOpenBookings(
-              driverId: widget.driverId,
+          if (!widget.isVerified)
+            const PassengerEmptyState(
+              icon: Icons.verified_user_outlined,
+              title: 'Pending verification',
+              description:
+                  'Admin verification is required before accepting passenger bookings.',
+            )
+          else if (!widget.isActive)
+            const PassengerEmptyState(
+              icon: Icons.power_settings_new_rounded,
+              title: 'Go active to open queue',
+              description:
+                  'Turn on driver availability when you are ready to receive nearby passenger requests.',
+            )
+          else
+            StreamBuilder<List<Ride>>(
+              stream: _rideTrackingService.watchOpenBookings(
+                driverId: widget.driverId,
+              ),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return PassengerEmptyState(
+                    icon: Icons.error_outline_rounded,
+                    title: 'Unable to load bookings',
+                    description: snapshot.error.toString(),
+                  );
+                }
+
+                final rides = snapshot.data ?? <Ride>[];
+                if (rides.isEmpty) {
+                  return const PassengerEmptyState(
+                    icon: Icons.route_rounded,
+                    title: 'No active requests',
+                    description:
+                        'New passenger bookings will appear here in real time.',
+                  );
+                }
+
+                return Column(
+                  children: rides
+                      .asMap()
+                      .entries
+                      .map(
+                        (entry) => Padding(
+                          padding: EdgeInsets.only(
+                            bottom: entry.key == rides.length - 1 ? 0 : 12,
+                          ),
+                          child: DriverRideRequestCard(
+                            ride: entry.value,
+                            driverId: widget.driverId,
+                            isAccepting:
+                                _acceptingBookingId == entry.value.bookingId,
+                            isDeclining:
+                                _decliningBookingId == entry.value.bookingId,
+                            rideTrackingService: _rideTrackingService,
+                            onAccept: () => _acceptRide(entry.value),
+                            onDecline: () => _declineRide(entry.value),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                );
+              },
             ),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              if (snapshot.hasError) {
-                return PassengerEmptyState(
-                  icon: Icons.error_outline_rounded,
-                  title: 'Unable to load bookings',
-                  description: snapshot.error.toString(),
-                );
-              }
-
-              final rides = snapshot.data ?? <Ride>[];
-              if (rides.isEmpty) {
-                return const PassengerEmptyState(
-                  icon: Icons.route_rounded,
-                  title: 'No active requests',
-                  description:
-                      'New passenger bookings will appear here in real time.',
-                );
-              }
-
-              return Column(
-                children: rides
-                    .asMap()
-                    .entries
-                    .map(
-                      (entry) => Padding(
-                        padding: EdgeInsets.only(
-                          bottom: entry.key == rides.length - 1 ? 0 : 12,
-                        ),
-                        child: DriverRideRequestCard(
-                          ride: entry.value,
-                          driverId: widget.driverId,
-                          isAccepting:
-                              _acceptingBookingId == entry.value.bookingId,
-                          isDeclining:
-                              _decliningBookingId == entry.value.bookingId,
-                          rideTrackingService: _rideTrackingService,
-                          onAccept: () => _acceptRide(entry.value),
-                          onDecline: () => _declineRide(entry.value),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              );
-            },
-          ),
         ],
       ),
     );

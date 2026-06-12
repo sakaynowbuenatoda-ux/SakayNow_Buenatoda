@@ -683,13 +683,12 @@ class _MiniBarChart extends StatelessWidget {
     );
 
     return SizedBox(
-      height: 132,
+      height: 144,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: values
             .map((item) {
               final factor = (item.value / maxValue).clamp(0.0, 1.0).toDouble();
-              final height = 28 + (70 * factor);
 
               return Expanded(
                 child: Padding(
@@ -710,30 +709,54 @@ class _MiniBarChart extends StatelessWidget {
                         ),
                       ),
                       SizedBox(height: 6),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 240),
-                        curve: Curves.easeOutCubic,
-                        width: double.infinity,
-                        height: height,
-                        constraints: const BoxConstraints(maxWidth: 44),
-                        decoration: BoxDecoration(
-                          color: Color.lerp(color, AdminUi.secondary, factor),
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: color.withValues(alpha: 0.14),
-                              blurRadius: 10,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final availableHeight = constraints.maxHeight;
+                            final minHeight = availableHeight < 24
+                                ? availableHeight
+                                : 24.0;
+                            final height =
+                                minHeight +
+                                ((availableHeight - minHeight) * factor);
+
+                            return Align(
+                              alignment: Alignment.bottomCenter,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 240),
+                                curve: Curves.easeOutCubic,
+                                width: double.infinity,
+                                height: height,
+                                constraints: const BoxConstraints(maxWidth: 44),
+                                decoration: BoxDecoration(
+                                  color: Color.lerp(
+                                    color,
+                                    AdminUi.secondary,
+                                    factor,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: color.withValues(alpha: 0.14),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                       SizedBox(height: 8),
-                      Text(
-                        item.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AdminUi.labelText.copyWith(fontSize: 11),
+                      SizedBox(
+                        height: 16,
+                        child: Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AdminUi.labelText.copyWith(fontSize: 11),
+                        ),
                       ),
                     ],
                   ),

@@ -308,9 +308,9 @@ class _ConversationHeader extends StatelessWidget {
         final compact = constraints.maxWidth < 680;
         final header = PassengerPageHeader(
           title: title,
-          subtitle: '',
-          icon: Icons.chat_bubble_rounded,
-          accentColor: PassengerUi.accentBlue,
+          subtitle: 'Stay close to ride updates, passengers, and support.',
+          icon: Icons.forum_rounded,
+          accentColor: PassengerUi.primary,
         );
         final search = _ConversationSearchField(controller: searchController);
         final unreadPill = _UnreadMessagePill(unreadTotal: unreadTotal);
@@ -365,18 +365,16 @@ class _UnreadMessagePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: PassengerUi.blueSoft,
+        color: PassengerUi.mutedSurface,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: PassengerUi.accentBlue.withValues(alpha: 0.12),
-        ),
+        border: Border.all(color: PassengerUi.border),
       ),
       child: Text(
         unreadTotal > 99 ? '99+' : '$unreadTotal',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: PassengerUi.valueText.copyWith(
-          color: PassengerUi.accentBlue,
+          color: PassengerUi.title,
           fontWeight: FontWeight.w800,
         ),
       ),
@@ -403,23 +401,21 @@ class _SupportIconButton extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: PassengerUi.blueSoft,
+              color: PassengerUi.mutedSurface,
               shape: BoxShape.circle,
-              border: Border.all(
-                color: PassengerUi.accentBlue.withValues(alpha: 0.14),
-              ),
+              border: Border.all(color: PassengerUi.border),
             ),
             child: isLoading
                 ? Padding(
                     padding: const EdgeInsets.all(11),
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: PassengerUi.accentBlue,
+                      color: PassengerUi.primary,
                     ),
                   )
                 : Icon(
-                    Icons.support_agent_rounded,
-                    color: PassengerUi.accentBlue,
+                    Icons.headset_mic_rounded,
+                    color: PassengerUi.primary,
                     size: 22,
                   ),
           ),
@@ -494,6 +490,10 @@ class _ConversationCard extends StatelessWidget {
       currentUserRole: currentUserRole,
     );
     final hasUnread = unreadCount > 0;
+    final roleLabel = conversation.tagFor(
+      currentUserId: currentUserId,
+      currentUserRole: currentUserRole,
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -517,17 +517,17 @@ class _ConversationCard extends StatelessWidget {
           borderRadius: PassengerUi.cardRadius,
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 42,
+                  height: 42,
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     color: hasUnread
-                        ? PassengerUi.blueSoft
+                        ? PassengerUi.mutedSurface
                         : PassengerUi.mutedSurface,
                     shape: BoxShape.circle,
                   ),
@@ -537,7 +537,7 @@ class _ConversationCard extends StatelessWidget {
                     profileFuture: targetProfileFuture,
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -545,23 +545,34 @@ class _ConversationCard extends StatelessWidget {
                       Row(
                         children: <Widget>[
                           Expanded(
-                            child: Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: PassengerUi.cardTitle.copyWith(
-                                fontWeight: hasUnread
-                                    ? FontWeight.w700
-                                    : FontWeight.w400,
-                              ),
+                            child: Row(
+                              children: <Widget>[
+                                Flexible(
+                                  child: Text(
+                                    title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: PassengerUi.cardTitle.copyWith(
+                                      color: PassengerUi.title,
+                                      fontSize: 15,
+                                      fontWeight: hasUnread
+                                          ? FontWeight.w800
+                                          : FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _ConversationRoleLabel(label: roleLabel),
+                              ],
                             ),
                           ),
+                          const SizedBox(width: 10),
                           TimeAgoText(
                             dateTime: conversation.latestActivityAt,
                             style: PassengerUi.bodyText.copyWith(
                               fontSize: 12,
                               color: hasUnread
-                                  ? PassengerUi.accentBlue
+                                  ? PassengerUi.title
                                   : PassengerUi.body,
                               fontWeight: hasUnread
                                   ? FontWeight.w700
@@ -570,43 +581,38 @@ class _ConversationCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                      const SizedBox(height: 5),
+                      Row(
                         children: <Widget>[
-                          PassengerStatusChip(
-                            label: conversation.tagFor(
-                              currentUserId: currentUserId,
-                              currentUserRole: currentUserRole,
-                            ),
-                            textColor: PassengerUi.accentBlue,
-                            backgroundColor: PassengerUi.blueSoft,
+                          Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            color: hasUnread
+                                ? PassengerUi.title
+                                : PassengerUi.body,
+                            size: 15,
                           ),
-                          if (hasUnread)
-                            PassengerStatusChip(
-                              label: unreadCount > 99
-                                  ? '99+ unread'
-                                  : '$unreadCount unread',
-                              textColor: PassengerUi.successText,
-                              backgroundColor: PassengerUi.successBackground,
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              conversation.previewFor(currentUserId),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: PassengerUi.bodyText.copyWith(
+                                color: hasUnread
+                                    ? PassengerUi.title
+                                    : PassengerUi.body,
+                                fontSize: 13,
+                                fontWeight: hasUnread
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                              ),
                             ),
+                          ),
+                          if (hasUnread) ...<Widget>[
+                            const SizedBox(width: 8),
+                            _UnreadCountBadge(unreadCount: unreadCount),
+                          ],
                         ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        conversation.previewFor(currentUserId),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: PassengerUi.bodyText.copyWith(
-                          color: hasUnread
-                              ? PassengerUi.title
-                              : PassengerUi.body,
-                          fontWeight: hasUnread
-                              ? FontWeight.w700
-                              : FontWeight.w400,
-                        ),
                       ),
                     ],
                   ),
@@ -614,6 +620,63 @@ class _ConversationCard extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConversationRoleLabel extends StatelessWidget {
+  final String label;
+
+  const _ConversationRoleLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: PassengerUi.mutedSurface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: PassengerUi.border),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: PassengerUi.bodyText.copyWith(
+          color: PassengerUi.body,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
+        ),
+      ),
+    );
+  }
+}
+
+class _UnreadCountBadge extends StatelessWidget {
+  final int unreadCount;
+
+  const _UnreadCountBadge({required this.unreadCount});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: PassengerUi.primary,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        unreadCount > 99 ? '99+' : '$unreadCount',
+        textAlign: TextAlign.center,
+        style: PassengerUi.bodyText.copyWith(
+          color: PassengerUi.onPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          height: 1.1,
         ),
       ),
     );
@@ -669,16 +732,16 @@ class _ConversationAvatarFallback extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isSupport) {
       return Icon(
-        Icons.support_agent_rounded,
-        color: PassengerUi.accentBlue,
-        size: 23,
+        Icons.headset_mic_rounded,
+        color: PassengerUi.primary,
+        size: 21,
       );
     }
 
     return Center(
       child: Text(
         title.isEmpty ? '?' : title.substring(0, 1).toUpperCase(),
-        style: PassengerUi.cardTitle,
+        style: PassengerUi.cardTitle.copyWith(color: PassengerUi.primary),
       ),
     );
   }

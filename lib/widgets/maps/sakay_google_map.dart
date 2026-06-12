@@ -17,6 +17,7 @@ class SakayGoogleMap extends StatefulWidget {
   final bool zoomControlsEnabled;
   final bool autoMoveCamera;
   final bool preferInitialCameraTarget;
+  final MapType mapType;
   final ValueChanged<LatLng>? onTap;
   final ValueChanged<LatLng>? onLongPress;
 
@@ -31,6 +32,7 @@ class SakayGoogleMap extends StatefulWidget {
     this.zoomControlsEnabled = false,
     this.autoMoveCamera = true,
     this.preferInitialCameraTarget = false,
+    this.mapType = MapType.normal,
     this.onTap,
     this.onLongPress,
   });
@@ -56,8 +58,10 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
       widget.initialCameraTarget,
       oldWidget.initialCameraTarget,
     );
+    final mapTypeChanged = widget.mapType != oldWidget.mapType;
 
     if (boundsChanged ||
+        mapTypeChanged ||
         (widget.bounds == null && targetChanged) ||
         (widget.preferInitialCameraTarget && targetChanged)) {
       _scheduleMoveCamera();
@@ -103,6 +107,7 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
       markers: widget.markers,
       polylines: widget.polylines,
       circles: widget.circles,
+      mapType: widget.mapType,
       myLocationEnabled: widget.myLocationEnabled,
       myLocationButtonEnabled: widget.myLocationEnabled,
       zoomControlsEnabled: widget.zoomControlsEnabled,

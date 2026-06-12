@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../core/preferences/app_preferences_controller.dart';
 import '../../models/chat_conversation.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
@@ -43,9 +44,9 @@ class PassengerShell extends StatefulWidget {
 
 class _PassengerShellState extends State<PassengerShell> {
   static const int _messagesIndex = 1;
+  static const int _historyIndex = 2;
 
   int _currentIndex = 0;
-  late List<Widget> _pages;
   final ChatService _chatService = ChatService();
   final NotificationService _notificationService = NotificationService.instance;
   final RideTrackingService _rideTrackingService = RideTrackingService();
@@ -61,7 +62,7 @@ class _PassengerShellState extends State<PassengerShell> {
   @override
   void initState() {
     super.initState();
-    _pages = _buildPages();
+    AppPreferencesController.instance.addListener(_handlePreferencesChanged);
     _watchUnreadMessages();
     _watchUnreadNotifications();
     _watchRideCancellations();
@@ -70,13 +71,6 @@ class _PassengerShellState extends State<PassengerShell> {
   @override
   void didUpdateWidget(covariant PassengerShell oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    if (oldWidget.userId != widget.userId ||
-        oldWidget.firstName != widget.firstName ||
-        oldWidget.passengerType != widget.passengerType ||
-        oldWidget.isVerified != widget.isVerified) {
-      _pages = _buildPages();
-    }
 
     if (oldWidget.userId != widget.userId) {
       _messageUnreadCount = 0;
@@ -89,10 +83,17 @@ class _PassengerShellState extends State<PassengerShell> {
 
   @override
   void dispose() {
+    AppPreferencesController.instance.removeListener(_handlePreferencesChanged);
     _conversationSubscription?.cancel();
     _notificationSubscription?.cancel();
     _rideCancellationSubscription?.cancel();
     super.dispose();
+  }
+
+  void _handlePreferencesChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _handleProfileSelected(String value) {
@@ -118,7 +119,7 @@ class _PassengerShellState extends State<PassengerShell> {
     } else if (value == 'messages') {
       _selectTab(_messagesIndex);
     } else if (value == 'history') {
-      setState(() => _currentIndex = 2);
+      _selectTab(_historyIndex);
     }
   }
 
@@ -139,6 +140,7 @@ class _PassengerShellState extends State<PassengerShell> {
         firstName: widget.firstName,
         passengerType: widget.passengerType,
         isVerified: widget.isVerified,
+        onOpenHistory: () => _selectTab(_historyIndex),
       ),
       PassengerMessages(
         userId: widget.userId,
@@ -161,6 +163,8 @@ class _PassengerShellState extends State<PassengerShell> {
 
   @override
   Widget build(BuildContext context) {
+    final pages = _buildPages();
+
     return Scaffold(
       backgroundColor: PassengerUi.background,
       appBar: AppBarWidget(
@@ -176,7 +180,7 @@ class _PassengerShellState extends State<PassengerShell> {
       body: AnimatedTabSwitcher(
         index: _currentIndex,
         onRefresh: _handleRefresh,
-        children: _pages,
+        children: pages,
       ),
       bottomNavigationBar: BottomNavWidget(
         currentIndex: _currentIndex,

@@ -44,7 +44,11 @@ class AuthUi {
       GoogleFonts.poppins(fontSize: 14, color: body, height: 1.4);
 
   static ThemeData theme(BuildContext context) {
-    final base = Theme.of(context);
+    final base = ThemeData(
+      brightness: Brightness.light,
+      colorScheme: const ColorScheme.light(),
+      useMaterial3: true,
+    );
 
     return base.copyWith(
       brightness: Brightness.light,

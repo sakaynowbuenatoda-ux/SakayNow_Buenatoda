@@ -147,6 +147,7 @@ class RegistrationService {
       final writeData = <String, dynamic>{
         'user_id': uid,
         'email': email.trim(),
+        'email_verified': false,
         'created_at': FieldValue.serverTimestamp(),
         ...profileData,
       };

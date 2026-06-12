@@ -176,6 +176,7 @@ class QuickDestinationsController extends ChangeNotifier {
       'label': destination.label,
       'address': destination.address,
       'icon': _iconKey(destination.icon),
+      'custom_emoji': destination.customEmoji,
       'accent_color': destination.accentColor.toARGB32(),
       'background_color': destination.backgroundColor.toARGB32(),
       'latitude': destination.latitude,
@@ -231,6 +232,9 @@ class QuickDestinationsController extends ChangeNotifier {
           ? null
           : data['address'] as String?,
       icon: icon,
+      customEmoji: (data['custom_emoji'] as String?)?.trim().isEmpty == true
+          ? null
+          : data['custom_emoji'] as String?,
       accentColor: accentColor,
       backgroundColor: Color(
         (data['background_color'] as num?)?.round() ??
@@ -252,6 +256,18 @@ class QuickDestinationsController extends ChangeNotifier {
     if (icon == Icons.work_rounded) {
       return 'work';
     }
+    if (icon == Icons.storefront_rounded) {
+      return 'market';
+    }
+    if (icon == Icons.park_rounded) {
+      return 'plaza';
+    }
+    if (icon == Icons.account_balance_rounded) {
+      return 'municipal_hall';
+    }
+    if (icon == Icons.local_hospital_rounded) {
+      return 'hospital';
+    }
     return 'place';
   }
 
@@ -260,6 +276,10 @@ class QuickDestinationsController extends ChangeNotifier {
       'home' => Icons.home_rounded,
       'school' => Icons.school_rounded,
       'work' => Icons.work_rounded,
+      'market' => Icons.storefront_rounded,
+      'plaza' => Icons.park_rounded,
+      'municipal_hall' => Icons.account_balance_rounded,
+      'hospital' => Icons.local_hospital_rounded,
       _ => Icons.place_rounded,
     };
   }

@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../config/map_config.dart';
 import '../../controllers/ride_tracking_controller.dart';
+import '../../core/preferences/app_preferences_controller.dart';
 import '../../models/ride_driver_location.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
@@ -10,6 +11,7 @@ import '../../services/location_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/driver_rating_leaderboard_panel.dart';
 import '../../widgets/firebase_storage_image.dart';
+import '../../widgets/maps/map_type_toggle.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/reviews/review_dialogs.dart';
@@ -25,6 +27,7 @@ class DriverHomePage extends StatelessWidget {
   final bool isActive;
   final bool isVerified;
   final VoidCallback onOpenQueue;
+  final VoidCallback onOpenHistory;
 
   const DriverHomePage({
     super.key,
@@ -33,6 +36,7 @@ class DriverHomePage extends StatelessWidget {
     required this.isActive,
     required this.isVerified,
     required this.onOpenQueue,
+    required this.onOpenHistory,
   });
 
   @override
@@ -68,9 +72,14 @@ class DriverHomePage extends StatelessWidget {
           _LiveIncomingRequestsPreview(
             driverId: userId,
             isVerified: isVerified,
+            isActive: isActive,
           ),
           SizedBox(height: 20),
-          PassengerSectionHeader(title: 'Recent Trips'),
+          PassengerSectionHeader(
+            title: 'Recent Trips',
+            actionLabel: 'View all',
+            onActionTap: onOpenHistory,
+          ),
           SizedBox(height: 12),
           DriverRecentTripsSection(driverId: userId, limit: 3),
           SizedBox(height: 20),
@@ -420,17 +429,30 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
                           child: Stack(
                             children: <Widget>[
                               Positioned.fill(
-                                child: SakayGoogleMap(
-                                  initialCameraTarget: mapCenter,
-                                  bounds: bounds,
-                                  markers: markers,
-                                  myLocationEnabled: driverLocation != null,
-                                  autoMoveCamera: true,
+                                child: AnimatedBuilder(
+                                  animation: AppPreferencesController.instance,
+                                  builder: (context, _) {
+                                    return SakayGoogleMap(
+                                      initialCameraTarget: mapCenter,
+                                      bounds: bounds,
+                                      markers: markers,
+                                      mapType: AppPreferencesController
+                                          .instance
+                                          .googleMapType,
+                                      myLocationEnabled: driverLocation != null,
+                                      autoMoveCamera: true,
+                                    );
+                                  },
                                 ),
+                              ),
+                              const Positioned(
+                                top: 10,
+                                right: 10,
+                                child: MapTypeToggle(),
                               ),
                               Positioned(
                                 left: 10,
-                                right: 10,
+                                right: 112,
                                 top: 10,
                                 child: _DriverMapStatusPill(
                                   requestCount: rides.length,
@@ -615,10 +637,12 @@ class _DriverMapStatusPill extends StatelessWidget {
 class _LiveIncomingRequestsPreview extends StatefulWidget {
   final String driverId;
   final bool isVerified;
+  final bool isActive;
 
   const _LiveIncomingRequestsPreview({
     required this.driverId,
     required this.isVerified,
+    required this.isActive,
   });
 
   @override
@@ -634,6 +658,24 @@ class _LiveIncomingRequestsPreviewState
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.isVerified) {
+      return const PassengerEmptyState(
+        icon: Icons.verified_user_outlined,
+        title: 'Pending verification',
+        description:
+            'Admin verification is required before accepting passenger bookings.',
+      );
+    }
+
+    if (!widget.isActive) {
+      return const PassengerEmptyState(
+        icon: Icons.power_settings_new_rounded,
+        title: 'Go active to receive requests',
+        description:
+            'Turn on driver availability when you are ready to accept nearby bookings.',
+      );
+    }
+
     return StreamBuilder<List<Ride>>(
       stream: _rideTrackingService.watchOpenBookings(driverId: widget.driverId),
       builder: (context, snapshot) {

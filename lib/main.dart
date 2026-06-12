@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app.dart';
 import 'config/app_environment.dart';
 import 'core/preferences/app_preferences_controller.dart';
+import 'core/preferences/privacy_security_preferences_controller.dart';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
 
@@ -17,6 +18,7 @@ void main() async {
   NotificationService.registerBackgroundHandler();
   await AppEnvironment.load();
   await AppPreferencesController.instance.load();
+  await PrivacySecurityPreferencesController.instance.load();
   GoogleFonts.config.allowRuntimeFetching = false;
 
   runApp(const MyApp());

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../config/map_config.dart';
+import '../../../core/preferences/app_preferences_controller.dart';
+import '../../../widgets/maps/map_type_toggle.dart';
 import '../../../widgets/maps/sakay_google_map.dart';
 import '../admin_models.dart';
 import '../admin_service.dart';
@@ -44,7 +46,7 @@ class _AdminLiveDriverMapContent extends StatelessWidget {
     final mapHeight = _mapHeightFor(MediaQuery.sizeOf(context).width);
     final initialTarget = hasDrivers
         ? drivers.first.latLng
-        : MapConfig.buenavistaCenter;
+        : MapConfig.buenavistaMunicipalHall;
 
     return AdminSurfaceCard(
       padding: const EdgeInsets.all(14),
@@ -95,14 +97,24 @@ class _AdminLiveDriverMapContent extends StatelessWidget {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: SakayGoogleMap(
-                      initialCameraTarget: initialTarget,
-                      bounds: hasDrivers ? _boundsForDrivers(drivers) : null,
-                      markers: _driverMarkers(drivers),
-                      zoomControlsEnabled: true,
-                      preferInitialCameraTarget: !hasDrivers,
+                    child: AnimatedBuilder(
+                      animation: AppPreferencesController.instance,
+                      builder: (context, _) {
+                        return SakayGoogleMap(
+                          initialCameraTarget: initialTarget,
+                          bounds: hasDrivers
+                              ? _boundsForDrivers(drivers)
+                              : null,
+                          markers: _driverMarkers(drivers),
+                          mapType:
+                              AppPreferencesController.instance.googleMapType,
+                          zoomControlsEnabled: true,
+                          preferInitialCameraTarget: !hasDrivers,
+                        );
+                      },
                     ),
                   ),
+                  const Positioned(top: 10, right: 10, child: MapTypeToggle()),
                   if (!hasDrivers)
                     Positioned(
                       left: 14,

@@ -84,7 +84,12 @@ class AdminUserRecord {
           .toLowerCase(),
       gender: (data['gender'] ?? '').toString().trim(),
       age: (data['age'] ?? '').toString().trim(),
-      isVerified: (data['is_verified'] ?? data['isVerified'] ?? false) == true,
+      isVerified:
+          (data['is_verified'] ??
+              data['isVerified'] ??
+              data['isVerrified'] ??
+              false) ==
+          true,
       isActive: (data['is_active'] ?? data['isActive'] ?? false) == true,
       isBanned: (data['is_banned'] ?? data['isBanned'] ?? false) == true,
       isDeactivated:
@@ -151,13 +156,9 @@ class AdminUserRecord {
   bool get isPassengerOrDriver => isPassenger || isDriver;
   bool get isStudentPassenger =>
       isPassenger && passengerType.toLowerCase() == 'student';
-  bool get canReceiveBookings =>
-      isDriver &&
-      isVerified &&
-      isActive &&
-      !isBanned &&
-      !isDeactivated &&
-      !isDeleted;
+  bool get isEligibleDriverAccount =>
+      isDriver && isVerified && !isBanned && !isDeactivated && !isDeleted;
+  bool get canReceiveBookings => isEligibleDriverAccount && isActive;
 
   bool get isPendingVerification =>
       !isAdmin && !isBanned && !isDeactivated && !isDeleted && !isVerified;
@@ -348,11 +349,17 @@ class AdminBookingRecord {
   }
 
   bool get isCompleted => status == 'completed';
-  bool get isCancelled => status == 'cancelled' || status == 'rejected';
+  bool get isCancelled =>
+      status == 'cancelled' || status == 'canceled' || status == 'rejected';
   bool get isQueued =>
-      status == 'pending' || status == 'queued' || status == 'new';
+      status == 'searching' ||
+      status == 'pending' ||
+      status == 'queued' ||
+      status == 'new';
   bool get isActiveTrip =>
       status == 'accepted' ||
+      status == 'driver_arriving' ||
+      status == 'arrived' ||
       status == 'ongoing' ||
       status == 'in_progress' ||
       status == 'assigned';

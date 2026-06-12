@@ -90,10 +90,17 @@ class _PassengerQuickDestinationsPageState
                         color: destination.backgroundColor,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(
-                        destination.icon,
-                        color: destination.accentColor,
-                      ),
+                      child: destination.hasCustomEmoji
+                          ? Center(
+                              child: Text(
+                                destination.customEmoji!,
+                                style: const TextStyle(fontSize: 24),
+                              ),
+                            )
+                          : Icon(
+                              destination.icon,
+                              color: destination.accentColor,
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -310,6 +317,8 @@ class _QuickDestinationFormDialog extends StatefulWidget {
 class _QuickDestinationFormDialogState
     extends State<_QuickDestinationFormDialog> {
   late final TextEditingController _labelController;
+  late final TextEditingController _emojiController;
+  late _DestinationIconOption _selectedIconOption;
   RideLocation? _selectedLocation;
   String? _errorMessage;
 
@@ -319,11 +328,16 @@ class _QuickDestinationFormDialogState
     _labelController = TextEditingController(
       text: widget.destination?.label ?? '',
     );
+    _emojiController = TextEditingController(
+      text: widget.destination?.customEmoji ?? '',
+    );
+    _selectedIconOption = _optionForDestination(widget.destination);
   }
 
   @override
   void dispose() {
     _labelController.dispose();
+    _emojiController.dispose();
     super.dispose();
   }
 
@@ -365,6 +379,52 @@ class _QuickDestinationFormDialogState
                     }
                   },
                   decoration: const InputDecoration(labelText: 'Label'),
+                ),
+                const SizedBox(height: 12),
+                Text('Icon', style: PassengerUi.cardTitle),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _destinationIconOptions
+                      .map(
+                        (option) => ChoiceChip(
+                          selected: _selectedIconOption.key == option.key,
+                          onSelected: (_) {
+                            setState(() {
+                              _selectedIconOption = option;
+                              if (_errorMessage != null) {
+                                _errorMessage = null;
+                              }
+                            });
+                          },
+                          avatar: Icon(
+                            option.icon,
+                            color: _selectedIconOption.key == option.key
+                                ? PassengerUi.surface
+                                : option.accentColor,
+                            size: 18,
+                          ),
+                          label: Text(option.label),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _emojiController,
+                  maxLength: 2,
+                  textInputAction: TextInputAction.done,
+                  onChanged: (_) {
+                    if (_errorMessage != null) {
+                      setState(() => _errorMessage = null);
+                    }
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'Custom emoji (optional)',
+                    helperText: 'Leave blank to use the selected icon.',
+                    counterText: '',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -445,21 +505,105 @@ class _QuickDestinationFormDialogState
 
     final location = _selectedLocation;
     final existing = widget.destination;
+    final customEmoji = _emojiController.text.trim();
 
     Navigator.of(context).pop(
       PassengerQuickDestination(
         id: existing?.id ?? 'custom_${DateTime.now().microsecondsSinceEpoch}',
         label: label,
         address: location?.address ?? existing?.address,
-        icon: existing?.icon ?? Icons.place_rounded,
-        accentColor: existing?.accentColor ?? PassengerUi.accentBlue,
-        backgroundColor: existing?.backgroundColor ?? PassengerUi.blueSoft,
+        icon: _selectedIconOption.icon,
+        customEmoji: customEmoji.isEmpty ? null : customEmoji,
+        accentColor: _selectedIconOption.accentColor,
+        backgroundColor: _selectedIconOption.backgroundColor,
         latitude: location?.latitude ?? existing?.latitude,
         longitude: location?.longitude ?? existing?.longitude,
         isDefault: existing?.isDefault ?? false,
       ),
     );
   }
+}
+
+class _DestinationIconOption {
+  final String key;
+  final String label;
+  final IconData icon;
+  final Color accentColor;
+  final Color backgroundColor;
+
+  const _DestinationIconOption({
+    required this.key,
+    required this.label,
+    required this.icon,
+    required this.accentColor,
+    required this.backgroundColor,
+  });
+}
+
+const List<_DestinationIconOption> _destinationIconOptions =
+    <_DestinationIconOption>[
+      _DestinationIconOption(
+        key: 'home',
+        label: 'Home',
+        icon: Icons.home_rounded,
+        accentColor: Color(0xFF030213),
+        backgroundColor: Color(0xFFF3F4F6),
+      ),
+      _DestinationIconOption(
+        key: 'work',
+        label: 'Work',
+        icon: Icons.work_rounded,
+        accentColor: Color(0xFF2563EB),
+        backgroundColor: Color(0xFFEFF6FF),
+      ),
+      _DestinationIconOption(
+        key: 'school',
+        label: 'School',
+        icon: Icons.school_rounded,
+        accentColor: Color(0xFF047857),
+        backgroundColor: Color(0xFFE7F8EF),
+      ),
+      _DestinationIconOption(
+        key: 'market',
+        label: 'Market',
+        icon: Icons.storefront_rounded,
+        accentColor: Color(0xFFDB2777),
+        backgroundColor: Color(0xFFFCE7F3),
+      ),
+      _DestinationIconOption(
+        key: 'plaza',
+        label: 'Plaza',
+        icon: Icons.park_rounded,
+        accentColor: Color(0xFF16A34A),
+        backgroundColor: Color(0xFFDCFCE7),
+      ),
+      _DestinationIconOption(
+        key: 'municipal_hall',
+        label: 'Municipal Hall',
+        icon: Icons.account_balance_rounded,
+        accentColor: Color(0xFF7C3AED),
+        backgroundColor: Color(0xFFF3E8FF),
+      ),
+      _DestinationIconOption(
+        key: 'hospital',
+        label: 'Hospital',
+        icon: Icons.local_hospital_rounded,
+        accentColor: Color(0xFFDC2626),
+        backgroundColor: Color(0xFFFEE2E2),
+      ),
+    ];
+
+_DestinationIconOption _optionForDestination(
+  PassengerQuickDestination? destination,
+) {
+  if (destination == null) {
+    return _destinationIconOptions.first;
+  }
+
+  return _destinationIconOptions.firstWhere(
+    (option) => option.icon == destination.icon,
+    orElse: () => _destinationIconOptions.first,
+  );
 }
 
 class _PickerTarget {

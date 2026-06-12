@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/profile_picture_service.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../settings/email_verification_page.dart';
 import 'models/profile_view_data.dart';
 import 'profile_details.dart';
 import 'profile_picture_sheet.dart';
@@ -29,6 +31,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final ProfilePictureService _profilePictureService = ProfilePictureService();
   bool _isUploadingProfilePicture = false;
+  bool? _emailVerifiedOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -74,12 +77,18 @@ class _ProfilePageState extends State<ProfilePage> {
 
         final data = profileDoc.data() ?? <String, dynamic>{};
         final profile = ProfileViewData.fromMap(data, widget.userId);
+        final authUser = FirebaseAuth.instance.currentUser;
+        final isCurrentUserProfile = authUser?.uid == widget.userId;
+        final isEmailVerified =
+            _emailVerifiedOverride ?? authUser?.emailVerified == true;
 
         return _ProfileContent(
           profile: profile,
           showBackButton: !widget.embeddedInAdmin,
           maxContentWidth: _maxContentWidth,
           isUploadingProfilePicture: _isUploadingProfilePicture,
+          showEmailVerificationPrompt: isCurrentUserProfile && !isEmailVerified,
+          onVerifyEmailTap: _openEmailVerificationPage,
           onProfilePictureTap: () => _changeProfilePicture(profile),
         );
       },
@@ -169,6 +178,22 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _openEmailVerificationPage() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => EmailVerificationPage()));
+
+    await FirebaseAuth.instance.currentUser?.reload();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _emailVerifiedOverride =
+          FirebaseAuth.instance.currentUser?.emailVerified == true;
+    });
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
@@ -200,6 +225,8 @@ class _ProfileContent extends StatelessWidget {
   final bool showBackButton;
   final double? maxContentWidth;
   final bool isUploadingProfilePicture;
+  final bool showEmailVerificationPrompt;
+  final VoidCallback onVerifyEmailTap;
   final VoidCallback onProfilePictureTap;
 
   const _ProfileContent({
@@ -207,6 +234,8 @@ class _ProfileContent extends StatelessWidget {
     required this.showBackButton,
     required this.maxContentWidth,
     required this.isUploadingProfilePicture,
+    required this.showEmailVerificationPrompt,
+    required this.onVerifyEmailTap,
     required this.onProfilePictureTap,
   });
 
@@ -219,6 +248,10 @@ class _ProfileContent extends StatelessWidget {
         children: <Widget>[
           ProfileHeader(title: 'My Profile', showBackButton: showBackButton),
           SizedBox(height: 18),
+          if (showEmailVerificationPrompt) ...<Widget>[
+            _EmailVerificationPromptBadge(onVerifyEmailTap: onVerifyEmailTap),
+            const SizedBox(height: 10),
+          ],
           ProfileHeroCard(
             profile: profile,
             isUploadingProfilePicture: isUploadingProfilePicture,
@@ -235,6 +268,62 @@ class _ProfileContent extends StatelessWidget {
           const SizedBox(height: 18),
           ProfileReviewsCard(profile: profile),
         ],
+      ),
+    );
+  }
+}
+
+class _EmailVerificationPromptBadge extends StatelessWidget {
+  final VoidCallback onVerifyEmailTap;
+
+  const _EmailVerificationPromptBadge({required this.onVerifyEmailTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = PassengerUi.isCompactWidth(context);
+
+    return Align(
+      alignment: Alignment.centerRight,
+      widthFactor: 1,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(12, compact ? 8 : 9, 8, compact ? 8 : 9),
+        decoration: BoxDecoration(
+          color: PassengerUi.warningSoft,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: PassengerUi.highlightAmber.withValues(alpha: 0.24),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              Icons.mark_email_unread_outlined,
+              size: 18,
+              color: PassengerUi.highlightAmber,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Email not verified',
+              style: PassengerUi.valueText.copyWith(
+                fontSize: compact ? 12.5 : 13,
+                color: PassengerUi.title,
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: onVerifyEmailTap,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: PassengerUi.accentBlue,
+              ),
+              icon: const Icon(Icons.verified_user_outlined, size: 16),
+              label: const Text('Verify Email'),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ class PassengerQuickDestination {
   final String label;
   final String? address;
   final IconData icon;
+  final String? customEmoji;
   final Color accentColor;
   final Color backgroundColor;
   final double? latitude;
@@ -16,6 +17,7 @@ class PassengerQuickDestination {
     required this.label,
     this.address,
     required this.icon,
+    this.customEmoji,
     required this.accentColor,
     required this.backgroundColor,
     this.latitude,
@@ -24,6 +26,7 @@ class PassengerQuickDestination {
   });
 
   bool get hasCoordinates => latitude != null && longitude != null;
+  bool get hasCustomEmoji => customEmoji?.trim().isNotEmpty == true;
   bool get hasSavedLocation =>
       hasCoordinates && (address?.trim().isNotEmpty ?? false);
 
@@ -32,6 +35,8 @@ class PassengerQuickDestination {
     String? label,
     String? address,
     IconData? icon,
+    String? customEmoji,
+    bool clearCustomEmoji = false,
     Color? accentColor,
     Color? backgroundColor,
     double? latitude,
@@ -44,6 +49,7 @@ class PassengerQuickDestination {
       label: label ?? this.label,
       address: clearLocation ? null : address ?? this.address,
       icon: icon ?? this.icon,
+      customEmoji: clearCustomEmoji ? null : customEmoji ?? this.customEmoji,
       accentColor: accentColor ?? this.accentColor,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       latitude: clearLocation ? null : latitude ?? this.latitude,
@@ -120,12 +126,12 @@ class PassengerInfoStat {
 class PassengerFareDetail {
   final String label;
   final String value;
-  final Color valueColor;
+  final Color? valueColor;
 
   const PassengerFareDetail({
     required this.label,
     required this.value,
-    this.valueColor = Colors.black,
+    this.valueColor,
   });
 }
 

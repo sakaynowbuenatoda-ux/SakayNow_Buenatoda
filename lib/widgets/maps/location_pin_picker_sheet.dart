@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../config/map_config.dart';
+import '../../core/preferences/app_preferences_controller.dart';
 import '../../models/ride_location.dart';
 import '../../services/google_places_service.dart';
 import '../passenger_widgets/passenger_ui.dart';
 import 'map_text_styles.dart';
+import 'map_type_toggle.dart';
 import 'sakay_google_map.dart';
 
 class LocationPinPickResult {
@@ -91,13 +93,27 @@ class _LocationPinPickerSheetState extends State<LocationPinPickerSheet> {
             ),
           ),
           Expanded(
-            child: SakayGoogleMap(
-              initialCameraTarget: _cameraTarget,
-              markers: _markers,
-              myLocationEnabled: widget.myLocationEnabled,
-              zoomControlsEnabled: true,
-              autoMoveCamera: false,
-              onTap: _selectFromMapTap,
+            child: Stack(
+              children: <Widget>[
+                Positioned.fill(
+                  child: AnimatedBuilder(
+                    animation: AppPreferencesController.instance,
+                    builder: (context, _) {
+                      return SakayGoogleMap(
+                        initialCameraTarget: _cameraTarget,
+                        markers: _markers,
+                        mapType:
+                            AppPreferencesController.instance.googleMapType,
+                        myLocationEnabled: widget.myLocationEnabled,
+                        zoomControlsEnabled: true,
+                        autoMoveCamera: false,
+                        onTap: _selectFromMapTap,
+                      );
+                    },
+                  ),
+                ),
+                const Positioned(top: 12, right: 12, child: MapTypeToggle()),
+              ],
             ),
           ),
           Padding(

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'core/preferences/app_preferences_controller.dart';
+import 'core/session/privacy_security_session_guard.dart';
 import 'pages/auth/auth_gate.dart';
 import 'services/notification_service.dart';
-import 'widgets/passenger_widgets/passenger_ui.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -29,7 +29,9 @@ class MyApp extends StatelessWidget {
               data: mediaQuery.copyWith(
                 textScaler: TextScaler.linear(controller.textScaleFactor),
               ),
-              child: child ?? const SizedBox.shrink(),
+              child: PrivacySecuritySessionGuard(
+                child: child ?? const SizedBox.shrink(),
+              ),
             );
           },
           home: const AuthGate(),
@@ -40,29 +42,32 @@ class MyApp extends StatelessWidget {
 
   ThemeData _buildTheme({required Brightness brightness}) {
     final isDark = brightness == Brightness.dark;
+    final palette = _ThemePalette.fromBrightness(brightness);
     final colorScheme =
         ColorScheme.fromSeed(
-          seedColor: isDark ? const Color(0xFFF9FAFB) : const Color(0xFF030213),
+          seedColor: palette.primary,
           brightness: brightness,
         ).copyWith(
-          primary: PassengerUi.primary,
-          secondary: PassengerUi.secondary,
-          tertiary: PassengerUi.accentBlue,
-          surface: PassengerUi.surface,
-          onSurface: PassengerUi.title,
-          outline: PassengerUi.border,
+          primary: palette.primary,
+          onPrimary: palette.onPrimary,
+          secondary: palette.secondary,
+          tertiary: palette.accentBlue,
+          surface: palette.surface,
+          onSurface: palette.title,
+          outline: palette.border,
         );
 
     return ThemeData(
       colorScheme: colorScheme,
       brightness: brightness,
-      scaffoldBackgroundColor: PassengerUi.background,
+      scaffoldBackgroundColor: palette.background,
       appBarTheme: AppBarTheme(
-        backgroundColor: PassengerUi.surface,
-        foregroundColor: PassengerUi.title,
+        backgroundColor: palette.surface,
+        foregroundColor: palette.title,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
-        titleTextStyle: PassengerUi.cardTitle.copyWith(
+        titleTextStyle: TextStyle(
+          color: palette.title,
           fontSize: 20,
           fontWeight: FontWeight.w400,
         ),
@@ -78,44 +83,50 @@ class MyApp extends StatelessWidget {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: PassengerUi.mutedSurface,
-        hintStyle: PassengerUi.bodyText.copyWith(
-          color: PassengerUi.hint,
+        fillColor: palette.mutedSurface,
+        hintStyle: TextStyle(
+          fontSize: 14,
+          height: 1.4,
+          color: palette.hint,
           fontWeight: FontWeight.w500,
         ),
-        labelStyle: PassengerUi.bodyText.copyWith(
-          color: PassengerUi.hint,
+        labelStyle: TextStyle(
+          fontSize: 14,
+          height: 1.4,
+          color: palette.hint,
           fontWeight: FontWeight.w500,
         ),
-        floatingLabelStyle: PassengerUi.bodyText.copyWith(
-          color: PassengerUi.primary,
+        floatingLabelStyle: TextStyle(
+          fontSize: 14,
+          height: 1.4,
+          color: palette.primary,
           fontWeight: FontWeight.w700,
         ),
-        prefixIconColor: PassengerUi.accentBlue,
-        suffixIconColor: PassengerUi.accentBlue,
+        prefixIconColor: palette.accentBlue,
+        suffixIconColor: palette.accentBlue,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 14,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: PassengerUi.border),
+          borderSide: BorderSide(color: palette.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: PassengerUi.border),
+          borderSide: BorderSide(color: palette.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: PassengerUi.primary, width: 1.4),
+          borderSide: BorderSide(color: palette.primary, width: 1.4),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: isDark
-            ? const Color(0xFFF9FAFB)
-            : const Color(0xFF030213),
-        contentTextStyle: PassengerUi.bodyText.copyWith(
-          color: isDark ? const Color(0xFF030213) : Colors.white,
+        backgroundColor: isDark ? palette.title : palette.dark,
+        contentTextStyle: TextStyle(
+          fontSize: 14,
+          height: 1.4,
+          color: isDark ? palette.dark : Colors.white,
         ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -123,7 +134,7 @@ class MyApp extends StatelessWidget {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          backgroundColor: PassengerUi.dark,
+          backgroundColor: isDark ? palette.primary : palette.dark,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -133,8 +144,8 @@ class MyApp extends StatelessWidget {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          side: BorderSide(color: PassengerUi.border),
-          foregroundColor: PassengerUi.title,
+          side: BorderSide(color: palette.border),
+          foregroundColor: palette.title,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -142,7 +153,7 @@ class MyApp extends StatelessWidget {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: PassengerUi.primary,
+          foregroundColor: palette.primary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -152,13 +163,14 @@ class MyApp extends StatelessWidget {
         height: 64,
         elevation: 0,
         backgroundColor: Colors.transparent,
-        indicatorColor: PassengerUi.primary.withValues(alpha: 0.12),
+        indicatorColor: palette.primary.withValues(alpha: 0.12),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
 
-          return PassengerUi.bodyText.copyWith(
+          return TextStyle(
             fontSize: 11,
-            color: selected ? PassengerUi.primary : PassengerUi.body,
+            height: 1.4,
+            color: selected ? palette.primary : palette.body,
             fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
           );
         }),
@@ -166,12 +178,76 @@ class MyApp extends StatelessWidget {
           final selected = states.contains(WidgetState.selected);
 
           return IconThemeData(
-            color: selected ? PassengerUi.primary : PassengerUi.body,
+            color: selected ? palette.primary : palette.body,
             size: selected ? 24 : 22,
           );
         }),
       ),
       useMaterial3: true,
+    );
+  }
+}
+
+class _ThemePalette {
+  final Color background;
+  final Color surface;
+  final Color border;
+  final Color primary;
+  final Color onPrimary;
+  final Color secondary;
+  final Color accentBlue;
+  final Color title;
+  final Color body;
+  final Color mutedSurface;
+  final Color hint;
+  final Color dark;
+
+  const _ThemePalette({
+    required this.background,
+    required this.surface,
+    required this.border,
+    required this.primary,
+    required this.onPrimary,
+    required this.secondary,
+    required this.accentBlue,
+    required this.title,
+    required this.body,
+    required this.mutedSurface,
+    required this.hint,
+    required this.dark,
+  });
+
+  factory _ThemePalette.fromBrightness(Brightness brightness) {
+    if (brightness == Brightness.dark) {
+      return const _ThemePalette(
+        background: Color(0xFF09090B),
+        surface: Color(0xFF111318),
+        border: Color(0xFF262A33),
+        primary: Color(0xFF60A5FA),
+        onPrimary: Colors.white,
+        secondary: Color(0xFF4ADE80),
+        accentBlue: Color(0xFF60A5FA),
+        title: Color(0xFFF9FAFB),
+        body: Color(0xFFB6BBC6),
+        mutedSurface: Color(0xFF1A1D24),
+        hint: Color(0xFF93C5FD),
+        dark: Color(0xFF030213),
+      );
+    }
+
+    return const _ThemePalette(
+      background: Color(0xFFFCFCFD),
+      surface: Colors.white,
+      border: Color(0xFFE7E9EE),
+      primary: Color(0xFF030213),
+      onPrimary: Colors.white,
+      secondary: Color(0xFF16A34A),
+      accentBlue: Color(0xFF2563FF),
+      title: Color(0xFF0B0D18),
+      body: Color(0xFF667085),
+      mutedSurface: Color(0xFFF3F4F6),
+      hint: Color(0xFF2563FF),
+      dark: Color(0xFF030213),
     );
   }
 }

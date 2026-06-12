@@ -117,7 +117,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
               count: notificationUnreadCount,
               onTap: onNotificationsTap!,
             ),
-        ),
+          ),
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: Material(
@@ -226,11 +226,10 @@ class _AdminNotificationButton extends StatelessWidget {
                     child: Text(
                       count > 99 ? '99+' : count.toString(),
                       style: const TextStyle(
-                        color: Colors.white,
                         fontSize: 8.5,
                         fontWeight: FontWeight.w800,
                         height: 1,
-                      ),
+                      ).copyWith(color: AdminUi.onPrimary),
                     ),
                   ),
                 ),

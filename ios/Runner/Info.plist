@@ -4,6 +4,8 @@
 	<dict>
 		<key>NSCameraUsageDescription</key>
 		<string>This app uses the camera for selfie verification.</string>
+		<key>NSFaceIDUsageDescription</key>
+		<string>SakayNow uses Face ID to unlock the app when App Lock is enabled.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>SakayNow uses your location to show nearby pickup points, driver movement, and ride progress.</string>
 		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

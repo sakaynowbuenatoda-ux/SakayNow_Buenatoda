@@ -215,7 +215,7 @@ class _PreferenceChoiceTile<T> extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isSelected
                     ? accentColor.withValues(alpha: 0.16)
-                    : Colors.white,
+                    : PassengerUi.surface,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(

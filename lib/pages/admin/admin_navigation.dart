@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 
 import 'active_drivers.dart';
+import 'admin_booking_history_page.dart';
 import 'admin_deactivated_users_page.dart';
 import 'admin_restricted_users_page.dart';
-import 'completed_trips.dart';
 import 'registered_users.dart';
 import 'student_accounts.dart';
-import 'trips_in_motion.dart';
 import 'admin_unverified_users_page.dart';
 import 'admin_user_review_page.dart';
 import '../profile/view_user_profile.dart';
@@ -103,16 +102,29 @@ class AdminNavigation {
     );
   }
 
+  static void openBookingHistory(
+    BuildContext context, {
+    AdminBookingHistorySection initialSection = AdminBookingHistorySection.all,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AdminBookingHistoryPage(initialSection: initialSection),
+      ),
+    );
+  }
+
   static void openCompletedTrips(BuildContext context) {
-    Navigator.of(
+    openBookingHistory(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const CompletedTripsPage()));
+      initialSection: AdminBookingHistorySection.completed,
+    );
   }
 
   static void openTripsInMotion(BuildContext context) {
-    Navigator.of(
+    openBookingHistory(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const TripsInMotionPage()));
+      initialSection: AdminBookingHistorySection.ongoing,
+    );
   }
 
   static void openUserProfile(

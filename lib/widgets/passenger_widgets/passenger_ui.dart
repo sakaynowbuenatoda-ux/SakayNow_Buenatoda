@@ -10,11 +10,12 @@ class PassengerUi {
   static bool get isDarkMode => AppPreferencesController.instance.isDarkMode;
 
   static Color get background =>
-      isDarkMode ? Color(0xFF09090B) : Color(0xFFF7F8FB);
+      isDarkMode ? Color(0xFF09090B) : Color(0xFFFCFCFD);
   static Color get surface => isDarkMode ? Color(0xFF111318) : Colors.white;
   static Color get border => isDarkMode ? Color(0xFF262A33) : Color(0xFFE7E9EE);
   static Color get primary =>
-      isDarkMode ? Color(0xFFF9FAFB) : Color(0xFF030213);
+      isDarkMode ? Color(0xFF60A5FA) : Color(0xFF030213);
+  static Color get onPrimary => Colors.white;
   static Color get secondary =>
       isDarkMode ? Color(0xFF4ADE80) : Color(0xFF16A34A);
   static Color get accentBlue =>
@@ -75,8 +76,8 @@ class PassengerUi {
 
   static LinearGradient get signalGradient => LinearGradient(
     colors: <Color>[
-      isDarkMode ? Color(0xFFF9FAFB) : Color(0xFF020213),
-      isDarkMode ? Color(0xFF2A3140) : Color(0xFF202536),
+      isDarkMode ? Color(0xFF2563EB) : Color(0xFF020213),
+      isDarkMode ? Color(0xFF60A5FA) : Color(0xFF202536),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -267,41 +268,46 @@ class PassengerPageHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = accentColor ?? PassengerUi.primary;
 
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        horizontal: dense ? 10 : 12,
-        vertical: dense ? 7 : 9,
-      ),
-      decoration: BoxDecoration(
-        color: PassengerUi.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: PassengerUi.border),
-      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: dense ? 30 : 34,
-            height: dense ? 30 : 34,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
+          SizedBox(
+            width: dense ? 34 : 40,
+            height: dense ? 34 : 40,
+            child: Center(
+              child: Icon(icon, color: color, size: dense ? 27 : 31),
             ),
-            child: Icon(icon, color: color, size: dense ? 18 : 20),
           ),
-          SizedBox(width: dense ? 9 : 11),
+          SizedBox(width: dense ? 10 : 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: PassengerUi.sectionTitle.copyWith(
-                    fontSize: dense ? 16 : 18,
+                    fontSize: dense ? 18 : 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                    height: 1.08,
                   ),
                 ),
+                if (subtitle.trim().isNotEmpty) ...[
+                  SizedBox(height: dense ? 3 : 5),
+                  Text(
+                    subtitle,
+                    maxLines: dense ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: PassengerUi.bodyText.copyWith(
+                      fontSize: dense ? 12 : 12,
+                      height: 1.28,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

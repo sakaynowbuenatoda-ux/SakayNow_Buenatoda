@@ -156,8 +156,8 @@ class _NavIconWithBadge extends StatelessWidget {
                 ),
                 child: Text(
                   count > 99 ? '99+' : count.toString(),
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: PassengerUi.onPrimary,
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
                     height: 1,

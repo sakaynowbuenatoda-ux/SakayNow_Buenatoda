@@ -70,7 +70,10 @@ class _HelpAndSupportPageState extends State<HelpAndSupportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final canMessageAdmin = widget.userId?.trim().isNotEmpty == true;
+    final normalizedRole = widget.userRole.trim().toLowerCase();
+    final isAdmin = normalizedRole == 'admin';
+    final canMessageAdmin =
+        !isAdmin && widget.userId?.trim().isNotEmpty == true;
 
     return Scaffold(
       backgroundColor: PassengerUi.background,
@@ -116,32 +119,36 @@ class _HelpAndSupportPageState extends State<HelpAndSupportPage> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Message an admin for account, booking, or driver support.',
+                    isAdmin
+                        ? 'Review support channels and contact details for SakayNow assistance.'
+                        : 'Message an admin for account, booking, or driver support.',
                     textAlign: TextAlign.center,
                     style: PassengerUi.bodyText,
                   ),
-                  SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: canMessageAdmin && !_isOpeningChat
-                          ? _openAdminChat
-                          : null,
-                      icon: _isOpeningChat
-                          ? SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: PassengerUi.surface,
-                              ),
-                            )
-                          : Icon(Icons.chat_bubble_outline_rounded),
-                      label: Text(
-                        _isOpeningChat ? 'Opening chat...' : 'Message Admin',
+                  if (!isAdmin) ...<Widget>[
+                    SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: canMessageAdmin && !_isOpeningChat
+                            ? _openAdminChat
+                            : null,
+                        icon: _isOpeningChat
+                            ? SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: PassengerUi.surface,
+                                ),
+                              )
+                            : Icon(Icons.chat_bubble_outline_rounded),
+                        label: Text(
+                          _isOpeningChat ? 'Opening chat...' : 'Message Admin',
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

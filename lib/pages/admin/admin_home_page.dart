@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/preferences/app_preferences_controller.dart';
 import '../../core/session/session_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/notification_service.dart';
@@ -47,28 +48,38 @@ class _AdminHomePageState extends State<AdminHomePage> {
   int _messageUnreadCount = 0;
   _AdminUtilityDestination? _activeUtilityDestination;
 
-  late final List<Widget> _pages = <Widget>[
-    AdminOverviewPage(adminId: widget.userId, firstName: widget.firstName),
-    AdminMonitoringPage(adminId: widget.userId),
-    AdminAccountManagementPage(adminId: widget.userId),
-    AdminManagementPage(adminId: widget.userId),
-    AdminInsightsPage(adminId: widget.userId),
-    AdminMessagesPage(adminId: widget.userId),
-    AdminReportsPage(adminId: widget.userId),
-  ];
-
   @override
   void initState() {
     super.initState();
+    AppPreferencesController.instance.addListener(_handlePreferencesChanged);
     _watchUnreadNotifications();
     _watchUnreadMessages();
   }
 
   @override
   void dispose() {
+    AppPreferencesController.instance.removeListener(_handlePreferencesChanged);
     _notificationSubscription?.cancel();
     _messageUnreadSubscription?.cancel();
     super.dispose();
+  }
+
+  void _handlePreferencesChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  List<Widget> _buildPages() {
+    return <Widget>[
+      AdminOverviewPage(adminId: widget.userId, firstName: widget.firstName),
+      AdminMonitoringPage(adminId: widget.userId),
+      AdminAccountManagementPage(adminId: widget.userId),
+      AdminManagementPage(adminId: widget.userId),
+      AdminInsightsPage(adminId: widget.userId),
+      AdminMessagesPage(adminId: widget.userId),
+      AdminReportsPage(adminId: widget.userId),
+    ];
   }
 
   Future<void> _handleLogout(BuildContext context) async {
@@ -135,11 +146,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
   @override
   Widget build(BuildContext context) {
     final useDesktopLayout = MediaQuery.sizeOf(context).width >= 1024;
+    final pages = _buildPages();
     final tabBody = _activeUtilityDestination == null
         ? AnimatedTabSwitcher(
             index: _currentIndex,
             onRefresh: _handleRefresh,
-            children: _pages,
+            children: pages,
           )
         : _utilityBody;
 
@@ -616,7 +628,7 @@ class _AdminNavUnreadBadge extends StatelessWidget {
           label,
           maxLines: 1,
           style: AdminUi.labelText.copyWith(
-            color: Colors.white,
+            color: AdminUi.onPrimary,
             fontSize: 11,
             fontWeight: FontWeight.w800,
           ),

@@ -828,7 +828,7 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
       case AdminRecordListType.registeredUsers:
         return user.isPassengerOrDriver;
       case AdminRecordListType.activeDrivers:
-        return user.canReceiveBookings;
+        return user.isEligibleDriverAccount;
       case AdminRecordListType.studentAccounts:
         return user.isStudentPassenger;
       case AdminRecordListType.completedTrips:

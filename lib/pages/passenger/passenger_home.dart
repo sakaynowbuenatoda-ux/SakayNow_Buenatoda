@@ -5,6 +5,7 @@ import '../../config/map_config.dart';
 import '../../controllers/booking_map_controller.dart';
 import '../../controllers/quick_destinations_controller.dart';
 import '../../controllers/ride_tracking_controller.dart';
+import '../../core/preferences/app_preferences_controller.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../models/ride_location.dart';
@@ -16,6 +17,7 @@ import '../../services/location_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/maps/location_pin_picker_sheet.dart';
 import '../../widgets/maps/map_text_styles.dart';
+import '../../widgets/maps/map_type_toggle.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/driver_rating_leaderboard_panel.dart';
 import '../../widgets/passenger_widgets/passenger_booking_hero_card.dart';
@@ -35,6 +37,7 @@ class PassengerHomepage extends StatefulWidget {
   final String firstName;
   final String passengerType;
   final bool isVerified;
+  final VoidCallback onOpenHistory;
 
   const PassengerHomepage({
     super.key,
@@ -42,6 +45,7 @@ class PassengerHomepage extends StatefulWidget {
     required this.firstName,
     required this.passengerType,
     required this.isVerified,
+    required this.onOpenHistory,
   });
 
   @override
@@ -134,12 +138,8 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                PassengerSectionHeader(
-                  title: 'One-tap booking',
-                  actionLabel: 'See all',
-                  onActionTap: _openQuickDestinationsPage,
-                ),
-                SizedBox(height: 12),
+                _OneTapBookingHeader(onActionTap: _openQuickDestinationsPage),
+                SizedBox(height: 14),
                 AnimatedBuilder(
                   animation: _quickDestinationsController,
                   builder: (context, _) {
@@ -157,10 +157,7 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
           PassengerRecentTripsSection(
             passengerId: widget.userId,
             limit: 3,
-            onViewAllTap: () => _showSnackBar(
-              context,
-              'Open the History tab to see all trips.',
-            ),
+            onViewAllTap: widget.onOpenHistory,
           ),
           SizedBox(height: 24),
           DriverRatingLeaderboardPanel(
@@ -450,6 +447,79 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
   }
 }
 
+class _OneTapBookingHeader extends StatelessWidget {
+  final VoidCallback onActionTap;
+
+  const _OneTapBookingHeader({required this.onActionTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = PassengerUi.isCompactWidth(context);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        Container(
+          width: compact ? 36 : 40,
+          height: compact ? 36 : 40,
+          decoration: BoxDecoration(
+            color: PassengerUi.successBackground,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            Icons.flash_on_rounded,
+            color: PassengerUi.successText,
+            size: compact ? 20 : 22,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'One-tap booking',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: PassengerUi.cardTitle.copyWith(
+                  fontSize: compact ? 15 : 16,
+                  fontWeight: FontWeight.w800,
+                  height: 1.12,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                'Pick a saved destination and ride faster.',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: PassengerUi.bodyText.copyWith(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        TextButton(
+          onPressed: onActionTap,
+          style: TextButton.styleFrom(
+            foregroundColor: PassengerUi.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            minimumSize: const Size(0, 36),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(
+            'See all',
+            style: TextStyle(
+              color: PassengerUi.primary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _PassengerInformationKeySection extends StatelessWidget {
   final FareSettingsService fareSettingsService;
 
@@ -667,31 +737,39 @@ class _LiveBookingMapPreviewState extends State<_LiveBookingMapPreview> {
             child: Stack(
               children: <Widget>[
                 Positioned.fill(
-                  child: SakayGoogleMap(
-                    initialCameraTarget: location,
-                    markers: hasLocation
-                        ? <Marker>{
-                            Marker(
-                              markerId: const MarkerId(
-                                'current_location_preview',
-                              ),
-                              position: location,
-                              infoWindow: const InfoWindow(
-                                title: 'Current location',
-                              ),
-                              icon: BitmapDescriptor.defaultMarkerWithHue(
-                                BitmapDescriptor.hueAzure,
-                              ),
-                            ),
-                          }
-                        : const <Marker>{},
-                    myLocationEnabled: hasLocation,
-                    autoMoveCamera: true,
+                  child: AnimatedBuilder(
+                    animation: AppPreferencesController.instance,
+                    builder: (context, _) {
+                      return SakayGoogleMap(
+                        initialCameraTarget: location,
+                        markers: hasLocation
+                            ? <Marker>{
+                                Marker(
+                                  markerId: const MarkerId(
+                                    'current_location_preview',
+                                  ),
+                                  position: location,
+                                  infoWindow: const InfoWindow(
+                                    title: 'Current location',
+                                  ),
+                                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                                    BitmapDescriptor.hueAzure,
+                                  ),
+                                ),
+                              }
+                            : const <Marker>{},
+                        mapType:
+                            AppPreferencesController.instance.googleMapType,
+                        myLocationEnabled: hasLocation,
+                        autoMoveCamera: true,
+                      );
+                    },
                   ),
                 ),
+                const Positioned(top: 10, right: 10, child: MapTypeToggle()),
                 Positioned(
                   left: 12,
-                  right: 12,
+                  right: 112,
                   top: 12,
                   child: _MapOverlayPill(
                     icon: hasLocation
@@ -757,12 +835,26 @@ class _RideMonitoringPreview extends StatelessWidget {
           borderRadius: PassengerUi.cardRadius,
           child: SizedBox(
             height: 180,
-            child: SakayGoogleMap(
-              initialCameraTarget: _initialTarget(ride),
-              bounds: _boundsFor(ride),
-              markers: _markersFor(ride),
-              polylines: _polylinesFor(ride),
-              autoMoveCamera: true,
+            child: Stack(
+              children: <Widget>[
+                Positioned.fill(
+                  child: AnimatedBuilder(
+                    animation: AppPreferencesController.instance,
+                    builder: (context, _) {
+                      return SakayGoogleMap(
+                        initialCameraTarget: _initialTarget(ride),
+                        bounds: _boundsFor(ride),
+                        markers: _markersFor(ride),
+                        polylines: _polylinesFor(ride),
+                        mapType:
+                            AppPreferencesController.instance.googleMapType,
+                        autoMoveCamera: true,
+                      );
+                    },
+                  ),
+                ),
+                const Positioned(top: 10, right: 10, child: MapTypeToggle()),
+              ],
             ),
           ),
         ),

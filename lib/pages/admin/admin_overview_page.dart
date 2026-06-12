@@ -103,10 +103,7 @@ class AdminOverviewPage extends StatelessWidget {
                             usersById: usersById,
                           ),
                           SizedBox(height: 20),
-                          Text(
-                            'Recent Booking Activity',
-                            style: AdminUi.sectionTitle,
-                          ),
+                          const _RecentBookingActivityHeader(),
                           SizedBox(height: 12),
                           if (bookings.isEmpty)
                             AdminEmptyCollection(
@@ -143,6 +140,44 @@ class AdminOverviewPage extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _RecentBookingActivityHeader extends StatelessWidget {
+  const _RecentBookingActivityHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final title = Text(
+          'Recent Booking Activity',
+          style: AdminUi.sectionTitle,
+        );
+        final action = AdminActionButton(
+          label: 'See All',
+          icon: Icons.arrow_forward_rounded,
+          backgroundColor: AdminUi.blueSoft,
+          foregroundColor: AdminUi.accentBlue,
+          onPressed: () => AdminNavigation.openBookingHistory(context),
+        );
+
+        if (constraints.maxWidth < 440) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[title, const SizedBox(height: 10), action],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: title),
+            const SizedBox(width: 12),
+            action,
+          ],
+        );
+      },
     );
   }
 }

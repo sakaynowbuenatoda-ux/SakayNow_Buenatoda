@@ -63,7 +63,7 @@ class PassengerFareInformationRow extends StatelessWidget {
                 TextSpan(
                   text: detail.value,
                   style: PassengerUi.valueText.copyWith(
-                    color: detail.valueColor,
+                    color: detail.valueColor ?? PassengerUi.title,
                   ),
                 ),
               ],

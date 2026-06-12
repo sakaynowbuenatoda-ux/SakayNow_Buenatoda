@@ -61,7 +61,7 @@ class AdminService {
             }
 
             final user = AdminUserRecord.fromDocument(userSnapshot);
-            if (user.canReceiveBookings) {
+            if (user.isEligibleDriverAccount) {
               users.add(user);
             }
           }
@@ -103,7 +103,7 @@ class AdminService {
             }
 
             final user = AdminUserRecord.fromDocument(userSnapshot);
-            if (!user.canReceiveBookings) {
+            if (!user.isEligibleDriverAccount) {
               continue;
             }
 
@@ -203,6 +203,42 @@ class AdminService {
       });
 
       return bookings;
+    });
+  }
+
+  static Stream<List<AdminBookingRecord>> watchBookingHistory({
+    List<String> statuses = const <String>[],
+    DateTime? startAt,
+    DateTime? endAt,
+  }) {
+    Query<Map<String, dynamic>> query = _firestore.collection('bookings');
+
+    if (statuses.length == 1) {
+      query = query.where('status', isEqualTo: statuses.single);
+    } else if (statuses.isNotEmpty) {
+      query = query.where('status', whereIn: statuses);
+    }
+
+    if (startAt != null) {
+      query = query.where(
+        'timestamp',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(startAt),
+      );
+    }
+
+    if (endAt != null) {
+      query = query.where(
+        'timestamp',
+        isLessThanOrEqualTo: Timestamp.fromDate(endAt),
+      );
+    }
+
+    return query.orderBy('timestamp', descending: true).snapshots().map((
+      snapshot,
+    ) {
+      return snapshot.docs
+          .map(AdminBookingRecord.fromDocument)
+          .toList(growable: false);
     });
   }
 

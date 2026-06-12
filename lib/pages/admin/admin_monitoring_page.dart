@@ -77,7 +77,19 @@ class AdminMonitoringPage extends StatelessWidget {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      AdminSectionIntro(title: 'Monitoring'),
+                      AdminSectionIntro(
+                        title: 'Monitoring',
+                        actions: <Widget>[
+                          AdminActionButton(
+                            label: 'Ride History',
+                            icon: Icons.history_rounded,
+                            backgroundColor: AdminUi.blueSoft,
+                            foregroundColor: AdminUi.accentBlue,
+                            onPressed: () =>
+                                AdminNavigation.openBookingHistory(context),
+                          ),
+                        ],
+                      ),
                       SizedBox(height: 16),
                       LayoutBuilder(
                         builder: (context, constraints) {

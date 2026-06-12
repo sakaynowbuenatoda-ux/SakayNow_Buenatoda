@@ -252,18 +252,14 @@ class _UnreadSupportPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(
-            Icons.mark_chat_unread_rounded,
-            size: 16,
-            color: AdminUi.accentBlue,
-          ),
+          Icon(Icons.forum_rounded, size: 16, color: AdminUi.accentBlue),
           const SizedBox(width: 7),
           Text(
             unreadTotal == 1 ? '1 unread' : '$unreadTotal unread',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AdminUi.labelText.copyWith(
-              color: AdminUi.accentBlue,
+              color: AdminUi.title,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -315,6 +311,8 @@ class _AdminSupportConversationCard extends StatelessWidget {
       currentUserRole: 'admin',
     );
     final unreadCount = conversation.adminUnreadCount;
+    final hasUnread = unreadCount > 0;
+    const roleLabel = 'Support';
 
     return AdminSurfaceCard(
       padding: EdgeInsets.zero,
@@ -334,18 +332,16 @@ class _AdminSupportConversationCard extends StatelessWidget {
           );
         },
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Container(
-                width: 48,
-                height: 48,
+                width: 42,
+                height: 42,
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  color: unreadCount > 0
-                      ? AdminUi.blueSoft
-                      : AdminUi.mutedSurface,
+                  color: AdminUi.mutedSurface,
                   shape: BoxShape.circle,
                 ),
                 child: _AdminConversationAvatar(
@@ -353,7 +349,7 @@ class _AdminSupportConversationCard extends StatelessWidget {
                   profileFuture: targetProfileFuture,
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,55 +357,133 @@ class _AdminSupportConversationCard extends StatelessWidget {
                     Row(
                       children: <Widget>[
                         Expanded(
+                          child: Row(
+                            children: <Widget>[
+                              Flexible(
+                                child: Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AdminUi.cardTitle.copyWith(
+                                    color: AdminUi.title,
+                                    fontSize: 15,
+                                    fontWeight: hasUnread
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const _AdminConversationRoleLabel(
+                                label: roleLabel,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        TimeAgoText(
+                          dateTime: conversation.latestActivityAt,
+                          style: AdminUi.bodyText.copyWith(
+                            color: hasUnread ? AdminUi.title : AdminUi.body,
+                            fontSize: 12,
+                            fontWeight: hasUnread
+                                ? FontWeight.w700
+                                : FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: <Widget>[
+                        Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          color: hasUnread ? AdminUi.title : AdminUi.body,
+                          size: 15,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
                           child: Text(
-                            title,
+                            conversation.previewFor(adminId),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AdminUi.cardTitle.copyWith(
-                              fontWeight: unreadCount > 0
+                            style: AdminUi.bodyText.copyWith(
+                              color: hasUnread ? AdminUi.title : AdminUi.body,
+                              fontSize: 13,
+                              fontWeight: hasUnread
                                   ? FontWeight.w700
                                   : FontWeight.w400,
                             ),
                           ),
                         ),
-                        TimeAgoText(
-                          dateTime: conversation.latestActivityAt,
-                          style: AdminUi.bodyText.copyWith(fontSize: 12),
-                        ),
+                        if (hasUnread) ...<Widget>[
+                          const SizedBox(width: 8),
+                          _AdminUnreadCountBadge(unreadCount: unreadCount),
+                        ],
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: <Widget>[
-                        AdminStatusChip(
-                          label: 'Support',
-                          textColor: AdminUi.accentBlue,
-                          backgroundColor: AdminUi.blueSoft,
-                        ),
-                        if (unreadCount > 0)
-                          AdminStatusChip(
-                            label: unreadCount > 99
-                                ? '99+ unread'
-                                : '$unreadCount unread',
-                            textColor: AdminUi.successText,
-                            backgroundColor: AdminUi.successBackground,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      conversation.previewFor(adminId),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AdminUi.bodyText,
                     ),
                   ],
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminConversationRoleLabel extends StatelessWidget {
+  final String label;
+
+  const _AdminConversationRoleLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AdminUi.mutedSurface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AdminUi.border),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AdminUi.bodyText.copyWith(
+          color: AdminUi.body,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminUnreadCountBadge extends StatelessWidget {
+  final int unreadCount;
+
+  const _AdminUnreadCountBadge({required this.unreadCount});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AdminUi.primary,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        unreadCount > 99 ? '99+' : '$unreadCount',
+        textAlign: TextAlign.center,
+        style: AdminUi.bodyText.copyWith(
+          color: AdminUi.onPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          height: 1.1,
         ),
       ),
     );
@@ -456,7 +530,7 @@ class _AdminConversationAvatarFallback extends StatelessWidget {
     return Center(
       child: Text(
         title.isEmpty ? '?' : title.substring(0, 1).toUpperCase(),
-        style: AdminUi.cardTitle,
+        style: AdminUi.cardTitle.copyWith(color: AdminUi.primary),
       ),
     );
   }

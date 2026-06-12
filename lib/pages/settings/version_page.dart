@@ -45,18 +45,26 @@ class _VersionPageState extends State<VersionPage>
         animation: _controller,
         builder: (context, _) {
           final value = _controller.value;
+          final gradientColors = PassengerUi.isDarkMode
+              ? <Color>[
+                  PassengerUi.background,
+                  PassengerUi.surface,
+                  PassengerUi.mutedSurface,
+                  PassengerUi.background,
+                ]
+              : const <Color>[
+                  Color(0xFFF8FBFF),
+                  Color(0xFFDCEBFF),
+                  Color(0xFFE8F8EF),
+                  Color(0xFFFFFFFF),
+                ];
 
           return DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment(-1 + (value * 0.7), -1),
                 end: Alignment(1 - (value * 0.7), 1),
-                colors: const <Color>[
-                  Color(0xFFF8FBFF),
-                  Color(0xFFDCEBFF),
-                  Color(0xFFE8F8EF),
-                  Color(0xFFFFFFFF),
-                ],
+                colors: gradientColors,
               ),
             ),
             child: SafeArea(

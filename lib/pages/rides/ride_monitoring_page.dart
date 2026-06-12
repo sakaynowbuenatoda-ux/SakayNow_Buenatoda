@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../controllers/ride_tracking_controller.dart';
+import '../../core/preferences/app_preferences_controller.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../pages/messages/ride_chat_navigation.dart';
@@ -10,6 +11,7 @@ import '../../pages/profile/passenger_profile.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../services/xendit_checkout_service.dart';
 import '../../widgets/confirmation_dialog.dart';
+import '../../widgets/maps/map_type_toggle.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
@@ -226,13 +228,33 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
                       borderRadius: PassengerUi.cardRadius,
                       child: SizedBox(
                         height: 330,
-                        child: SakayGoogleMap(
-                          initialCameraTarget: _controller.initialCameraTarget,
-                          bounds: _controller.visibleBounds,
-                          markers: _controller.markers,
-                          polylines: _controller.polylines,
-                          circles: _controller.circles,
-                          myLocationEnabled: _controller.isDriver,
+                        child: Stack(
+                          children: <Widget>[
+                            Positioned.fill(
+                              child: AnimatedBuilder(
+                                animation: AppPreferencesController.instance,
+                                builder: (context, _) {
+                                  return SakayGoogleMap(
+                                    initialCameraTarget:
+                                        _controller.initialCameraTarget,
+                                    bounds: _controller.visibleBounds,
+                                    markers: _controller.markers,
+                                    polylines: _controller.polylines,
+                                    circles: _controller.circles,
+                                    mapType: AppPreferencesController
+                                        .instance
+                                        .googleMapType,
+                                    myLocationEnabled: _controller.isDriver,
+                                  );
+                                },
+                              ),
+                            ),
+                            const Positioned(
+                              top: 10,
+                              right: 10,
+                              child: MapTypeToggle(),
+                            ),
+                          ],
                         ),
                       ),
                     ),

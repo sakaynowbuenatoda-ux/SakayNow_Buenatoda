@@ -48,7 +48,8 @@ class AdminUi {
       isDarkMode ? const Color(0xFFF87171) : const Color(0xFFDC2626);
   static Color get neutral =>
       isDarkMode ? const Color(0xFFE5E7EB) : const Color(0xFF111827);
-  static Color get primary => neutral;
+  static Color get primary => isDarkMode ? accent : neutral;
+  static Color get onPrimary => Colors.white;
   static Color get secondary => success;
   static Color get accentBlue => accent;
   static Color get highlightAmber => warning;

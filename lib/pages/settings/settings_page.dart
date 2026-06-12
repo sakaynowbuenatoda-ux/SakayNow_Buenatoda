@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/preferences/app_preferences_controller.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../driver/driver_payout_accounts_page.dart';
 import '../passenger/passenger_payment_methods_page.dart';
@@ -9,15 +10,16 @@ import 'app_preferences_page.dart';
 import 'change_password_page.dart';
 import 'deactivate_account_page.dart';
 import 'developers.dart';
+import 'email_verification_page.dart';
 import 'help_and_support.dart';
 import 'notification_settings_page.dart';
 import 'privacy_policy.dart';
-import 'settings_placeholder_page.dart';
+import 'privacy_security_page.dart';
 import 'terms_and_conditions.dart';
 import 'version_page.dart';
 import 'widgets/settings_section_card.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   final String? userId;
   final String role;
   final bool isVerified;
@@ -33,34 +35,51 @@ class SettingsPage extends StatelessWidget {
     this.embeddedInAdmin = false,
   });
 
-  void _openPlaceholder(
-    BuildContext context, {
-    required String title,
-    required String description,
-    required IconData icon,
-  }) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SettingsPlaceholderPage(
-          title: title,
-          description: description,
-          icon: icon,
-        ),
-      ),
-    );
-  }
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool? _emailVerifiedOverride;
 
   @override
   Widget build(BuildContext context) {
-    final normalizedRole = role.trim().toLowerCase();
+    return AnimatedBuilder(
+      animation: AppPreferencesController.instance,
+      builder: (context, _) => _buildPage(context),
+    );
+  }
+
+  Future<void> _openEmailVerificationPage(BuildContext context) async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => EmailVerificationPage()));
+
+    await FirebaseAuth.instance.currentUser?.reload();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _emailVerifiedOverride =
+          FirebaseAuth.instance.currentUser?.emailVerified == true;
+    });
+  }
+
+  Widget _buildPage(BuildContext context) {
+    final normalizedRole = widget.role.trim().toLowerCase();
     final isAdmin = normalizedRole == 'admin';
     final isDriver = normalizedRole == 'driver';
     final isPassenger =
         normalizedRole == 'passenger' ||
         normalizedRole == 'regular' ||
         normalizedRole == 'student';
-    final currentUserId = userId ?? FirebaseAuth.instance.currentUser?.uid;
+    final authUser = FirebaseAuth.instance.currentUser;
+    final currentUserId = widget.userId ?? authUser?.uid;
     final canOpenProfile = currentUserId != null && currentUserId.isNotEmpty;
+    final canOpenEmailVerification = authUser != null;
+    final emailVerified =
+        _emailVerifiedOverride ?? authUser?.emailVerified == true;
 
     final accountItems = <SettingsTileData>[
       SettingsTileData(
@@ -69,7 +88,7 @@ class SettingsPage extends StatelessWidget {
         icon: Icons.person_outline_rounded,
         accentColor: PassengerUi.primary,
         isEnabled: canOpenProfile,
-        statusLabel: !isAdmin && isVerified ? 'Verified' : null,
+        statusLabel: !isAdmin && widget.isVerified ? 'Verified' : null,
         onTap: canOpenProfile
             ? () => Navigator.of(context).push(
                 MaterialPageRoute(
@@ -77,6 +96,19 @@ class SettingsPage extends StatelessWidget {
                       ProfileDetailsLoaderPage(userId: currentUserId),
                 ),
               )
+            : null,
+      ),
+      SettingsTileData(
+        title: 'Email Verification',
+        subtitle: 'Confirm that your login email belongs to you.',
+        icon: Icons.mark_email_read_outlined,
+        accentColor: emailVerified
+            ? PassengerUi.secondary
+            : PassengerUi.highlightAmber,
+        isEnabled: canOpenEmailVerification,
+        statusLabel: emailVerified ? 'Verified' : null,
+        onTap: canOpenEmailVerification
+            ? () => _openEmailVerificationPage(context)
             : null,
       ),
       SettingsTileData(
@@ -149,13 +181,9 @@ class SettingsPage extends StatelessWidget {
             'Review protection features, permissions, and account safeguards.',
         icon: Icons.verified_user_outlined,
         accentColor: PassengerUi.primary,
-        onTap: () => _openPlaceholder(
+        onTap: () => Navigator.of(
           context,
-          title: 'Privacy and Security',
-          description:
-              'Privacy controls, permissions, and security actions will be available here.',
-          icon: Icons.verified_user_outlined,
-        ),
+        ).push(MaterialPageRoute(builder: (_) => const PrivacySecurityPage())),
       ),
     ];
 
@@ -217,7 +245,7 @@ class SettingsPage extends StatelessWidget {
     ];
 
     final content = PassengerPageContainer(
-      maxContentWidth: embeddedInAdmin ? 760 : null,
+      maxContentWidth: widget.embeddedInAdmin ? 760 : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -243,7 +271,7 @@ class SettingsPage extends StatelessWidget {
       ),
     );
 
-    if (embeddedInAdmin) {
+    if (widget.embeddedInAdmin) {
       return content;
     }
 

@@ -3,7 +3,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 class MapConfig {
   MapConfig._();
 
-  static const LatLng buenavistaCenter = LatLng(10.0839, 124.1781);
+  static const LatLng buenavistaMunicipalHall = LatLng(10.0812, 124.1128);
+  static const LatLng buenavistaCenter = buenavistaMunicipalHall;
   static const LatLng serviceAreaCenter = LatLng(10.088, 124.133);
   static const double defaultZoom = 14.5;
   static const double routeZoom = 15;

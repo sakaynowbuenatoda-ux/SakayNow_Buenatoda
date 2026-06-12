@@ -79,7 +79,7 @@ class AdminManagementPage extends StatelessWidget {
                           label: const Text('Create Admin Account'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AdminUi.primary,
-                            foregroundColor: AdminUi.surface,
+                            foregroundColor: AdminUi.onPrimary,
                             shape: RoundedRectangleBorder(
                               borderRadius: AdminUi.radius,
                             ),

@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../config/map_config.dart';
 import '../../controllers/booking_map_controller.dart';
 import '../../controllers/quick_destinations_controller.dart';
+import '../../core/preferences/app_preferences_controller.dart';
 import '../../models/driver_rating.dart';
 import '../../controllers/ride_tracking_controller.dart';
 import '../../models/place_prediction.dart';
@@ -20,6 +21,7 @@ import '../../widgets/maps/place_search_field.dart';
 import '../../widgets/maps/route_summary_card.dart';
 import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/maps/map_marker_icons.dart';
+import '../../widgets/maps/map_type_toggle.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/passenger_widgets/ride_status_strip.dart';
@@ -118,18 +120,32 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
                             child: Stack(
                               children: <Widget>[
                                 Positioned.fill(
-                                  child: SakayGoogleMap(
-                                    initialCameraTarget:
-                                        _controller.initialCameraTarget,
-                                    bounds: _controller.route?.bounds,
-                                    markers: _bookingMapMarkers(),
-                                    polylines: _controller.polylines,
-                                    circles: _controller.circles,
-                                    myLocationEnabled:
-                                        _controller.currentLatLng != null,
-                                    preferInitialCameraTarget: true,
-                                    onTap: _selectLocationFromMapTap,
+                                  child: AnimatedBuilder(
+                                    animation:
+                                        AppPreferencesController.instance,
+                                    builder: (context, _) {
+                                      return SakayGoogleMap(
+                                        initialCameraTarget:
+                                            _controller.initialCameraTarget,
+                                        bounds: _controller.route?.bounds,
+                                        markers: _bookingMapMarkers(),
+                                        polylines: _controller.polylines,
+                                        circles: _controller.circles,
+                                        mapType: AppPreferencesController
+                                            .instance
+                                            .googleMapType,
+                                        myLocationEnabled:
+                                            _controller.currentLatLng != null,
+                                        preferInitialCameraTarget: true,
+                                        onTap: _selectLocationFromMapTap,
+                                      );
+                                    },
                                   ),
+                                ),
+                                const Positioned(
+                                  top: 10,
+                                  right: 10,
+                                  child: MapTypeToggle(),
                                 ),
                                 if (_controller.isInitializing)
                                   const Positioned.fill(
@@ -953,15 +969,35 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
                   height: mapHeight,
                   child: ClipRRect(
                     borderRadius: PassengerUi.cardRadius,
-                    child: SakayGoogleMap(
-                      initialCameraTarget:
-                          pickup ?? widget.controller.initialCameraTarget,
-                      bounds: widget.controller.route?.bounds,
-                      markers: _driverMarkers(sortedDrivers),
-                      polylines: widget.controller.polylines,
-                      circles: _driverCircles(),
-                      myLocationEnabled:
-                          widget.controller.currentLatLng != null,
+                    child: Stack(
+                      children: <Widget>[
+                        Positioned.fill(
+                          child: AnimatedBuilder(
+                            animation: AppPreferencesController.instance,
+                            builder: (context, _) {
+                              return SakayGoogleMap(
+                                initialCameraTarget:
+                                    pickup ??
+                                    widget.controller.initialCameraTarget,
+                                bounds: widget.controller.route?.bounds,
+                                markers: _driverMarkers(sortedDrivers),
+                                polylines: widget.controller.polylines,
+                                circles: _driverCircles(),
+                                mapType: AppPreferencesController
+                                    .instance
+                                    .googleMapType,
+                                myLocationEnabled:
+                                    widget.controller.currentLatLng != null,
+                              );
+                            },
+                          ),
+                        ),
+                        const Positioned(
+                          top: 10,
+                          right: 10,
+                          child: MapTypeToggle(),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -1759,7 +1795,12 @@ class _SavedDestinationButton extends StatelessWidget {
       ),
       child: Column(
         children: <Widget>[
-          Icon(destination.icon, color: destination.accentColor),
+          destination.hasCustomEmoji
+              ? Text(
+                  destination.customEmoji!,
+                  style: const TextStyle(fontSize: 24),
+                )
+              : Icon(destination.icon, color: destination.accentColor),
           const SizedBox(height: 6),
           Text(
             destination.label,

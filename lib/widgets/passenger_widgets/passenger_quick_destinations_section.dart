@@ -120,11 +120,18 @@ class PassengerQuickDestinationCard extends StatelessWidget {
                 color: destination.backgroundColor,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
-                destination.icon,
-                color: destination.accentColor,
-                size: compact ? 19 : 20,
-              ),
+              child: destination.hasCustomEmoji
+                  ? Center(
+                      child: Text(
+                        destination.customEmoji!,
+                        style: TextStyle(fontSize: compact ? 20 : 22),
+                      ),
+                    )
+                  : Icon(
+                      destination.icon,
+                      color: destination.accentColor,
+                      size: compact ? 19 : 20,
+                    ),
             ),
             SizedBox(height: 8),
             Text(

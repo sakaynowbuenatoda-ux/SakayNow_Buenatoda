@@ -14,34 +14,52 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function userRole(userData) {
+      return userData.get('role', '');
+    }
+
+    function isAdminRole(userData) {
+      return userRole(userData) in ['admin', 'Admin', 'ADMIN'];
+    }
+
     function isAdmin() {
-      return signedIn() && signedInUser().role == 'admin';
+      return signedIn() && isAdminRole(signedInUser());
     }
 
     function isPassengerRole(userData) {
-      return userData.role in ['passenger', 'regular', 'student'];
+      return userRole(userData) in [
+        'passenger',
+        'regular',
+        'student',
+        'Passenger',
+        'Regular',
+        'Student',
+        'PASSENGER',
+        'REGULAR',
+        'STUDENT'
+      ];
     }
 
     function isDriverRole(userData) {
-      return userData.role == 'driver';
+      return userRole(userData) in ['driver', 'Driver', 'DRIVER'];
     }
 
     function isVerifiedUser(userData) {
-      return userData.is_verified == true
-        || userData.isVerified == true
-        || userData.isVerrified == true;
+      return userData.get('is_verified', false) == true
+        || userData.get('isVerified', false) == true
+        || userData.get('isVerrified', false) == true;
     }
 
     function isNotBanned(userData) {
-      return userData.is_banned != true
-        && userData.isBanned != true;
+      return userData.get('is_banned', false) != true
+        && userData.get('isBanned', false) != true;
     }
 
     function isNotDeactivated(userData) {
-      return userData.is_deactivated != true
-        && userData.isDeactivated != true
-        && userData.account_status != 'deactivated'
-        && userData.account_status != 'deleted';
+      return userData.get('is_deactivated', false) != true
+        && userData.get('isDeactivated', false) != true
+        && userData.get('account_status', 'active') != 'deactivated'
+        && userData.get('account_status', 'active') != 'deleted';
     }
 
     function isUsableAccount(userData) {
@@ -51,19 +69,25 @@ service cloud.firestore {
 
     function isVerifiedDriver() {
       return signedIn()
-        && signedInUser().role == 'driver'
+        && isDriverRole(signedInUser())
         && isVerifiedUser(signedInUser())
         && isUsableAccount(signedInUser());
     }
 
     function isPublicVerifiedDriverProfile(userData) {
-      return userData.role == 'driver'
-        && userData.is_verified == true
-        && userData.is_banned == false
+      return isDriverRole(userData)
+        && isVerifiedUser(userData)
+        && isNotBanned(userData)
         && isNotDeactivated(userData);
     }
 
     function isLeaderboardDriverProfile(userData) {
+      return isDriverRole(userData)
+        && isVerifiedUser(userData)
+        && isNotBanned(userData);
+    }
+
+    function isCanonicalLeaderboardDriverProfile(userData) {
       return userData.role == 'driver'
         && userData.is_verified == true
         && userData.is_banned == false;
@@ -183,6 +207,43 @@ service cloud.firestore {
         && hasNoRatingAggregateChanges();
     }
 
+    function isValidDriverAvailabilityUpdate(userId) {
+      return isSelf(userId)
+        && isDriverRole(resource.data)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly(['is_active', 'updated_at'])
+        && request.resource.data.user_id == resource.data.user_id
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.get('is_verified', false) == resource.data.get('is_verified', false)
+        && request.resource.data.get('is_banned', false) == resource.data.get('is_banned', false)
+        && request.resource.data.get('is_deactivated', false) == resource.data.get('is_deactivated', false)
+        && request.resource.data.get('account_status', 'active') == resource.data.get('account_status', 'active')
+        && request.resource.data.is_active is bool
+        && request.resource.data.updated_at == request.time
+        && (
+          request.resource.data.is_active == false
+          || (
+            isVerifiedUser(resource.data)
+            && isUsableAccount(resource.data)
+          )
+        )
+        && hasNoRatingAggregateChanges();
+    }
+
+    function isValidEmailVerificationUpdate(userId) {
+      return isSelf(userId)
+        && request.auth.token.email_verified == true
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly(['email_verified', 'email_verified_at', 'updated_at'])
+        && request.resource.data.email_verified == true
+        && request.resource.data.email_verified_at == request.time
+        && request.resource.data.updated_at == request.time
+        && hasNoRatingAggregateChanges();
+    }
+
     function reviewAllowedKeys() {
       return [
         'review_id',
@@ -292,6 +353,7 @@ service cloud.firestore {
           'is_active',
           'is_banned',
           'is_deactivated',
+          'email_verified',
           'account_status',
           'created_at'
         ])
@@ -305,6 +367,7 @@ service cloud.firestore {
         && request.resource.data.is_active == false
         && request.resource.data.is_banned == false
         && request.resource.data.is_deactivated == false
+        && request.resource.data.email_verified == false
         && request.resource.data.account_status == 'active'
         && request.resource.data.created_at is timestamp
         && request.resource.data.created_at <= request.time
@@ -384,10 +447,25 @@ service cloud.firestore {
         && settingsData.updated_at == request.time;
     }
 
+    function isOpenBookingQueueRecord(bookingData) {
+      return bookingData.status in ['searching', 'pending', 'queued', 'new'];
+    }
+
+    function canReadBooking(bookingData) {
+      return isAdmin()
+        || (signedIn() && bookingData.passenger_id == request.auth.uid)
+        || (signedIn() && bookingData.driver_id == request.auth.uid)
+        || (isVerifiedDriver() && isOpenBookingQueueRecord(bookingData));
+    }
+
     match /users/{userId} {
       allow create: if isValidSignup(userId);
       allow read: if isSelf(userId)
         || isAdmin()
+        || (
+          signedIn()
+          && isCanonicalLeaderboardDriverProfile(resource.data)
+        )
         || (
           signedIn()
           && isPublicVerifiedDriverProfile(resource.data)
@@ -398,18 +476,20 @@ service cloud.firestore {
         )
         || (
           signedIn()
-          && resource.data.role == 'driver'
+          && isDriverRole(resource.data)
           && isVerifiedUser(resource.data)
           && isNotBanned(resource.data)
         )
         || (
             signedIn()
-            && resource.data.role == 'passenger'
+            && isPassengerRole(resource.data)
             && isVerifiedDriver()
         );
       allow update: if isValidSelfDeactivation(userId);
       allow update: if isValidProfilePictureUpdate(userId);
       allow update: if isValidSelfProfileDetailsUpdate(userId);
+      allow update: if isValidDriverAvailabilityUpdate(userId);
+      allow update: if isValidEmailVerificationUpdate(userId);
       allow update: if isSelf(userId)
         && request.resource.data.user_id == resource.data.user_id
         && request.resource.data.email == resource.data.email
@@ -419,6 +499,9 @@ service cloud.firestore {
         && request.resource.data.is_banned == resource.data.is_banned
         && request.resource.data.is_deactivated == resource.data.is_deactivated
         && request.resource.data.account_status == resource.data.account_status
+        && !request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasAny(['email_verified', 'email_verified_at'])
         && hasNoRatingAggregateChanges()
         && (
           !hasProfilePictureChanges()
@@ -483,12 +566,12 @@ service cloud.firestore {
     }
 
     match /bookings/{bookingId} {
-      allow read: if signedIn();
+      allow read: if canReadBooking(resource.data);
       allow create: if signedIn()
         && request.resource.data.passenger_id == request.auth.uid;
       allow update: if isAdmin()
         || isVerifiedDriver()
-        || resource.data.passenger_id == request.auth.uid;
+        || (signedIn() && resource.data.passenger_id == request.auth.uid);
       allow delete: if isAdmin();
     }
 
@@ -507,6 +590,7 @@ service cloud.firestore {
     match /driver_locations/{driverId} {
       allow read: if signedIn();
       allow create, update: if isSelf(driverId)
+        && isDriverRole(signedInUser())
         && request.resource.data.driver_id == driverId
         && (
           request.resource.data.is_available != true

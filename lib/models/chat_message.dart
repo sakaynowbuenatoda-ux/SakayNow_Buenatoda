@@ -7,6 +7,7 @@ class ChatMessage {
   final String senderRole;
   final String text;
   final String type;
+  final String? clientMessageId;
   final Map<String, bool> readBy;
   final DateTime? createdAt;
 
@@ -17,6 +18,7 @@ class ChatMessage {
     required this.senderRole,
     required this.text,
     required this.type,
+    this.clientMessageId,
     required this.readBy,
     required this.createdAt,
   });
@@ -36,9 +38,15 @@ class ChatMessage {
       senderRole: (data['sender_role'] ?? '').toString(),
       text: (data['text'] ?? '').toString(),
       type: (data['type'] ?? 'text').toString(),
+      clientMessageId: _readNullableString(data['client_message_id']),
       readBy: _readBoolMap(data['read_by']),
       createdAt: _readDate(data['created_at']),
     );
+  }
+
+  static String? _readNullableString(Object? value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty || text == 'null' ? null : text;
   }
 
   static Map<String, bool> _readBoolMap(Object? value) {

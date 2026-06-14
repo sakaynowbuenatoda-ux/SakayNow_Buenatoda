@@ -28,7 +28,7 @@ class AdminActionLogsPage extends StatelessWidget {
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return AdminErrorCard(
-                message: 'Unable to load admin logs: ${snapshot.error}',
+                message: 'Unable to load admin logs. Please try again.',
               );
             }
 
@@ -145,6 +145,10 @@ class _AdminActionLogCard extends StatelessWidget {
     switch (log.action) {
       case 'admin_account_created':
         return Icons.admin_panel_settings_rounded;
+      case 'admin_account_deactivated':
+        return Icons.no_accounts_rounded;
+      case 'admin_account_restored':
+        return Icons.restore_rounded;
       case 'fare_settings_updated':
         return Icons.tune_rounded;
       case 'user_restricted':
@@ -162,10 +166,12 @@ class _AdminActionLogCard extends StatelessWidget {
   Color get _accentColor {
     switch (log.action) {
       case 'user_restricted':
+      case 'admin_account_deactivated':
         return AdminUi.highlightAmber;
       case 'user_approved':
       case 'user_restored':
       case 'deactivated_user_restored':
+      case 'admin_account_restored':
         return AdminUi.successText;
       case 'fare_settings_updated':
         return AdminUi.accentBlue;

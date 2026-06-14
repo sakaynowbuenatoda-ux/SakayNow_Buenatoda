@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/services.dart';
 
@@ -48,6 +49,31 @@ class AppEnvironment {
   }
 
   static bool get hasGoogleServicesApiKey => googleServicesApiKey.isNotEmpty;
+
+  static String get googleMapsWebApiKey {
+    if (!kIsWeb) {
+      return googleServicesApiKey;
+    }
+
+    const fromDartDefine = String.fromEnvironment('GOOGLE_MAPS_WEB_API_KEY');
+    final dartDefineValue = _cleanConfiguredValue(fromDartDefine);
+    if (dartDefineValue.isNotEmpty) {
+      return dartDefineValue;
+    }
+
+    try {
+      final dotenvValue = _cleanConfiguredValue(
+        dotenv.env['GOOGLE_MAPS_WEB_API_KEY'] ?? '',
+      );
+      if (dotenvValue.isNotEmpty) {
+        return dotenvValue;
+      }
+    } catch (_) {
+      // The dotenv package throws if no .env asset was loaded.
+    }
+
+    return googleServicesApiKey;
+  }
 
   static Future<String> _readPlatformGoogleServicesApiKey() async {
     try {

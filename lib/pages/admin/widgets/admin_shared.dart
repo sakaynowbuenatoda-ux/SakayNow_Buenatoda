@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../widgets/firebase_storage_image.dart';
+import '../../../widgets/maps/ride_location_preview_dialog.dart';
 import '../../../widgets/time_ago_text.dart';
 import '../admin_models.dart';
 import 'admin_ui.dart';
@@ -609,6 +610,15 @@ class AdminBookingCard extends StatelessWidget {
                   style: AdminUi.cardTitle,
                 ),
               ),
+              if (booking.canPreviewRoute) ...[
+                const SizedBox(width: 8),
+                RideLocationPreviewButton(
+                  pickupLocation: booking.pickupRideLocation!,
+                  dropoffLocation: booking.dropoffRideLocation!,
+                  color: AdminUi.accentBlue,
+                ),
+              ],
+              const SizedBox(width: 8),
               AdminStatusChip(
                 label: booking.statusLabel,
                 textColor: booking.statusColor,
@@ -627,7 +637,7 @@ class AdminBookingCard extends StatelessWidget {
           ),
           _DetailRow(
             label: 'Payment status',
-            value: booking.paymentStatus ?? 'Pending',
+            value: booking.paymentStatusLabel,
           ),
           _DetailRow(label: 'Fare', value: booking.fareLabel ?? 'Pending'),
           _DetailTimeRow(label: 'Time', value: booking.timestamp),

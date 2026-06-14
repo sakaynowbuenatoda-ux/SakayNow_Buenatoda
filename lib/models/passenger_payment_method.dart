@@ -22,15 +22,6 @@ extension PassengerPaymentMethodTypeX on PassengerPaymentMethodType {
     };
   }
 
-  String? get payMongoValue {
-    return switch (this) {
-      PassengerPaymentMethodType.cash => null,
-      PassengerPaymentMethodType.gcash => 'gcash',
-      PassengerPaymentMethodType.maya => 'paymaya',
-      PassengerPaymentMethodType.card => 'card',
-    };
-  }
-
   String? get xenditValue {
     return switch (this) {
       PassengerPaymentMethodType.cash => null,
@@ -128,11 +119,9 @@ class PassengerPaymentMethod {
   }
 
   bool get isCash => type == PassengerPaymentMethodType.cash;
-  bool get usesPayMongo => type.payMongoValue != null;
   bool get usesXendit => type.xenditValue != null;
   bool get usesOnlineCheckout => usesXendit;
   String get provider => usesXendit ? 'xendit' : 'cash';
-  String? get payMongoPaymentMethodType => type.payMongoValue;
   String? get xenditPaymentMethodType => type.xenditValue;
 
   String get displayLabel {

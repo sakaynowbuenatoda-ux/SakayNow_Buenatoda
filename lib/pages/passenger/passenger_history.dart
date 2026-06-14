@@ -23,8 +23,7 @@ class PassengerHistory extends StatelessWidget {
         children: <Widget>[
           PassengerPageHeader(
             title: 'History',
-            subtitle:
-                'Review completed rides, routes, fares, and ride records.',
+            subtitle: 'Review completed rides, routes, fares, and ratings.',
             icon: Icons.history_rounded,
             accentColor: PassengerUi.secondary,
           ),

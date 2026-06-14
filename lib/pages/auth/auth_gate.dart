@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/session/app_user.dart';
 import '../../core/session/session_service.dart';
 import '../../services/chat_service.dart';
+import '../../utils/user_facing_error_message.dart';
 import '../messages/chat_page.dart';
 import 'account_status_page.dart';
 import 'auth_ui.dart';
@@ -35,7 +36,13 @@ class AuthGate extends StatelessWidget {
             }
 
             if (profileSnapshot.hasError) {
-              return _AuthErrorState(message: profileSnapshot.error.toString());
+              return _AuthErrorState(
+                message: userFacingErrorMessage(
+                  profileSnapshot.error,
+                  fallback:
+                      'Unable to load your account profile. Please try again.',
+                ),
+              );
             }
 
             final appUser = profileSnapshot.data;
@@ -122,9 +129,17 @@ Future<void> _openAdminSupportChat(BuildContext context, AppUser user) async {
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Unable to contact admin: $error')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          userFacingErrorMessage(
+            error,
+            fallback:
+                'Unable to open admin support right now. Please try again.',
+          ),
+        ),
+      ),
+    );
   }
 }
 

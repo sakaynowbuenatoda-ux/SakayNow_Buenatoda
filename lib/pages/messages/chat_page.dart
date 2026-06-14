@@ -6,6 +6,7 @@ import '../../models/chat_conversation.dart';
 import '../../models/chat_message.dart';
 import '../../models/chat_participant_profile.dart';
 import '../../services/chat_service.dart';
+import '../../utils/user_facing_error_message.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/time_ago_text.dart';
@@ -39,6 +40,8 @@ class _ChatPageState extends State<ChatPage> {
       <String, Future<ChatParticipantProfile?>>{};
   final Map<String, ChatParticipantProfile> _profileCache =
       <String, ChatParticipantProfile>{};
+  final List<_PendingChatMessage> _pendingMessages = <_PendingChatMessage>[];
+  int _pendingMessageSequence = 0;
   bool _isSending = false;
   bool _isMarkingRead = false;
   bool _hasText = false;
@@ -120,6 +123,10 @@ class _ChatPageState extends State<ChatPage> {
                   currentUserId: widget.currentUserId,
                   conversation: conversation,
                   target: target,
+                  pendingMessages: List<_PendingChatMessage>.unmodifiable(
+                    _pendingMessages,
+                  ),
+                  onPendingMessagesConfirmed: _removeConfirmedPendingMessages,
                   scrollController: _scrollController,
                   onMessagesRendered: () {
                     _scrollToBottom();
@@ -253,29 +260,106 @@ class _ChatPageState extends State<ChatPage> {
       return;
     }
 
-    setState(() => _isSending = true);
+    final pendingMessage = _PendingChatMessage(
+      clientMessageId: _nextClientMessageId(),
+      text: message,
+      createdAt: DateTime.now(),
+      deliveryState: _PendingMessageDeliveryState.sending,
+    );
+
+    setState(() {
+      _isSending = true;
+      _pendingMessages.add(pendingMessage);
+      _hasText = false;
+    });
+    _messageController.clear();
+    _scheduleScrollToBottom();
+
     try {
       await _chatService.sendMessage(
         conversationId: widget.conversationId,
         senderId: widget.currentUserId,
         senderRole: widget.currentUserRole,
         text: message,
+        clientMessageId: pendingMessage.clientMessageId,
       );
-      _messageController.clear();
-      _scrollToBottom();
+      if (mounted) {
+        _updatePendingMessageState(
+          pendingMessage.clientMessageId,
+          _PendingMessageDeliveryState.sent,
+        );
+      }
     } on Exception catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Message failed: $error')));
+      _updatePendingMessageState(
+        pendingMessage.clientMessageId,
+        _PendingMessageDeliveryState.failed,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback: 'Unable to send this message. Please try again.',
+            ),
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSending = false);
       }
     }
+  }
+
+  String _nextClientMessageId() {
+    _pendingMessageSequence += 1;
+    return '${widget.currentUserId}_${DateTime.now().microsecondsSinceEpoch}_$_pendingMessageSequence';
+  }
+
+  void _updatePendingMessageState(
+    String clientMessageId,
+    _PendingMessageDeliveryState deliveryState,
+  ) {
+    if (!mounted) {
+      return;
+    }
+
+    final index = _pendingMessages.indexWhere(
+      (message) => message.clientMessageId == clientMessageId,
+    );
+    if (index == -1) {
+      return;
+    }
+
+    setState(() {
+      _pendingMessages[index] = _pendingMessages[index].copyWith(
+        deliveryState: deliveryState,
+      );
+    });
+    _scheduleScrollToBottom();
+  }
+
+  void _removeConfirmedPendingMessages(Set<String> clientMessageIds) {
+    if (!mounted || _pendingMessages.isEmpty || clientMessageIds.isEmpty) {
+      return;
+    }
+
+    final hasConfirmedPending = _pendingMessages.any(
+      (message) => clientMessageIds.contains(message.clientMessageId),
+    );
+    if (!hasConfirmedPending) {
+      return;
+    }
+
+    setState(() {
+      _pendingMessages.removeWhere(
+        (message) => clientMessageIds.contains(message.clientMessageId),
+      );
+    });
   }
 
   Future<void> _markConversationRead() async {
@@ -307,6 +391,14 @@ class _ChatPageState extends State<ChatPage> {
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
     );
+  }
+
+  void _scheduleScrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _scrollToBottom();
+      }
+    });
   }
 
   static String? _roleLabel(String? role) {
@@ -356,6 +448,8 @@ class _MessageList extends StatelessWidget {
   final String currentUserId;
   final ChatConversation? conversation;
   final _ChatTarget target;
+  final List<_PendingChatMessage> pendingMessages;
+  final ValueChanged<Set<String>> onPendingMessagesConfirmed;
   final ScrollController scrollController;
   final VoidCallback onMessagesRendered;
 
@@ -365,6 +459,8 @@ class _MessageList extends StatelessWidget {
     required this.currentUserId,
     required this.conversation,
     required this.target,
+    required this.pendingMessages,
+    required this.onPendingMessagesConfirmed,
     required this.scrollController,
     required this.onMessagesRendered,
   });
@@ -375,7 +471,8 @@ class _MessageList extends StatelessWidget {
       stream: chatService.watchMessages(conversationId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
-            !snapshot.hasData) {
+            !snapshot.hasData &&
+            pendingMessages.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -385,20 +482,42 @@ class _MessageList extends StatelessWidget {
             child: PassengerEmptyState(
               icon: Icons.error_outline_rounded,
               title: 'Conversation unavailable',
-              description: snapshot.error.toString(),
+              description:
+                  'Unable to load this conversation. Please try again.',
             ),
           );
         }
 
         final messages = snapshot.data ?? <ChatMessage>[];
+        final confirmedClientMessageIds = <String>{
+          for (final message in messages)
+            if (message.clientMessageId != null &&
+                message.clientMessageId!.isNotEmpty)
+              message.clientMessageId!,
+        };
+        final visiblePendingMessages = pendingMessages
+            .where(
+              (message) =>
+                  !confirmedClientMessageIds.contains(message.clientMessageId),
+            )
+            .toList(growable: false);
+        final hasConfirmedPending = pendingMessages.any(
+          (message) =>
+              confirmedClientMessageIds.contains(message.clientMessageId),
+        );
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (hasConfirmedPending) {
+            onPendingMessagesConfirmed(confirmedClientMessageIds);
+          }
           onMessagesRendered();
         });
 
-        if (messages.isEmpty) {
+        if (messages.isEmpty && visiblePendingMessages.isEmpty) {
           return _EmptyConversation(target: target);
         }
 
+        final itemCount = messages.length + visiblePendingMessages.length;
         return ListView.builder(
           controller: scrollController,
           padding: EdgeInsets.fromLTRB(
@@ -407,12 +526,29 @@ class _MessageList extends StatelessWidget {
             16,
             PassengerUi.isCompactWidth(context) ? 12 : 18,
           ),
-          itemCount: messages.length,
+          itemCount: itemCount,
           itemBuilder: (context, index) {
+            if (index >= messages.length) {
+              final pendingMessage =
+                  visiblePendingMessages[index - messages.length];
+              return _MessageBubble(
+                key: ValueKey<String>(
+                  'pending_${pendingMessage.clientMessageId}',
+                ),
+                text: pendingMessage.text,
+                createdAt: pendingMessage.createdAt,
+                isMine: true,
+                target: target,
+                status: pendingMessage.status,
+              );
+            }
+
             final message = messages[index];
             final isMine = message.isMine(currentUserId);
             return _MessageBubble(
-              message: message,
+              key: ValueKey<String>('message_${message.messageId}'),
+              text: message.text,
+              createdAt: message.createdAt,
               isMine: isMine,
               target: target,
               status: isMine
@@ -438,7 +574,7 @@ class _MessageList extends StatelessWidget {
   }) {
     final createdAt = message.createdAt;
     if (createdAt == null) {
-      return const _MessageStatus(label: 'Sent', isSeen: false);
+      return const _MessageStatus(label: 'Sent', type: _MessageStatusType.sent);
     }
 
     final receiptUserIds = <String>[
@@ -457,7 +593,10 @@ class _MessageList extends StatelessWidget {
       return lastReadAt != null && !lastReadAt.isBefore(createdAt);
     });
 
-    return _MessageStatus(label: isSeen ? 'Seen' : 'Sent', isSeen: isSeen);
+    return _MessageStatus(
+      label: isSeen ? 'Seen' : 'Sent',
+      type: isSeen ? _MessageStatusType.seen : _MessageStatusType.sent,
+    );
   }
 }
 
@@ -571,13 +710,16 @@ class _EmptyConversation extends StatelessWidget {
 }
 
 class _MessageBubble extends StatelessWidget {
-  final ChatMessage message;
+  final String text;
+  final DateTime? createdAt;
   final bool isMine;
   final _ChatTarget target;
   final _MessageStatus? status;
 
   const _MessageBubble({
-    required this.message,
+    super.key,
+    required this.text,
+    required this.createdAt,
     required this.isMine,
     required this.target,
     required this.status,
@@ -616,7 +758,7 @@ class _MessageBubble extends StatelessWidget {
                   : CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  message.text,
+                  text,
                   style: PassengerUi.bodyText.copyWith(
                     color: foregroundColor,
                     height: 1.35,
@@ -624,7 +766,7 @@ class _MessageBubble extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 _MessageMeta(
-                  timeLabel: TimeAgo.format(message.createdAt),
+                  timeLabel: TimeAgo.format(createdAt),
                   color: detailColor,
                   status: status,
                 ),
@@ -678,16 +820,12 @@ class _MessageMeta extends StatelessWidget {
         ),
         if (status != null) ...<Widget>[
           const SizedBox(width: 6),
-          Icon(
-            status!.isSeen ? Icons.done_all_rounded : Icons.done_rounded,
-            size: 14,
-            color: color,
-          ),
+          _MessageStatusIcon(status: status!, color: color),
           const SizedBox(width: 2),
           Text(
             status!.label,
             style: PassengerUi.bodyText.copyWith(
-              color: color,
+              color: status!.colorFor(color),
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -695,6 +833,27 @@ class _MessageMeta extends StatelessWidget {
         ],
       ],
     );
+  }
+}
+
+class _MessageStatusIcon extends StatelessWidget {
+  final _MessageStatus status;
+  final Color color;
+
+  const _MessageStatusIcon({required this.status, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = status.colorFor(color);
+    if (status.type == _MessageStatusType.sending) {
+      return SizedBox(
+        width: 12,
+        height: 12,
+        child: CircularProgressIndicator(strokeWidth: 1.6, color: statusColor),
+      );
+    }
+
+    return Icon(status.icon, size: 14, color: statusColor);
   }
 }
 
@@ -903,9 +1062,68 @@ class _ChatTarget {
   }
 }
 
+enum _PendingMessageDeliveryState { sending, sent, failed }
+
+class _PendingChatMessage {
+  final String clientMessageId;
+  final String text;
+  final DateTime createdAt;
+  final _PendingMessageDeliveryState deliveryState;
+
+  const _PendingChatMessage({
+    required this.clientMessageId,
+    required this.text,
+    required this.createdAt,
+    required this.deliveryState,
+  });
+
+  _PendingChatMessage copyWith({_PendingMessageDeliveryState? deliveryState}) {
+    return _PendingChatMessage(
+      clientMessageId: clientMessageId,
+      text: text,
+      createdAt: createdAt,
+      deliveryState: deliveryState ?? this.deliveryState,
+    );
+  }
+
+  _MessageStatus get status {
+    return switch (deliveryState) {
+      _PendingMessageDeliveryState.sending => const _MessageStatus(
+        label: 'Sending',
+        type: _MessageStatusType.sending,
+      ),
+      _PendingMessageDeliveryState.sent => const _MessageStatus(
+        label: 'Sent',
+        type: _MessageStatusType.sent,
+      ),
+      _PendingMessageDeliveryState.failed => const _MessageStatus(
+        label: 'Failed',
+        type: _MessageStatusType.failed,
+      ),
+    };
+  }
+}
+
+enum _MessageStatusType { sending, sent, seen, failed }
+
 class _MessageStatus {
   final String label;
-  final bool isSeen;
+  final _MessageStatusType type;
 
-  const _MessageStatus({required this.label, required this.isSeen});
+  const _MessageStatus({required this.label, required this.type});
+
+  IconData get icon {
+    return switch (type) {
+      _MessageStatusType.seen => Icons.done_all_rounded,
+      _MessageStatusType.failed => Icons.error_outline_rounded,
+      _ => Icons.done_rounded,
+    };
+  }
+
+  Color colorFor(Color fallback) {
+    return switch (type) {
+      _MessageStatusType.failed => Colors.redAccent,
+      _ => fallback,
+    };
+  }
 }

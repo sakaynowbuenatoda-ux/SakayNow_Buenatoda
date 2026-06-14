@@ -145,9 +145,7 @@ class PassengerQuickDestinationCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Text(
-                destination.address?.trim().isNotEmpty == true
-                    ? destination.address!
-                    : 'Set location',
+                destination.locationDisplayLabel,
                 style: PassengerUi.bodyText.copyWith(fontSize: 11),
                 textAlign: TextAlign.center,
                 maxLines: 1,

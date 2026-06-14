@@ -2,14 +2,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/email_verification_service.dart';
+import '../../utils/user_facing_error_message.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import 'change_update_email_page.dart';
 
 class EmailVerificationPage extends StatefulWidget {
-  final EmailVerificationService verificationService;
+  final EmailVerificationClient verificationService;
 
   EmailVerificationPage({
     super.key,
-    EmailVerificationService? verificationService,
+    EmailVerificationClient? verificationService,
   }) : verificationService = verificationService ?? EmailVerificationService();
 
   @override
@@ -30,7 +32,10 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
     _loadStatus();
   }
 
-  Future<void> _loadStatus({bool refresh = false}) async {
+  Future<void> _loadStatus({
+    bool refresh = false,
+    bool showVerifiedMessage = true,
+  }) async {
     setState(() {
       if (refresh) {
         _isRefreshing = true;
@@ -49,8 +54,11 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
         try {
           await widget.verificationService.syncVerifiedEmailToProfile();
         } catch (error) {
-          syncErrorMessage =
-              'Email is verified, but the profile record could not be updated: $error';
+          syncErrorMessage = userFacingErrorMessage(
+            error,
+            fallback:
+                'Email is verified, but your profile could not be updated yet. Please refresh in a moment.',
+          );
         }
       }
 
@@ -65,7 +73,7 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
         _isRefreshing = false;
       });
 
-      if (refresh && status.isVerified) {
+      if (refresh && showVerifiedMessage && status.isVerified) {
         _showSnackBar('Email verified successfully.');
       }
     } on FirebaseAuthException catch (error) {
@@ -79,11 +87,36 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
     } catch (error) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Unable to load email verification status: $error';
+          _errorMessage = userFacingErrorMessage(
+            error,
+            fallback:
+                'Unable to load email verification status. Please try again.',
+          );
           _isLoading = false;
           _isRefreshing = false;
         });
       }
+    }
+  }
+
+  Future<void> _openChangeUpdateEmailPage(
+    EmailVerificationStatus status,
+  ) async {
+    if (!status.hasSignedInUser || !status.hasEmail) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChangeUpdateEmailPage(
+          verificationService: widget.verificationService,
+          initialStatus: status,
+        ),
+      ),
+    );
+
+    if (mounted) {
+      await _loadStatus(refresh: true, showVerifiedMessage: false);
     }
   }
 
@@ -112,7 +145,10 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
     } catch (error) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Unable to send verification email: $error';
+          _errorMessage = userFacingErrorMessage(
+            error,
+            fallback: 'Unable to send verification email. Please try again.',
+          );
         });
       }
     } finally {
@@ -171,7 +207,9 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                     _EmailVerificationStatusCard(status: status),
                     const SizedBox(height: 14),
                     if (status.isVerified)
-                      const _EmailVerifiedCard()
+                      _EmailVerifiedCard(
+                        onUpdateEmail: () => _openChangeUpdateEmailPage(status),
+                      )
                     else
                       _EmailVerificationActionCard(
                         email: status.email!,
@@ -180,6 +218,7 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                         hasSentEmail: _hasSentEmail,
                         onSend: _sendVerificationEmail,
                         onRefresh: () => _loadStatus(refresh: true),
+                        onChangeEmail: () => _openChangeUpdateEmailPage(status),
                       ),
                   ],
                 ],
@@ -278,6 +317,7 @@ class _EmailVerificationActionCard extends StatelessWidget {
   final bool hasSentEmail;
   final VoidCallback onSend;
   final VoidCallback onRefresh;
+  final VoidCallback onChangeEmail;
 
   const _EmailVerificationActionCard({
     required this.email,
@@ -286,6 +326,7 @@ class _EmailVerificationActionCard extends StatelessWidget {
     required this.hasSentEmail,
     required this.onSend,
     required this.onRefresh,
+    required this.onChangeEmail,
   });
 
   @override
@@ -298,6 +339,11 @@ class _EmailVerificationActionCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'A secure verification link will be sent to $email.',
+            style: PassengerUi.bodyText,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'If no email arrives, please check your spam folder.',
             style: PassengerUi.bodyText,
           ),
           if (hasSentEmail) ...<Widget>[
@@ -338,6 +384,15 @@ class _EmailVerificationActionCard extends StatelessWidget {
                     )
                   : const Icon(Icons.refresh_rounded),
               label: Text(isRefreshing ? 'Checking...' : 'Refresh Status'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onChangeEmail,
+              icon: const Icon(Icons.alternate_email_rounded),
+              label: const Text('Change Email'),
             ),
           ),
         ],
@@ -382,7 +437,9 @@ class _VerificationSentNotice extends StatelessWidget {
 }
 
 class _EmailVerifiedCard extends StatelessWidget {
-  const _EmailVerifiedCard();
+  final VoidCallback onUpdateEmail;
+
+  const _EmailVerifiedCard({required this.onUpdateEmail});
 
   @override
   Widget build(BuildContext context) {
@@ -412,6 +469,15 @@ class _EmailVerifiedCard extends StatelessWidget {
                 Text(
                   'Your email is already verified for this SakayNow account.',
                   style: PassengerUi.bodyText,
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: onUpdateEmail,
+                    icon: const Icon(Icons.alternate_email_rounded),
+                    label: const Text('Update Email'),
+                  ),
                 ),
               ],
             ),

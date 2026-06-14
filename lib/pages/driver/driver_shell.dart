@@ -14,6 +14,7 @@ import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../services/location_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/ride_tracking_service.dart';
+import '../../utils/user_facing_error_message.dart';
 import '../notifications/notifications_page.dart';
 import '../profile/profile_page.dart';
 import '../rides/ride_monitoring_page.dart';
@@ -56,12 +57,14 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   StreamSubscription<int>? _notificationSubscription;
   StreamSubscription<List<Ride>>? _rideCancellationSubscription;
   StreamSubscription<bool>? _availabilitySubscription;
+  StreamSubscription<int>? _queueRequestSubscription;
   final Map<String, RideStatus> _knownRideStatuses = <String, RideStatus>{};
   Timer? _inactivityTimer;
   Timer? _foregroundIdleTimer;
   DateTime? _inactiveSince;
   int _messageUnreadCount = 0;
   int _notificationUnreadCount = 0;
+  int _queueRequestCount = 0;
   bool _isMarkingMessagesRead = false;
   bool _isChangingAvailability = false;
   bool _hasSeededRideStatuses = false;
@@ -77,6 +80,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     _watchDriverAvailability();
     _watchUnreadMessages();
     _watchUnreadNotifications();
+    _watchQueueRequestCount();
     _watchRideCancellations();
   }
 
@@ -90,7 +94,10 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
       _watchDriverAvailability();
       _watchUnreadMessages();
       _watchUnreadNotifications();
+      _watchQueueRequestCount();
       _watchRideCancellations();
+    } else if (oldWidget.isVerified != widget.isVerified) {
+      _watchQueueRequestCount();
     }
   }
 
@@ -102,6 +109,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     _notificationSubscription?.cancel();
     _rideCancellationSubscription?.cancel();
     _availabilitySubscription?.cancel();
+    _queueRequestSubscription?.cancel();
     _inactivityTimer?.cancel();
     _foregroundIdleTimer?.cancel();
     _isActiveNotifier.dispose();
@@ -232,6 +240,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
           currentIndex: _currentIndex,
           isDriver: true,
           messageUnreadCount: _messageUnreadCount,
+          queueRequestCount: _queueRequestCount,
           onTap: _selectTab,
         ),
       ),
@@ -288,6 +297,34 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
           onError: (_) {
             if (mounted && _notificationUnreadCount != 0) {
               setState(() => _notificationUnreadCount = 0);
+            }
+          },
+        );
+  }
+
+  void _watchQueueRequestCount() {
+    unawaited(_queueRequestSubscription?.cancel());
+
+    if (!widget.isVerified) {
+      if (mounted && _queueRequestCount != 0) {
+        setState(() => _queueRequestCount = 0);
+      } else {
+        _queueRequestCount = 0;
+      }
+      return;
+    }
+
+    _queueRequestSubscription = _rideTrackingService
+        .watchOpenBookingCount(driverId: widget.userId, includeDeclined: true)
+        .listen(
+          (count) {
+            if (mounted && count != _queueRequestCount) {
+              setState(() => _queueRequestCount = count);
+            }
+          },
+          onError: (_) {
+            if (mounted && _queueRequestCount != 0) {
+              setState(() => _queueRequestCount = 0);
             }
           },
         );
@@ -482,9 +519,17 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
         return;
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback:
+                  'Unable to update driver availability. Please try again.',
+            ),
+          ),
+        ),
+      );
       _setActiveState(!value);
       if (!value) {
         _resetForegroundIdleTimer();

@@ -34,6 +34,7 @@ class FirebaseStorageImage extends StatelessWidget {
     }
 
     return FutureBuilder<String>(
+      key: ValueKey<String>('firebase_storage_image_${source.hashCode}'),
       future: _cachedDownloadUrlFor(source),
       builder: (context, snapshot) {
         final resolvedUrl = snapshot.data;
@@ -53,6 +54,7 @@ class FirebaseStorageImage extends StatelessWidget {
   Widget _networkImage(String resolvedUrl) {
     return Image.network(
       resolvedUrl,
+      key: ValueKey<String>('firebase_storage_network_${resolvedUrl.hashCode}'),
       width: width,
       height: height,
       fit: fit,

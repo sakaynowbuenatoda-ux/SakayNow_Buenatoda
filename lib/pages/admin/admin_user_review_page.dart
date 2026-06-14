@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/time_ago_text.dart';
+import '../../utils/user_facing_error_message.dart';
 import 'admin_models.dart';
 import 'admin_service.dart';
+import 'widgets/admin_message_user_button.dart';
 import 'widgets/admin_shared.dart';
 
 class AdminUserReviewPage extends StatefulWidget {
@@ -49,7 +51,8 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
             return AdminPageContainer(
               maxContentWidth: AdminUi.detailContentWidth,
               child: AdminErrorCard(
-                message: 'Unable to load this user review: ${snapshot.error}',
+                message:
+                    'Unable to load this verification review. Please try again.',
               ),
             );
           }
@@ -62,7 +65,7 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                 icon: Icons.person_off_outlined,
                 title: 'User not found',
                 description:
-                    'This account record could not be loaded from Firestore.',
+                    'This account profile could not be loaded for review.',
               ),
             );
           }
@@ -82,7 +85,7 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                 Text('Profile Information', style: AdminUi.sectionTitle),
                 SizedBox(height: 6),
                 Text(
-                  'These values come directly from the current user document in Firestore.',
+                  'Review the account details submitted during registration.',
                   style: AdminUi.bodyText,
                 ),
                 SizedBox(height: 12),
@@ -121,7 +124,7 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                     icon: Icons.image_not_supported_outlined,
                     title: 'No uploaded credentials found',
                     description:
-                        'This user does not currently have readable document image links saved in Firestore.',
+                        'This user does not currently have readable credential images for review.',
                   )
                 else
                   _CredentialGrid(
@@ -135,6 +138,7 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                 SizedBox(height: 18),
                 _ActionPanel(
                   user: user,
+                  adminId: widget.adminId,
                   isProcessing: _isProcessing,
                   onVerify: user.isPendingVerification
                       ? () => _confirmAndRunAction(
@@ -247,9 +251,16 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
         return;
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Action failed: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback: 'Action failed. Please try again.',
+            ),
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isProcessing = false);
@@ -442,6 +453,7 @@ class _ReviewAvatar extends StatelessWidget {
 
 class _ActionPanel extends StatelessWidget {
   final AdminUserRecord user;
+  final String adminId;
   final bool isProcessing;
   final VoidCallback? onVerify;
   final VoidCallback? onRestrict;
@@ -449,6 +461,7 @@ class _ActionPanel extends StatelessWidget {
 
   const _ActionPanel({
     required this.user,
+    required this.adminId,
     required this.isProcessing,
     required this.onVerify,
     required this.onRestrict,
@@ -457,6 +470,15 @@ class _ActionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final messageButton = user.isPassengerOrDriver && !user.isDeleted
+        ? AdminMessageUserButton(
+            adminId: adminId,
+            user: user,
+            label: 'Message User',
+            enabled: !isProcessing,
+          )
+        : null;
+
     if (user.isBanned) {
       return AdminSurfaceCard(
         child: Column(
@@ -469,12 +491,19 @@ class _ActionPanel extends StatelessWidget {
               style: AdminUi.bodyText,
             ),
             SizedBox(height: 14),
-            AdminActionButton(
-              label: 'Restore Access',
-              icon: Icons.restart_alt_rounded,
-              backgroundColor: AdminUi.successBackground,
-              foregroundColor: AdminUi.successText,
-              onPressed: isProcessing ? null : onRestore,
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                ?messageButton,
+                AdminActionButton(
+                  label: 'Restore Access',
+                  icon: Icons.restart_alt_rounded,
+                  backgroundColor: AdminUi.successBackground,
+                  foregroundColor: AdminUi.successText,
+                  onPressed: isProcessing ? null : onRestore,
+                ),
+              ],
             ),
           ],
         ),
@@ -482,12 +511,20 @@ class _ActionPanel extends StatelessWidget {
     }
 
     if (user.isVerified) {
-      return AdminInfoPanel(
-        title: 'Account Already Verified',
-        description:
-            'This user already has is_verified set to true in Firestore. Verification-gated features should now be available on the user side.',
-        icon: Icons.verified_rounded,
-        accentColor: AdminUi.successText,
+      return AdminSurfaceCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Admin Actions', style: AdminUi.cardTitle),
+            SizedBox(height: 8),
+            Text(
+              'This user is already verified. Account features that require verification should now be available.',
+              style: AdminUi.bodyText,
+            ),
+            SizedBox(height: 14),
+            ?messageButton,
+          ],
+        ),
       );
     }
 
@@ -498,7 +535,7 @@ class _ActionPanel extends StatelessWidget {
           Text('Admin Actions', style: AdminUi.cardTitle),
           SizedBox(height: 8),
           Text(
-            'Verify this account to switch is_verified from false to true in Firestore and unlock verification-gated features for the user.',
+            'Verify this account to approve the submitted credentials and unlock features that require verification.',
             style: AdminUi.bodyText,
           ),
           SizedBox(height: 14),
@@ -506,6 +543,7 @@ class _ActionPanel extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
+              ?messageButton,
               AdminActionButton(
                 label: 'Verify User',
                 icon: Icons.verified_rounded,

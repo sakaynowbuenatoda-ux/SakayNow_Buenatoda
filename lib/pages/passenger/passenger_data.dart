@@ -4,6 +4,8 @@ class PassengerQuickDestination {
   final String id;
   final String label;
   final String? address;
+  final String? pinName;
+  final String? pinPlaceId;
   final IconData icon;
   final String? customEmoji;
   final Color accentColor;
@@ -16,6 +18,8 @@ class PassengerQuickDestination {
     required this.id,
     required this.label,
     this.address,
+    this.pinName,
+    this.pinPlaceId,
     required this.icon,
     this.customEmoji,
     required this.accentColor,
@@ -28,12 +32,53 @@ class PassengerQuickDestination {
   bool get hasCoordinates => latitude != null && longitude != null;
   bool get hasCustomEmoji => customEmoji?.trim().isNotEmpty == true;
   bool get hasSavedLocation =>
-      hasCoordinates && (address?.trim().isNotEmpty ?? false);
+      hasCoordinates && locationDisplayLabel != 'Set location';
+
+  String? get pinDisplayLabel {
+    final name = pinName?.trim();
+    if (name != null && name.isNotEmpty && name != 'Pinned location') {
+      return name;
+    }
+
+    final placeId = pinPlaceId?.trim();
+    if (placeId != null && placeId.isNotEmpty) {
+      return placeId;
+    }
+
+    return null;
+  }
+
+  String? get coordinateLabel {
+    final lat = latitude;
+    final lng = longitude;
+    if (lat == null || lng == null) {
+      return null;
+    }
+
+    return '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+  }
+
+  String get locationDisplayLabel {
+    return pinDisplayLabel ?? coordinateLabel ?? 'Set location';
+  }
+
+  String get bookingAddress {
+    final pinLabel = pinDisplayLabel;
+    if (pinLabel != null) {
+      return address?.trim().isNotEmpty == true ? address!.trim() : pinLabel;
+    }
+
+    return coordinateLabel ??
+        (address?.trim().isNotEmpty == true ? address!.trim() : label);
+  }
 
   PassengerQuickDestination copyWith({
     String? id,
     String? label,
     String? address,
+    String? pinName,
+    String? pinPlaceId,
+    bool clearPinDetails = false,
     IconData? icon,
     String? customEmoji,
     bool clearCustomEmoji = false,
@@ -48,6 +93,12 @@ class PassengerQuickDestination {
       id: id ?? this.id,
       label: label ?? this.label,
       address: clearLocation ? null : address ?? this.address,
+      pinName: clearLocation || clearPinDetails
+          ? null
+          : pinName ?? this.pinName,
+      pinPlaceId: clearLocation || clearPinDetails
+          ? null
+          : pinPlaceId ?? this.pinPlaceId,
       icon: icon ?? this.icon,
       customEmoji: clearCustomEmoji ? null : customEmoji ?? this.customEmoji,
       accentColor: accentColor ?? this.accentColor,
@@ -135,8 +186,8 @@ class PassengerFareDetail {
   });
 }
 
-class PassengerMockData {
-  const PassengerMockData._();
+class PassengerReferenceData {
+  const PassengerReferenceData._();
 
   static const List<PassengerQuickDestination> quickDestinations =
       <PassengerQuickDestination>[

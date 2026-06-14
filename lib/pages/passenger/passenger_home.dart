@@ -12,7 +12,6 @@ import '../../models/ride_location.dart';
 import '../../models/fare_settings.dart';
 import '../../services/fare_settings_service.dart';
 import '../../services/geofencing_service.dart';
-import '../../services/google_places_service.dart';
 import '../../services/location_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/maps/location_pin_picker_sheet.dart';
@@ -54,7 +53,6 @@ class PassengerHomepage extends StatefulWidget {
 
 class _PassengerHomepageState extends State<PassengerHomepage> {
   late final QuickDestinationsController _quickDestinationsController;
-  final GooglePlacesService _placesService = GooglePlacesService();
   final LocationService _locationService = const LocationService();
   final RideTrackingService _rideTrackingService = RideTrackingService();
   final GeofencingService _geofencingService = const GeofencingService();
@@ -273,7 +271,10 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
       await bookingController.selectKnownLocation(
         target: BookingLocationTarget.dropoff,
         label: destination.label,
-        address: destination.address ?? destination.label,
+        address: destination.bookingAddress,
+        name: destination.pinDisplayLabel,
+        placeId: destination.pinPlaceId,
+        useLabelAsName: false,
         latitude: destination.latitude,
         longitude: destination.longitude,
       );
@@ -357,6 +358,7 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
         initialTarget: pickerTarget.location,
         accentColor: destination.accentColor,
         myLocationEnabled: pickerTarget.usesCurrentLocation,
+        heightFactor: 0.9,
       ),
     );
 
@@ -366,7 +368,10 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
 
     final location = await _locationFromPin(selected);
     final savedDestination = destination.copyWith(
-      address: _locationDisplayText(location),
+      address: _savedDestinationAddress(location),
+      pinName: _pinNameFromLocation(location),
+      pinPlaceId: location.placeId,
+      clearPinDetails: !_hasPinDetails(location),
       latitude: location.latitude,
       longitude: location.longitude,
     );
@@ -388,23 +393,13 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
     }
 
     final location = selected.location;
-    try {
-      final address = await _placesService.reverseGeocode(location);
-      return RideLocation(
-        address: address,
-        name: 'Pinned location',
-        latitude: location.latitude,
-        longitude: location.longitude,
-      );
-    } on Exception {
-      return RideLocation(
-        address:
-            '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}',
-        name: 'Pinned location',
-        latitude: location.latitude,
-        longitude: location.longitude,
-      );
-    }
+    final coordinateLabel =
+        '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}';
+    return RideLocation(
+      address: coordinateLabel,
+      latitude: location.latitude,
+      longitude: location.longitude,
+    );
   }
 
   Future<_PickerTarget> _quickDestinationPickerTarget(
@@ -431,8 +426,27 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
     }
   }
 
-  String _locationDisplayText(RideLocation location) {
-    return location.displayLabel;
+  String _savedDestinationAddress(RideLocation location) {
+    return _hasPinDetails(location)
+        ? location.address
+        : location.coordinateLabel ?? location.address;
+  }
+
+  String? _pinNameFromLocation(RideLocation location) {
+    final name = location.name?.trim();
+    if (name == null || name.isEmpty || name == 'Pinned location') {
+      return null;
+    }
+
+    return name;
+  }
+
+  String? _pinDisplayText(RideLocation location) {
+    return location.googlePinDisplayLabel ?? _pinNameFromLocation(location);
+  }
+
+  bool _hasPinDetails(RideLocation location) {
+    return _pinDisplayText(location) != null;
   }
 
   void _openQuickDestinationsPage() {
@@ -571,8 +585,7 @@ class _PassengerInformationKeySection extends StatelessWidget {
       _InformationKeyItem(
         icon: Icons.receipt_long_rounded,
         title: 'Local LGU fare guide',
-        description:
-            'Base fare starts at ${settings.oneBarangayFareLabel}, up to 5 barangays is ${settings.buenavistaFiveBarangayFareLabel}, and extended routes are ${settings.outsideBuenavistaRangeLabel}.',
+        description: settings.passengerFareGuideDescription,
       ),
       const _InformationKeyItem(
         icon: Icons.payments_rounded,
@@ -583,8 +596,7 @@ class _PassengerInformationKeySection extends StatelessWidget {
       _InformationKeyItem(
         icon: Icons.school_rounded,
         title: 'Student discount',
-        description:
-            'Verified students receive ${(settings.studentDiscountRate * 100).round()}% off eligible rides.',
+        description: settings.passengerStudentDiscountDescription,
       ),
       const _InformationKeyItem(
         icon: Icons.local_offer_rounded,

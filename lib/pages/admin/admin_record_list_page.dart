@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../utils/user_facing_error_message.dart';
 import '../../widgets/confirmation_dialog.dart';
 import 'admin_models.dart';
 import 'admin_navigation.dart';
 import 'admin_service.dart';
+import 'widgets/admin_message_user_button.dart';
 import 'widgets/admin_shared.dart';
 
 enum AdminRecordListType {
@@ -28,6 +30,34 @@ enum AdminRecordSort {
   }
 }
 
+enum AdminRegisteredUserRoleFilter {
+  all,
+  drivers,
+  passengers;
+
+  String get label {
+    switch (this) {
+      case AdminRegisteredUserRoleFilter.all:
+        return 'All';
+      case AdminRegisteredUserRoleFilter.drivers:
+        return 'Drivers';
+      case AdminRegisteredUserRoleFilter.passengers:
+        return 'Passengers';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case AdminRegisteredUserRoleFilter.all:
+        return Icons.groups_rounded;
+      case AdminRegisteredUserRoleFilter.drivers:
+        return Icons.local_taxi_rounded;
+      case AdminRegisteredUserRoleFilter.passengers:
+        return Icons.person_rounded;
+    }
+  }
+}
+
 class AdminRecordListPage extends StatefulWidget {
   final String adminId;
   final AdminRecordListType listType;
@@ -46,6 +76,8 @@ class _AdminRecordListPageState extends State<AdminRecordListPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
   AdminRecordSort _sort = AdminRecordSort.newest;
+  AdminRegisteredUserRoleFilter _registeredUserRoleFilter =
+      AdminRegisteredUserRoleFilter.all;
 
   @override
   void initState() {
@@ -81,8 +113,11 @@ class _AdminRecordListPageState extends State<AdminRecordListPage> {
               listType: widget.listType,
               query: _query,
               sort: _sort,
+              roleFilter: _registeredUserRoleFilter,
               searchController: _searchController,
               onSortChanged: (value) => setState(() => _sort = value),
+              onRoleFilterChanged: (value) =>
+                  setState(() => _registeredUserRoleFilter = value),
             )
           : _AdminBookingRecordList(
               listType: widget.listType,
@@ -100,16 +135,20 @@ class _AdminUserRecordList extends StatelessWidget {
   final AdminRecordListType listType;
   final String query;
   final AdminRecordSort sort;
+  final AdminRegisteredUserRoleFilter roleFilter;
   final TextEditingController searchController;
   final ValueChanged<AdminRecordSort> onSortChanged;
+  final ValueChanged<AdminRegisteredUserRoleFilter> onRoleFilterChanged;
 
   const _AdminUserRecordList({
     required this.adminId,
     required this.listType,
     required this.query,
     required this.sort,
+    required this.roleFilter,
     required this.searchController,
     required this.onSortChanged,
+    required this.onRoleFilterChanged,
   });
 
   @override
@@ -125,7 +164,7 @@ class _AdminUserRecordList extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return AdminErrorCard(
-              message: 'Unable to load ${listType.title}: ${snapshot.error}',
+              message: 'Unable to load ${listType.title}. Please try again.',
             );
           }
 
@@ -135,9 +174,16 @@ class _AdminUserRecordList extends StatelessWidget {
 
           final users = snapshot.data!
               .where(listType.matchesUser)
+              .where(
+                (user) => _matchesRegisteredUserRoleFilter(user, roleFilter),
+              )
               .where((user) => _matchesUserSearch(user, query))
               .toList(growable: false);
           _sortUsers(users, sort);
+          final hasActiveFilters =
+              query.isNotEmpty ||
+              (listType == AdminRecordListType.registeredUsers &&
+                  roleFilter != AdminRegisteredUserRoleFilter.all);
 
           return _AdminRecordListLayout(
             listType: listType,
@@ -146,23 +192,31 @@ class _AdminUserRecordList extends StatelessWidget {
             searchHint: listType.userSearchHint,
             sort: sort,
             onSortChanged: onSortChanged,
+            roleFilter: listType == AdminRecordListType.registeredUsers
+                ? roleFilter
+                : null,
+            onRoleFilterChanged: listType == AdminRecordListType.registeredUsers
+                ? onRoleFilterChanged
+                : null,
             empty: users.isEmpty
                 ? AdminEmptyCollection(
                     icon: listType.icon,
-                    title: query.isEmpty
+                    title: !hasActiveFilters
                         ? listType.emptyTitle
                         : 'No matching users found',
-                    description: query.isEmpty
+                    description: !hasActiveFilters
                         ? listType.emptyDescription
-                        : 'Try searching by name, email, role, or account status.',
+                        : 'Try a different search or role filter.',
                   )
                 : null,
             children: users
                 .map((user) {
                   return Padding(
+                    key: ValueKey<String>('admin_user_${user.userId}'),
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _AdminUserListCard(
                       user: user,
+                      adminId: adminId,
                       onTap: () => AdminNavigation.openUserProfile(
                         context,
                         adminId: adminId,
@@ -325,6 +379,8 @@ class _AdminRecordListLayout extends StatelessWidget {
   final String searchHint;
   final AdminRecordSort sort;
   final ValueChanged<AdminRecordSort> onSortChanged;
+  final AdminRegisteredUserRoleFilter? roleFilter;
+  final ValueChanged<AdminRegisteredUserRoleFilter>? onRoleFilterChanged;
   final Widget? empty;
   final List<Widget> children;
 
@@ -335,6 +391,8 @@ class _AdminRecordListLayout extends StatelessWidget {
     required this.searchHint,
     required this.sort,
     required this.onSortChanged,
+    this.roleFilter,
+    this.onRoleFilterChanged,
     required this.empty,
     required this.children,
   });
@@ -358,6 +416,8 @@ class _AdminRecordListLayout extends StatelessWidget {
           searchHint: searchHint,
           sort: sort,
           onSortChanged: onSortChanged,
+          roleFilter: roleFilter,
+          onRoleFilterChanged: onRoleFilterChanged,
         ),
         SizedBox(height: 16),
         Text(listType.sectionTitle, style: AdminUi.sectionTitle),
@@ -412,33 +472,91 @@ class _AdminRecordControls extends StatelessWidget {
   final String searchHint;
   final AdminRecordSort sort;
   final ValueChanged<AdminRecordSort> onSortChanged;
+  final AdminRegisteredUserRoleFilter? roleFilter;
+  final ValueChanged<AdminRegisteredUserRoleFilter>? onRoleFilterChanged;
 
   const _AdminRecordControls({
     required this.searchController,
     required this.searchHint,
     required this.sort,
     required this.onSortChanged,
+    this.roleFilter,
+    this.onRoleFilterChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 640;
+    final compact = MediaQuery.sizeOf(context).width < 820;
     final search = _AdminSearchField(
       controller: searchController,
       hintText: searchHint,
     );
     final sortField = _AdminSortField(sort: sort, onChanged: onSortChanged);
+    final roleFilterField = roleFilter == null || onRoleFilterChanged == null
+        ? null
+        : _AdminRegisteredUserRoleFilterSegment(
+            value: roleFilter!,
+            onChanged: onRoleFilterChanged!,
+          );
 
     if (compact) {
-      return Column(children: [search, SizedBox(height: 10), sortField]);
+      return Column(
+        children: [
+          search,
+          if (roleFilterField != null) ...[
+            SizedBox(height: 10),
+            roleFilterField,
+          ],
+          SizedBox(height: 10),
+          sortField,
+        ],
+      );
     }
 
     return Row(
       children: [
         Expanded(child: search),
         SizedBox(width: 12),
+        if (roleFilterField != null) ...[
+          SizedBox(width: 342, child: roleFilterField),
+          SizedBox(width: 12),
+        ],
         SizedBox(width: 210, child: sortField),
       ],
+    );
+  }
+}
+
+class _AdminRegisteredUserRoleFilterSegment extends StatelessWidget {
+  final AdminRegisteredUserRoleFilter value;
+  final ValueChanged<AdminRegisteredUserRoleFilter> onChanged;
+
+  const _AdminRegisteredUserRoleFilterSegment({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SegmentedButton<AdminRegisteredUserRoleFilter>(
+          selected: <AdminRegisteredUserRoleFilter>{value},
+          showSelectedIcon: false,
+          segments: AdminRegisteredUserRoleFilter.values
+              .map(
+                (filter) => ButtonSegment<AdminRegisteredUserRoleFilter>(
+                  value: filter,
+                  icon: Icon(filter.icon, size: 18),
+                  label: Text(filter.label),
+                ),
+              )
+              .toList(growable: false),
+          onSelectionChanged: (values) => onChanged(values.first),
+        ),
+      ),
     );
   }
 }
@@ -478,12 +596,14 @@ class _AdminSortField extends StatelessWidget {
 
 class _AdminUserListCard extends StatelessWidget {
   final AdminUserRecord user;
+  final String adminId;
   final VoidCallback onTap;
   final VoidCallback? onRestrict;
   final VoidCallback? onRestore;
 
   const _AdminUserListCard({
     required this.user,
+    required this.adminId,
     required this.onTap,
     required this.onRestrict,
     required this.onRestore,
@@ -498,10 +618,10 @@ class _AdminUserListCard extends StatelessWidget {
       onTap: onTap,
       hintLabel: 'Open profile',
       actions: [
-        OutlinedButton.icon(
-          onPressed: () => _showMessageComingSoon(context, user),
-          icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-          label: Text(compact ? 'Message' : 'Message User'),
+        AdminMessageUserButton(
+          adminId: adminId,
+          user: user,
+          label: compact ? 'Message' : 'Message User',
         ),
         if (user.isBanned)
           AdminActionButton(
@@ -520,16 +640,6 @@ class _AdminUserListCard extends StatelessWidget {
             onPressed: onRestrict,
           ),
       ],
-    );
-  }
-
-  void _showMessageComingSoon(BuildContext context, AdminUserRecord user) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Messaging ${user.fullName} will be available when admin messaging is connected.',
-        ),
-      ),
     );
   }
 }
@@ -553,9 +663,16 @@ Future<void> _runUserAction(
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Action failed: $error')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          userFacingErrorMessage(
+            error,
+            fallback: 'Action failed. Please try again.',
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -599,6 +716,20 @@ bool _matchesUserSearch(AdminUserRecord user, String query) {
   ].join(' ').toLowerCase();
 
   return haystack.contains(query);
+}
+
+bool _matchesRegisteredUserRoleFilter(
+  AdminUserRecord user,
+  AdminRegisteredUserRoleFilter filter,
+) {
+  switch (filter) {
+    case AdminRegisteredUserRoleFilter.all:
+      return true;
+    case AdminRegisteredUserRoleFilter.drivers:
+      return user.isDriver;
+    case AdminRegisteredUserRoleFilter.passengers:
+      return user.isPassenger;
+  }
 }
 
 bool _matchesBookingSearch(

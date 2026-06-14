@@ -89,7 +89,8 @@ class _DriverRideSummary extends StatelessWidget {
           return PassengerEmptyState(
             icon: Icons.error_outline_rounded,
             title: 'Unable to load dashboard',
-            description: snapshot.error.toString(),
+            description:
+                'Driver dashboard details could not be loaded. Please try again.',
           );
         }
 
@@ -227,7 +228,7 @@ class _DriverLatestRideCard extends StatelessWidget {
           _DashboardDetailRow(
             icon: Icons.place_rounded,
             label: 'Drop-off',
-            value: ride.dropoffLocation.displayLabel,
+            value: ride.dropoffLocation.publicDisplayLabel,
           ),
           SizedBox(height: 10),
           _DashboardDetailRow(
@@ -272,7 +273,8 @@ class _DriverPayoutAccountsPreview extends StatelessWidget {
           return PassengerEmptyState(
             icon: Icons.error_outline_rounded,
             title: 'Unable to load payout accounts',
-            description: snapshot.error.toString(),
+            description:
+                'Payout accounts could not be loaded. Please try again.',
           );
         }
 

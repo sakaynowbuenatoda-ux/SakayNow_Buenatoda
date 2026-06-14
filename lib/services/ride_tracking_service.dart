@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import '../models/distance_matrix_result.dart';
 import '../models/driver_rating.dart';
 import '../models/fare_estimate.dart';
+import '../models/fare_settings.dart';
 import '../models/passenger_payment_method.dart';
 import '../models/ride.dart';
 import '../models/ride_driver_location.dart';
@@ -63,17 +65,25 @@ class RideTrackingService {
     final now = FieldValue.serverTimestamp();
     final selectedPaymentMethod =
         paymentMethod ?? PassengerPaymentMethod.cash(userId: passengerId);
+    final paymentMethodType =
+        selectedPaymentMethod.xenditPaymentMethodType ??
+        selectedPaymentMethod.type.firestoreValue;
     final paymentStatus = selectedPaymentMethod.usesOnlineCheckout
         ? 'checkout_pending'
         : 'cash_pending';
     final passengerFareProfile = await loadPassengerFareProfile(passengerId);
     final fareSettings = await _fareSettingsService.loadSettings();
+    final driverToPickupDistanceMeters = await _driverToPickupDistanceMetersFor(
+      driverId: preferredDriverId,
+      pickupLocation: pickupLocation,
+    );
     final bookingFareEstimate = _fareService.estimateFare(
       pickupLocation: pickupLocation,
       dropoffLocation: dropoffLocation,
       distanceMeters: estimate?.distanceMeters ?? route.distanceMeters,
       studentDiscountEligible: passengerFareProfile.isVerifiedStudent,
       settings: fareSettings,
+      driverToPickupDistanceMeters: driverToPickupDistanceMeters,
     );
 
     await doc.set(<String, dynamic>{
@@ -93,32 +103,21 @@ class RideTrackingService {
           estimate?.durationSeconds ?? route.durationSeconds,
       'estimated_distance_text': estimate?.distanceText ?? route.distanceText,
       'estimated_duration_text': estimate?.durationText ?? route.durationText,
-      'fare': bookingFareEstimate.amount,
-      'base_fare': bookingFareEstimate.baseAmount,
-      'estimated_fare': bookingFareEstimate.amount,
-      'estimated_fare_amount': bookingFareEstimate.amount,
-      'estimated_fare_currency': bookingFareEstimate.currency,
-      'final_fare': bookingFareEstimate.amount,
-      'fare_rule': bookingFareEstimate.ruleLabel,
-      'fare_rule_code': bookingFareEstimate.ruleCode,
-      'fare_settings_id': FareSettingsService.currentDocumentId,
-      if (fareSettings.updatedAt != null)
-        'fare_settings_updated_at': Timestamp.fromDate(fareSettings.updatedAt!),
-      'fare_details': bookingFareEstimate.toFirestore(),
-      'fare_discount_applied': bookingFareEstimate.hasDiscount,
-      'fare_discount_amount': bookingFareEstimate.discountAmount,
-      'fare_discount_rate': bookingFareEstimate.discountRate,
-      if (bookingFareEstimate.discountCode != null)
-        'fare_discount_code': bookingFareEstimate.discountCode,
-      if (bookingFareEstimate.discountLabel != null)
-        'fare_discount_label': bookingFareEstimate.discountLabel,
+      ..._bookingFareFields(
+        fareEstimate: bookingFareEstimate,
+        fareSettings: fareSettings,
+      ),
       'payment_method': selectedPaymentMethod.type.firestoreValue,
       'payment_method_label': selectedPaymentMethod.displayLabel,
       'payment_method_id': selectedPaymentMethod.isCash
           ? null
           : selectedPaymentMethod.id,
+      'payment_method_type': paymentMethodType,
       'payment_provider': selectedPaymentMethod.provider,
       'payment_status': paymentStatus,
+      'xendit_invoice_id': null,
+      'xendit_checkout_url': null,
+      'checkout_url': null,
       'timestamp': now,
       'created_at': now,
       'updated_at': now,
@@ -132,6 +131,130 @@ class RideTrackingService {
     });
 
     return doc.id;
+  }
+
+  Map<String, dynamic> _bookingFareFields({
+    required FareEstimate fareEstimate,
+    required FareSettings fareSettings,
+  }) {
+    return <String, dynamic>{
+      'fare': fareEstimate.amount,
+      'base_fare': fareEstimate.baseAmount,
+      'estimated_fare': fareEstimate.amount,
+      'estimated_fare_amount': fareEstimate.amount,
+      'estimated_fare_currency': fareEstimate.currency,
+      'final_fare': fareEstimate.amount,
+      'fare_rule': fareEstimate.ruleLabel,
+      'fare_rule_code': fareEstimate.ruleCode,
+      'fare_settings_id': FareSettingsService.currentDocumentId,
+      if (fareSettings.updatedAt != null)
+        'fare_settings_updated_at': Timestamp.fromDate(fareSettings.updatedAt!),
+      'fare_details': fareEstimate.toFirestore(),
+      'fare_discount_applied': fareEstimate.hasDiscount,
+      'fare_discount_amount': fareEstimate.discountAmount,
+      'fare_discount_rate': fareEstimate.discountRate,
+      'driver_pickup_surcharge': fareEstimate.driverPickupSurcharge,
+      'driver_to_pickup_distance_meters':
+          fareEstimate.driverToPickupDistanceMeters,
+      'driver_pickup_barangay_hop_estimate':
+          fareEstimate.driverPickupBarangayHopEstimate,
+      if (fareEstimate.discountCode != null)
+        'fare_discount_code': fareEstimate.discountCode,
+      if (fareEstimate.discountLabel != null)
+        'fare_discount_label': fareEstimate.discountLabel,
+    };
+  }
+
+  Future<int?> _driverToPickupDistanceMetersFor({
+    required String? driverId,
+    required RideLocation pickupLocation,
+  }) async {
+    final pickup = pickupLocation.latLng;
+    final normalizedDriverId = driverId?.trim();
+    if (normalizedDriverId == null ||
+        normalizedDriverId.isEmpty ||
+        pickup == null) {
+      return null;
+    }
+
+    final snapshot = await _driverLocations.doc(normalizedDriverId).get();
+    final data = snapshot.data() ?? <String, dynamic>{};
+    return _driverToPickupDistanceMetersFromData(
+      driverLocationData: data,
+      pickupLocation: pickupLocation,
+      driverId: normalizedDriverId,
+    );
+  }
+
+  int? _driverToPickupDistanceMetersFromData({
+    required Map<String, dynamic> driverLocationData,
+    required RideLocation pickupLocation,
+    required String driverId,
+  }) {
+    final pickup = pickupLocation.latLng;
+    if (pickup == null || !_hasCoordinates(driverLocationData)) {
+      return null;
+    }
+
+    final driverLocation = RideDriverLocation.fromMap(<String, dynamic>{
+      ...driverLocationData,
+      'driver_id': driverId,
+    });
+
+    return Geolocator.distanceBetween(
+      driverLocation.latitude,
+      driverLocation.longitude,
+      pickup.latitude,
+      pickup.longitude,
+    ).round();
+  }
+
+  FareEstimate? _fareEstimateForBookingData({
+    required Map<String, dynamic> bookingData,
+    required FareSettings fareSettings,
+    int? driverToPickupDistanceMeters,
+  }) {
+    final pickupLocation = RideLocation.fromMap(bookingData['pickup_location']);
+    final dropoffLocation = RideLocation.fromMap(
+      bookingData['dropoff_location'],
+    );
+    final distanceMeters = _readRouteDistanceMeters(bookingData);
+    if (distanceMeters == null) {
+      return null;
+    }
+
+    return _fareService.estimateFare(
+      pickupLocation: pickupLocation,
+      dropoffLocation: dropoffLocation,
+      distanceMeters: distanceMeters,
+      studentDiscountEligible: _isStudentFareEligible(bookingData),
+      settings: fareSettings,
+      driverToPickupDistanceMeters: driverToPickupDistanceMeters,
+    );
+  }
+
+  int? _readRouteDistanceMeters(Map<String, dynamic> bookingData) {
+    final explicitDistance = _readInt(bookingData['estimated_distance_meters']);
+    if (explicitDistance != null) {
+      return explicitDistance;
+    }
+
+    final route = bookingData['route'];
+    if (route is Map) {
+      return _readInt(route['distance_meters']);
+    }
+
+    return null;
+  }
+
+  bool _isStudentFareEligible(Map<String, dynamic> bookingData) {
+    final passengerType =
+        (bookingData['passenger_type'] ?? bookingData['role'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+    return passengerType == 'student' &&
+        bookingData['passenger_is_verified'] == true;
   }
 
   Future<PassengerFareProfile> loadPassengerFareProfile(
@@ -220,7 +343,16 @@ class RideTrackingService {
             final driverId = location.driverId.isNotEmpty
                 ? location.driverId
                 : document.id;
-            final userDoc = await _users.doc(driverId).get();
+            final DocumentSnapshot<Map<String, dynamic>> userDoc;
+            try {
+              userDoc = await _users.doc(driverId).get();
+            } on FirebaseException catch (error) {
+              if (error.code == 'permission-denied') {
+                continue;
+              }
+
+              rethrow;
+            }
             final userData = userDoc.data() ?? <String, dynamic>{};
             final isVerified = _isVerifiedFlag(userData);
             final isBanned = _isBannedFlag(userData);
@@ -232,11 +364,8 @@ class RideTrackingService {
               continue;
             }
 
-            final activeRide = await findDriverActiveRide(driverId);
-            if (activeRide != null) {
-              continue;
-            }
-
+            // Passenger clients cannot read other drivers' active bookings.
+            // Public availability is represented by driver_locations instead.
             drivers.add(
               AvailableDriver.fromData(
                 driverId: driverId,
@@ -279,17 +408,6 @@ class RideTrackingService {
         !_hasActiveBookingMarker(data);
   }
 
-  Future<bool> _canDriverReceiveNewBookings(String driverId) async {
-    final locationSnapshot = await _driverLocations.doc(driverId).get();
-    final locationData = locationSnapshot.data() ?? <String, dynamic>{};
-    if (!locationSnapshot.exists || !_isAvailableDriverLocation(locationData)) {
-      return false;
-    }
-
-    final activeRide = await findDriverActiveRide(driverId);
-    return activeRide == null;
-  }
-
   Stream<Ride?> watchRide(String bookingId) {
     return _bookings.doc(bookingId).snapshots().map((snapshot) {
       if (!snapshot.exists) {
@@ -300,43 +418,156 @@ class RideTrackingService {
     });
   }
 
-  Stream<List<Ride>> watchOpenBookings({String? driverId}) {
-    return _bookings
+  Stream<List<Ride>> watchOpenBookings({
+    String? driverId,
+    bool includeDeclined = false,
+    bool requireDriverAvailability = true,
+  }) {
+    final bookingsStream = _bookings
         .where('status', isEqualTo: RideStatus.searching.firestoreValue)
-        .snapshots()
-        .asyncMap((snapshot) async {
-          if (driverId != null &&
-              !await _canDriverReceiveNewBookings(driverId)) {
-            return <Ride>[];
-          }
+        .snapshots();
 
-          final rides = snapshot.docs.map(Ride.fromDocument).where((ride) {
-            final preferredDriverId = ride.preferredDriverId;
-            if (driverId == null) {
-              return true;
-            }
+    if (driverId == null || !requireDriverAvailability) {
+      return bookingsStream.map(
+        (snapshot) => _visibleOpenBookings(
+          snapshot.docs,
+          driverId: driverId,
+          includeDeclined: includeDeclined,
+        ),
+      );
+    }
 
-            if (ride.declinedDriverIds.contains(driverId)) {
-              return false;
-            }
+    return _watchReceivableOpenBookings(
+      driverId: driverId,
+      bookingsStream: bookingsStream,
+      includeDeclined: includeDeclined,
+    );
+  }
 
-            return preferredDriverId == null || preferredDriverId == driverId;
-          }).toList();
-          rides.sort((a, b) {
-            if (driverId != null) {
-              final aPreferred = a.preferredDriverId == driverId;
-              final bPreferred = b.preferredDriverId == driverId;
-              if (aPreferred != bPreferred) {
-                return aPreferred ? -1 : 1;
-              }
-            }
+  Stream<int> watchOpenBookingCount({
+    String? driverId,
+    bool includeDeclined = false,
+    bool requireDriverAvailability = true,
+  }) {
+    return watchOpenBookings(
+      driverId: driverId,
+      includeDeclined: includeDeclined,
+      requireDriverAvailability: requireDriverAvailability,
+    ).map((rides) => rides.length).distinct();
+  }
 
-            final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-            final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-            return aDate.compareTo(bDate);
-          });
-          return rides;
-        });
+  Stream<List<Ride>> _watchReceivableOpenBookings({
+    required String driverId,
+    required Stream<QuerySnapshot<Map<String, dynamic>>> bookingsStream,
+    required bool includeDeclined,
+  }) {
+    late final StreamController<List<Ride>> controller;
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+    bookingsSubscription;
+    StreamSubscription<bool>? availabilitySubscription;
+    QuerySnapshot<Map<String, dynamic>>? latestBookingSnapshot;
+    bool? latestAvailability;
+    var emissionToken = 0;
+
+    Future<void> emitVisibleBookings() async {
+      final snapshot = latestBookingSnapshot;
+      final isAvailable = latestAvailability;
+      if (snapshot == null || isAvailable == null || controller.isClosed) {
+        return;
+      }
+
+      final currentToken = ++emissionToken;
+      if (!isAvailable) {
+        controller.add(<Ride>[]);
+        return;
+      }
+
+      try {
+        final activeRide = await findDriverActiveRide(driverId);
+        if (controller.isClosed || currentToken != emissionToken) {
+          return;
+        }
+
+        if (activeRide != null) {
+          controller.add(<Ride>[]);
+          return;
+        }
+
+        controller.add(
+          _visibleOpenBookings(
+            snapshot.docs,
+            driverId: driverId,
+            includeDeclined: includeDeclined,
+          ),
+        );
+      } catch (error, stackTrace) {
+        if (!controller.isClosed && currentToken == emissionToken) {
+          controller.addError(error, stackTrace);
+        }
+      }
+    }
+
+    controller = StreamController<List<Ride>>(
+      onListen: () {
+        bookingsSubscription = bookingsStream.listen((snapshot) {
+          latestBookingSnapshot = snapshot;
+          unawaited(emitVisibleBookings());
+        }, onError: controller.addError);
+        availabilitySubscription = watchDriverAvailability(driverId).listen((
+          isAvailable,
+        ) {
+          latestAvailability = isAvailable;
+          unawaited(emitVisibleBookings());
+        }, onError: controller.addError);
+      },
+      onCancel: () async {
+        await bookingsSubscription?.cancel();
+        await availabilitySubscription?.cancel();
+      },
+    );
+
+    return controller.stream;
+  }
+
+  List<Ride> _visibleOpenBookings(
+    Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> docs, {
+    required String? driverId,
+    required bool includeDeclined,
+  }) {
+    final rides = docs.map(Ride.fromDocument).where((ride) {
+      final preferredDriverId = ride.preferredDriverId;
+      if (driverId == null) {
+        return true;
+      }
+
+      if (!includeDeclined && ride.declinedDriverIds.contains(driverId)) {
+        return false;
+      }
+
+      return preferredDriverId == null || preferredDriverId == driverId;
+    }).toList();
+
+    rides.sort((a, b) {
+      if (driverId != null) {
+        final aPreferred = a.preferredDriverId == driverId;
+        final bPreferred = b.preferredDriverId == driverId;
+        if (aPreferred != bPreferred) {
+          return aPreferred ? -1 : 1;
+        }
+
+        final aDeclined = a.declinedDriverIds.contains(driverId);
+        final bDeclined = b.declinedDriverIds.contains(driverId);
+        if (aDeclined != bDeclined) {
+          return aDeclined ? 1 : -1;
+        }
+      }
+
+      final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return aDate.compareTo(bDate);
+    });
+
+    return rides;
   }
 
   Stream<List<Ride>> watchDriverActiveRides(String driverId) {
@@ -596,6 +827,18 @@ class RideTrackingService {
     });
   }
 
+  Future<PassengerReviewProfile> loadPassengerProfile(
+    String passengerId,
+  ) async {
+    final snapshot = await _users.doc(passengerId).get();
+    if (!snapshot.exists) {
+      throw StateError('Passenger profile not found.');
+    }
+
+    final data = snapshot.data() ?? <String, dynamic>{};
+    return PassengerReviewProfile.fromData(userId: passengerId, data: data);
+  }
+
   Stream<List<DriverReviewRecord>> watchDriverReviews(String driverId) {
     return watchUserReviews(driverId);
   }
@@ -852,6 +1095,7 @@ class RideTrackingService {
   Future<void> acceptBooking({
     required String bookingId,
     required String driverId,
+    bool allowDeclined = false,
   }) async {
     final doc = _bookings.doc(bookingId);
     final driverDoc = _firestore.collection('users').doc(driverId);
@@ -895,7 +1139,8 @@ class RideTrackingService {
       }
 
       final declinedDriverIds = _readStringList(data['declined_driver_ids']);
-      if (declinedDriverIds.contains(driverId)) {
+      final wasDeclinedByDriver = declinedDriverIds.contains(driverId);
+      if (wasDeclinedByDriver && !allowDeclined) {
         throw StateError('You already declined this booking.');
       }
 
@@ -907,12 +1152,30 @@ class RideTrackingService {
           .toString()
           .trim()
           .toLowerCase();
-      if ((paymentProvider == 'paymongo' || paymentProvider == 'xendit') &&
+      if (paymentProvider == 'xendit' &&
           driverData['accepts_online_payments'] != true) {
         throw StateError(
           'Add a driver payout account before accepting online payments.',
         );
       }
+
+      final fareSettingsRef = _firestore
+          .collection(FareSettingsService.collectionPath)
+          .doc(FareSettingsService.currentDocumentId);
+      final fareSettingsSnapshot = await transaction.get(fareSettingsRef);
+      final fareSettings = FareSettings.fromDocument(fareSettingsSnapshot);
+      final pickupLocation = RideLocation.fromMap(data['pickup_location']);
+      final driverToPickupDistanceMeters =
+          _driverToPickupDistanceMetersFromData(
+            driverLocationData: driverLocationData,
+            pickupLocation: pickupLocation,
+            driverId: driverId,
+          );
+      final acceptedFareEstimate = _fareEstimateForBookingData(
+        bookingData: data,
+        fareSettings: fareSettings,
+        driverToPickupDistanceMeters: driverToPickupDistanceMeters,
+      );
 
       final hasDriverLocation = _hasCoordinates(driverLocationData);
       final driverLocation = hasDriverLocation
@@ -927,6 +1190,8 @@ class RideTrackingService {
         'driver_location': ?driverLocation,
         'accepted_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
+        if (wasDeclinedByDriver)
+          'declined_driver_ids': FieldValue.arrayRemove(<String>[driverId]),
         'status_history': FieldValue.arrayUnion(<Map<String, dynamic>>[
           <String, dynamic>{
             'status': RideStatus.accepted.firestoreValue,
@@ -936,7 +1201,16 @@ class RideTrackingService {
         ]),
       };
 
-      if (paymentProvider == 'paymongo' || paymentProvider == 'xendit') {
+      if (acceptedFareEstimate != null) {
+        bookingUpdates.addAll(
+          _bookingFareFields(
+            fareEstimate: acceptedFareEstimate,
+            fareSettings: fareSettings,
+          ),
+        );
+      }
+
+      if (paymentProvider == 'xendit') {
         bookingUpdates.addAll(<String, dynamic>{
           'driver_payout_status': paymentStatus == 'paid'
               ? 'pending'
@@ -1031,6 +1305,8 @@ class RideTrackingService {
           .toString()
           .trim()
           .toLowerCase();
+      final isPaymentSettled =
+          paymentStatus == 'paid' || paymentStatus == 'cash_collected';
       final updates = <String, dynamic>{
         'status': status.firestoreValue,
         'updated_at': FieldValue.serverTimestamp(),
@@ -1059,6 +1335,16 @@ class RideTrackingService {
           'cancelled_by': changedBy,
           'cancelled_at': FieldValue.serverTimestamp(),
         });
+
+        if (!isPaymentSettled) {
+          updates.addAll(<String, dynamic>{
+            'payment_status': paymentProvider == 'xendit'
+                ? 'checkout_cancelled'
+                : 'cash_cancelled',
+            'payment_cancelled_by': changedBy,
+            'payment_cancelled_at': FieldValue.serverTimestamp(),
+          });
+        }
       }
 
       transaction.update(bookingRef, updates);

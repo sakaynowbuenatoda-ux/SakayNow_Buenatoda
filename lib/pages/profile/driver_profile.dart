@@ -63,7 +63,8 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
               child: PassengerEmptyState(
                 icon: Icons.error_outline_rounded,
                 title: 'Unable to load driver',
-                description: snapshot.error.toString(),
+                description:
+                    'Driver profile could not be loaded. Please try again.',
               ),
             );
           }
@@ -660,7 +661,7 @@ class _ReviewsPanel extends StatelessWidget {
           return PassengerEmptyState(
             icon: Icons.error_outline_rounded,
             title: 'Unable to load reviews',
-            description: snapshot.error.toString(),
+            description: 'Reviews could not be loaded. Please try again.',
           );
         }
 

@@ -67,7 +67,8 @@ class DriverRatingLeaderboardPanel extends StatelessWidget {
               PassengerEmptyState(
                 icon: Icons.error_outline_rounded,
                 title: 'Unable to load leaderboard',
-                description: snapshot.error.toString(),
+                description:
+                    'Driver rankings could not be loaded. Please try again.',
               ),
             ],
           );

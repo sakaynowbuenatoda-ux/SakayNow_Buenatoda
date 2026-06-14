@@ -73,7 +73,10 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
                       unreadTotal: 0,
                     ),
                     const SizedBox(height: 16),
-                    AdminErrorCard(message: snapshot.error.toString()),
+                    const AdminErrorCard(
+                      message:
+                          'Unable to load support messages. Please try again.',
+                    ),
                   ],
                 );
               }
@@ -121,22 +124,30 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
                           'Try searching by user name, role, message, or conversation ID.',
                     )
                   else
-                    ...filteredConversations.asMap().entries.map(
-                      (entry) => Padding(
+                    ...filteredConversations.asMap().entries.map((entry) {
+                      final conversation = entry.value;
+                      final targetUserId = _targetUserIdFor(conversation);
+
+                      return Padding(
+                        key: ValueKey<String>(
+                          'admin_conversation_${conversation.conversationId}',
+                        ),
                         padding: EdgeInsets.only(
                           bottom: entry.key == filteredConversations.length - 1
                               ? 0
                               : 12,
                         ),
                         child: _AdminSupportConversationCard(
-                          conversation: entry.value,
+                          conversation: conversation,
                           adminId: widget.adminId,
-                          targetProfileFuture: _targetProfileFutureFor(
-                            entry.value,
+                          avatarIdentity:
+                              targetUserId ?? conversation.conversationId,
+                          targetProfileFuture: _profileFutureForTarget(
+                            targetUserId,
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                 ],
               );
             },
@@ -146,19 +157,29 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
     );
   }
 
-  Future<ChatParticipantProfile?>? _targetProfileFutureFor(
-    ChatConversation conversation,
-  ) {
+  String? _targetUserIdFor(ChatConversation conversation) {
     final targetUserId =
         conversation.supportUserId ??
         conversation.otherParticipantId(widget.adminId);
-    if (targetUserId == null || targetUserId.trim().isEmpty) {
+    final normalizedTargetUserId = targetUserId?.trim() ?? '';
+    if (normalizedTargetUserId.isEmpty) {
+      return null;
+    }
+
+    return normalizedTargetUserId;
+  }
+
+  Future<ChatParticipantProfile?>? _profileFutureForTarget(
+    String? targetUserId,
+  ) {
+    final normalizedTargetUserId = targetUserId?.trim() ?? '';
+    if (normalizedTargetUserId.isEmpty) {
       return null;
     }
 
     return _profileFutures.putIfAbsent(
-      targetUserId,
-      () => _chatService.loadParticipantProfile(targetUserId),
+      normalizedTargetUserId,
+      () => _chatService.loadParticipantProfile(normalizedTargetUserId),
     );
   }
 
@@ -296,11 +317,13 @@ class _MessagesSearchField extends StatelessWidget {
 class _AdminSupportConversationCard extends StatelessWidget {
   final ChatConversation conversation;
   final String adminId;
+  final String avatarIdentity;
   final Future<ChatParticipantProfile?>? targetProfileFuture;
 
   const _AdminSupportConversationCard({
     required this.conversation,
     required this.adminId,
+    required this.avatarIdentity,
     required this.targetProfileFuture,
   });
 
@@ -345,7 +368,9 @@ class _AdminSupportConversationCard extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: _AdminConversationAvatar(
+                  key: ValueKey<String>('admin_avatar_$avatarIdentity'),
                   title: title,
+                  avatarIdentity: avatarIdentity,
                   profileFuture: targetProfileFuture,
                 ),
               ),
@@ -492,10 +517,13 @@ class _AdminUnreadCountBadge extends StatelessWidget {
 
 class _AdminConversationAvatar extends StatelessWidget {
   final String title;
+  final String avatarIdentity;
   final Future<ChatParticipantProfile?>? profileFuture;
 
   const _AdminConversationAvatar({
+    super.key,
     required this.title,
+    required this.avatarIdentity,
     required this.profileFuture,
   });
 
@@ -508,10 +536,16 @@ class _AdminConversationAvatar extends StatelessWidget {
     }
 
     return FutureBuilder<ChatParticipantProfile?>(
+      key: ValueKey<String>('admin_profile_$avatarIdentity'),
       future: future,
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return fallback;
+        }
+
         final profile = snapshot.data;
         return FirebaseStorageImage(
+          key: ValueKey<String>('admin_image_$avatarIdentity'),
           imageUrl: profile?.profileImageUrl,
           fallback: fallback,
         );

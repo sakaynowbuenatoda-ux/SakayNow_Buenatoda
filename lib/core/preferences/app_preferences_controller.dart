@@ -42,7 +42,7 @@ class AppPreferencesController extends ChangeNotifier {
       case AppMapTypePreference.normal:
         return MapType.normal;
       case AppMapTypePreference.satellite:
-        return MapType.satellite;
+        return MapType.hybrid;
     }
   }
 

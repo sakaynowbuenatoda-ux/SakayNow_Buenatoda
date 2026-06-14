@@ -37,5 +37,22 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },
+  "hosting": {
+    "predeploy": [
+      "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_web_release.ps1"
+    ],
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
   }
 }

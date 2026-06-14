@@ -29,6 +29,22 @@ class AdminService {
     });
   }
 
+  static Stream<List<AdminUserRecord>> watchManagedAdmins() {
+    return watchUsers().map((users) {
+      final admins = users
+          .where((user) => user.isAdmin && !user.isMainAdmin)
+          .toList(growable: false);
+
+      admins.sort((a, b) {
+        final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+
+      return admins;
+    });
+  }
+
   static Stream<List<AdminUserRecord>> watchActiveDrivers() {
     return _firestore
         .collection('driver_locations')

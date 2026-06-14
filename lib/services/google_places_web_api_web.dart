@@ -22,7 +22,7 @@ Future<List<PlacePrediction>> autocompleteWithGooglePlacesWeb({
   LatLng? locationBias,
   required int radiusMeters,
 }) async {
-  await ensureGoogleMapsWebSdkLoaded(AppEnvironment.googleServicesApiKey);
+  await ensureGoogleMapsWebSdkLoaded(AppEnvironment.googleMapsWebApiKey);
 
   final service = js_util.callConstructor<Object>(
     _placesConstructor('AutocompleteService'),
@@ -76,7 +76,7 @@ Future<List<PlacePrediction>> autocompleteWithGooglePlacesWeb({
 Future<PlaceDetails> fetchPlaceDetailsWithGooglePlacesWeb(
   String placeId,
 ) async {
-  await ensureGoogleMapsWebSdkLoaded(AppEnvironment.googleServicesApiKey);
+  await ensureGoogleMapsWebSdkLoaded(AppEnvironment.googleMapsWebApiKey);
 
   final service = js_util.callConstructor<Object>(
     _placesConstructor('PlacesService'),
@@ -108,7 +108,7 @@ Future<PlaceDetails> fetchPlaceDetailsWithGooglePlacesWeb(
 }
 
 Future<String> reverseGeocodeWithGoogleMapsWeb(LatLng location) async {
-  await ensureGoogleMapsWebSdkLoaded(AppEnvironment.googleServicesApiKey);
+  await ensureGoogleMapsWebSdkLoaded(AppEnvironment.googleMapsWebApiKey);
 
   final geocoder = js_util.callConstructor<Object>(
     _mapsConstructor('Geocoder'),
@@ -158,7 +158,7 @@ Future<List<RideLocation>> nearbyKnownPlacesWithGooglePlacesWeb(
   LatLng location, {
   int limit = 5,
 }) async {
-  await ensureGoogleMapsWebSdkLoaded(AppEnvironment.googleServicesApiKey);
+  await ensureGoogleMapsWebSdkLoaded(AppEnvironment.googleMapsWebApiKey);
 
   final service = js_util.callConstructor<Object>(
     _placesConstructor('PlacesService'),

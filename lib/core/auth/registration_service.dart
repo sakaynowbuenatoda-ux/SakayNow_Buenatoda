@@ -1,8 +1,9 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'signup_validators.dart';
 
@@ -12,6 +13,7 @@ class RegistrationService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseStorage _storage = FirebaseStorage.instance;
+  static const int maxDocumentImageBytes = 10 * 1024 * 1024;
 
   static Future<void> registerPassenger({
     required String email,
@@ -21,8 +23,8 @@ class RegistrationService {
     required String age,
     required String? gender,
     required String passengerType,
-    required File idFile,
-    required File selfieFile,
+    required RegistrationImageSelection idFile,
+    required RegistrationImageSelection selfieFile,
   }) async {
     if (SignupValidators.isReservedAdminName(firstName)) {
       throw ArgumentError('The name admin is reserved.');
@@ -75,9 +77,9 @@ class RegistrationService {
     required String lastName,
     required String age,
     required String? gender,
-    required File nbiFile,
-    required File licenseFile,
-    required File selfieFile,
+    required RegistrationImageSelection nbiFile,
+    required RegistrationImageSelection licenseFile,
+    required RegistrationImageSelection selfieFile,
   }) async {
     if (SignupValidators.isReservedAdminName(firstName)) {
       throw ArgumentError('The name admin is reserved.');
@@ -159,7 +161,17 @@ class RegistrationService {
       try {
         for (final upload in uploads) {
           final ref = _storage.ref('users/$uid/${upload.fileName}');
-          await ref.putFile(upload.file);
+          await ref.putData(
+            upload.file.bytes,
+            SettableMetadata(
+              contentType: upload.file.contentType,
+              customMetadata: <String, String>{
+                'owner_id': uid,
+                'field_name': upload.fieldName,
+                'kind': 'registration_document',
+              },
+            ),
+          );
           uploadedRefs.add(ref);
           uploadedUrls[upload.fieldName] = await ref.getDownloadURL();
         }
@@ -236,13 +248,90 @@ class RegistrationService {
 class _UploadPayload {
   final String fieldName;
   final String fileName;
-  final File file;
+  final RegistrationImageSelection file;
 
   const _UploadPayload({
     required this.fieldName,
     required this.fileName,
     required this.file,
   });
+}
+
+class RegistrationImageSelection {
+  final XFile file;
+  final Uint8List bytes;
+  final String contentType;
+
+  const RegistrationImageSelection({
+    required this.file,
+    required this.bytes,
+    required this.contentType,
+  });
+
+  static Future<RegistrationImageSelection> fromXFile(XFile file) async {
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty) {
+      throw const RegistrationImageSelectionException(
+        'Selected image could not be read.',
+      );
+    }
+
+    if (bytes.lengthInBytes >= RegistrationService.maxDocumentImageBytes) {
+      throw const RegistrationImageSelectionException(
+        'Verification images must be smaller than 10 MB.',
+      );
+    }
+
+    final contentType = _contentTypeFor(file);
+    if (!contentType.startsWith('image/')) {
+      throw const RegistrationImageSelectionException(
+        'Please choose a valid image file.',
+      );
+    }
+
+    return RegistrationImageSelection(
+      file: file,
+      bytes: bytes,
+      contentType: contentType,
+    );
+  }
+
+  static String _contentTypeFor(XFile file) {
+    final mimeType = file.mimeType?.trim().toLowerCase();
+    if (mimeType != null && mimeType.startsWith('image/')) {
+      return mimeType;
+    }
+
+    final extension = _fileExtension(file.name);
+    return switch (extension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'gif' => 'image/gif',
+      'heic' => 'image/heic',
+      'heif' => 'image/heif',
+      _ => 'image/jpeg',
+    };
+  }
+
+  static String _fileExtension(String fileName) {
+    final parts = fileName.trim().toLowerCase().split('.');
+    if (parts.length < 2) {
+      return '';
+    }
+
+    return parts.last;
+  }
+}
+
+class RegistrationImageSelectionException implements Exception {
+  final String message;
+
+  const RegistrationImageSelectionException(this.message);
+
+  @override
+  String toString() {
+    return message;
+  }
 }
 
 class RegistrationDocumentUploadException implements Exception {

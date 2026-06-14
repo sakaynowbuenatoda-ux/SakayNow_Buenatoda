@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../models/fare_settings.dart';
+import '../../../services/fare_service.dart';
 import '../admin_service.dart';
 import 'admin_shared.dart';
 
@@ -17,7 +18,7 @@ class FareSettingsEditor extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return AdminErrorCard(
-            message: 'Unable to load fare settings: ${snapshot.error}',
+            message: 'Unable to load fare settings. Please try again.',
           );
         }
 
@@ -86,7 +87,17 @@ class FareSettingsEditor extends StatelessWidget {
                     label: 'Student discount',
                     value: settings.studentDiscountLabel,
                   ),
+                  _FareValueTile(
+                    label: 'Pickup add-on',
+                    value: _driverPickupSurchargeRangeLabel,
+                  ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              _FarePolicyNotice(
+                icon: Icons.two_wheeler_rounded,
+                title: 'Driver pickup add-on',
+                description: _driverPickupSurchargePolicyText,
               ),
               const SizedBox(height: 14),
               Row(
@@ -94,7 +105,7 @@ class FareSettingsEditor extends StatelessWidget {
                   Expanded(
                     child: Text(
                       settings.updatedAt == null
-                          ? 'Using default fare table until an admin saves changes.'
+                          ? 'Using the current fare guide until an admin saves changes.'
                           : 'Last updated ${formatDateTime(settings.updatedAt)}',
                       style: AdminUi.bodyText.copyWith(fontSize: 12.5),
                     ),
@@ -126,6 +137,12 @@ class FareSettingsEditor extends StatelessWidget {
       ).showSnackBar(const SnackBar(content: Text('Fare settings updated.')));
     }
   }
+
+  static String get _driverPickupSurchargeRangeLabel =>
+      '${FareSettings.defaultCurrency} 0-${FareSettings.defaultCurrency} ${FareService.maxDriverPickupSurcharge}';
+
+  static String get _driverPickupSurchargePolicyText =>
+      'Within barangay range adds ${FareSettings.defaultCurrency} 0. More than 1 barangay adds ${FareSettings.defaultCurrency} ${FareService.driverPickupSurchargePerExtraBarangay}, capped at ${FareSettings.defaultCurrency} ${FareService.maxDriverPickupSurcharge}.';
 }
 
 class _FareValueTile extends StatelessWidget {
@@ -159,6 +176,48 @@ class _FareValueTile extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AdminUi.valueText,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FarePolicyNotice extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+
+  const _FarePolicyNotice({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AdminUi.soft(AdminUi.accentBlue, alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AdminUi.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, size: 20, color: AdminUi.accentBlue),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(title, style: AdminUi.valueText.copyWith(fontSize: 13)),
+                const SizedBox(height: 4),
+                Text(description, style: AdminUi.bodyText),
+              ],
+            ),
           ),
         ],
       ),
@@ -299,6 +358,10 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
                   ),
                   validator: _validateDiscountPercent,
                 ),
+                const SizedBox(height: 16),
+                Text('Driver pickup add-on', style: AdminUi.cardTitle),
+                const SizedBox(height: 10),
+                const _DriverPickupSurchargePolicy(),
                 if (_errorMessage != null) ...<Widget>[
                   const SizedBox(height: 12),
                   Text(
@@ -448,6 +511,67 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
     }
 
     return null;
+  }
+}
+
+class _DriverPickupSurchargePolicy extends StatelessWidget {
+  const _DriverPickupSurchargePolicy();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AdminUi.mutedSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AdminUi.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const _ReadOnlyFareRuleRow(
+            label: 'Within barangay range',
+            value: '${FareSettings.defaultCurrency} 0',
+          ),
+          const SizedBox(height: 8),
+          _ReadOnlyFareRuleRow(
+            label: 'More than 1 barangay',
+            value:
+                '+${FareSettings.defaultCurrency} ${FareService.driverPickupSurchargePerExtraBarangay}',
+          ),
+          const SizedBox(height: 8),
+          _ReadOnlyFareRuleRow(
+            label: 'Maximum pickup add-on',
+            value:
+                '${FareSettings.defaultCurrency} ${FareService.maxDriverPickupSurcharge}',
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Applied automatically from the selected driver distance to pickup.',
+            style: AdminUi.bodyText.copyWith(fontSize: 12.5),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReadOnlyFareRuleRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _ReadOnlyFareRuleRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(child: Text(label, style: AdminUi.bodyText)),
+        const SizedBox(width: 12),
+        Text(value, style: AdminUi.valueText.copyWith(fontSize: 13)),
+      ],
+    );
   }
 }
 

@@ -6,6 +6,7 @@ class BottomNavWidget extends StatelessWidget {
   final ValueChanged<int> onTap;
   final bool isDriver;
   final int messageUnreadCount;
+  final int queueRequestCount;
 
   const BottomNavWidget({
     super.key,
@@ -13,6 +14,7 @@ class BottomNavWidget extends StatelessWidget {
     required this.onTap,
     this.isDriver = false,
     this.messageUnreadCount = 0,
+    this.queueRequestCount = 0,
   });
 
   @override
@@ -61,9 +63,15 @@ class BottomNavWidget extends StatelessWidget {
                       selectedIcon: Icon(Icons.home_rounded),
                       label: 'Home',
                     ),
-                    const NavigationDestination(
-                      icon: Icon(Icons.list_alt_outlined),
-                      selectedIcon: Icon(Icons.list_alt_rounded),
+                    NavigationDestination(
+                      icon: _NavIconWithBadge(
+                        icon: Icons.list_alt_outlined,
+                        count: queueRequestCount,
+                      ),
+                      selectedIcon: _NavIconWithBadge(
+                        icon: Icons.list_alt_rounded,
+                        count: queueRequestCount,
+                      ),
                       label: 'Queue',
                     ),
                     NavigationDestination(

@@ -62,8 +62,8 @@ class DriverInfoStat {
   });
 }
 
-class DriverMockData {
-  const DriverMockData._();
+class DriverReferenceData {
+  const DriverReferenceData._();
 
   static const List<DriverQueueItem> queue = <DriverQueueItem>[
     DriverQueueItem(

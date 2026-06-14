@@ -65,7 +65,8 @@ class _DriverPayoutAccountsPageState extends State<DriverPayoutAccountsPage> {
                   return PassengerEmptyState(
                     icon: Icons.error_outline_rounded,
                     title: 'Unable to load accounts',
-                    description: snapshot.error.toString(),
+                    description:
+                        'Payout accounts could not be loaded. Please try again.',
                   );
                 }
 
@@ -245,166 +246,158 @@ class _PayoutAccountFormSheetState extends State<_PayoutAccountFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
-
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      padding: EdgeInsets.only(bottom: keyboardInset),
-      child: Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        backgroundColor: Colors.transparent,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-            decoration: BoxDecoration(
-              color: PassengerUi.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: PassengerUi.border),
-              boxShadow: PassengerUi.cardShadow,
-            ),
-            child: Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            widget.initialAccount == null
-                                ? 'Add Payout Account'
-                                : 'Edit Payout Account',
-                            style: PassengerUi.cardTitle,
-                          ),
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      insetAnimationDuration: const Duration(milliseconds: 180),
+      insetAnimationCurve: Curves.easeOutCubic,
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+          decoration: BoxDecoration(
+            color: PassengerUi.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: PassengerUi.border),
+            boxShadow: PassengerUi.cardShadow,
+          ),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          widget.initialAccount == null
+                              ? 'Add Payout Account'
+                              : 'Edit Payout Account',
+                          style: PassengerUi.cardTitle,
                         ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<DriverPayoutAccountType>(
-                      value: _type,
-                      decoration: const InputDecoration(
-                        labelText: 'Account type',
-                        border: OutlineInputBorder(),
                       ),
-                      items:
-                          const <DriverPayoutAccountType>[
-                                DriverPayoutAccountType.gcash,
-                                DriverPayoutAccountType.maya,
-                                DriverPayoutAccountType.bank,
-                              ]
-                              .map(
-                                (type) =>
-                                    DropdownMenuItem<DriverPayoutAccountType>(
-                                      value: type,
-                                      child: Text(type.label),
-                                    ),
-                              )
-                              .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _type = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _labelController,
-                      decoration: InputDecoration(
-                        labelText: 'Label',
-                        hintText: _type.label,
-                        border: const OutlineInputBorder(),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close_rounded),
                       ),
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: 12),
-                    if (_type == DriverPayoutAccountType.bank) ...<Widget>[
-                      TextFormField(
-                        controller: _bankNameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Bank name',
-                          border: OutlineInputBorder(),
-                        ),
-                        textInputAction: TextInputAction.next,
-                        validator: (value) {
-                          final text = value?.trim() ?? '';
-                          if (text.isEmpty) {
-                            return 'Enter bank name.';
-                          }
-                          if (text.length > 60) {
-                            return 'Keep this 60 characters or fewer.';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 12),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<DriverPayoutAccountType>(
+                    value: _type,
+                    decoration: const InputDecoration(
+                      labelText: 'Account type',
+                      border: OutlineInputBorder(),
+                    ),
+                    items:
+                        const <DriverPayoutAccountType>[
+                              DriverPayoutAccountType.gcash,
+                              DriverPayoutAccountType.maya,
+                              DriverPayoutAccountType.bank,
+                            ]
+                            .map(
+                              (type) =>
+                                  DropdownMenuItem<DriverPayoutAccountType>(
+                                    value: type,
+                                    child: Text(type.label),
+                                  ),
+                            )
+                            .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _type = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _labelController,
+                    decoration: InputDecoration(
+                      labelText: 'Label',
+                      hintText: _type.label,
+                      border: const OutlineInputBorder(),
+                    ),
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 12),
+                  if (_type == DriverPayoutAccountType.bank) ...<Widget>[
                     TextFormField(
-                      controller: _accountNameController,
+                      controller: _bankNameController,
                       decoration: const InputDecoration(
-                        labelText: 'Account name',
+                        labelText: 'Bank name',
                         border: OutlineInputBorder(),
                       ),
                       textInputAction: TextInputAction.next,
                       validator: (value) {
                         final text = value?.trim() ?? '';
                         if (text.isEmpty) {
-                          return 'Enter account name.';
+                          return 'Enter bank name.';
+                        }
+                        if (text.length > 60) {
+                          return 'Keep this 60 characters or fewer.';
                         }
                         return null;
                       },
                     ),
                     const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _accountReferenceController,
-                      decoration: InputDecoration(
-                        labelText: _type == DriverPayoutAccountType.bank
-                            ? 'Account number'
-                            : 'Mobile number',
-                        border: const OutlineInputBorder(),
-                      ),
-                      textInputAction: TextInputAction.done,
-                      validator: (value) {
-                        final text = value?.trim() ?? '';
-                        if (text.isEmpty) {
-                          return _type == DriverPayoutAccountType.bank
-                              ? 'Enter account number.'
-                              : 'Enter mobile number.';
-                        }
-                        if (text.length > 40) {
-                          return 'Keep this 40 characters or fewer.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _isDefault,
-                      title: Text(
-                        'Use as default',
-                        style: PassengerUi.bodyText,
-                      ),
-                      onChanged: (value) => setState(() => _isDefault = value),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _submit,
-                        icon: const Icon(Icons.save_rounded),
-                        label: const Text('Save Payout Account'),
-                      ),
-                    ),
                   ],
-                ),
+                  TextFormField(
+                    controller: _accountNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Account name',
+                      border: OutlineInputBorder(),
+                    ),
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      final text = value?.trim() ?? '';
+                      if (text.isEmpty) {
+                        return 'Enter account name.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _accountReferenceController,
+                    decoration: InputDecoration(
+                      labelText: _type == DriverPayoutAccountType.bank
+                          ? 'Account number'
+                          : 'Mobile number',
+                      border: const OutlineInputBorder(),
+                    ),
+                    textInputAction: TextInputAction.done,
+                    validator: (value) {
+                      final text = value?.trim() ?? '';
+                      if (text.isEmpty) {
+                        return _type == DriverPayoutAccountType.bank
+                            ? 'Enter account number.'
+                            : 'Enter mobile number.';
+                      }
+                      if (text.length > 40) {
+                        return 'Keep this 40 characters or fewer.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _isDefault,
+                    title: Text('Use as default', style: PassengerUi.bodyText),
+                    onChanged: (value) => setState(() => _isDefault = value),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _submit,
+                      icon: const Icon(Icons.save_rounded),
+                      label: const Text('Save Payout Account'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

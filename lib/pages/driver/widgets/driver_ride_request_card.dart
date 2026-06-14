@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/ride.dart';
-import '../../../models/ride_status.dart';
+import '../../../services/booking_action_cooldown_service.dart';
 import '../../../services/ride_tracking_service.dart';
 import '../../../widgets/firebase_storage_image.dart';
+import '../../../widgets/maps/ride_location_preview_dialog.dart';
 import '../../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../profile/passenger_profile.dart';
 
@@ -12,6 +13,8 @@ class DriverRideRequestCard extends StatelessWidget {
   final String driverId;
   final bool isAccepting;
   final bool isDeclining;
+  final Duration acceptCooldownRemaining;
+  final bool canAcceptDeclined;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
   final RideTrackingService rideTrackingService;
@@ -22,6 +25,8 @@ class DriverRideRequestCard extends StatelessWidget {
     required this.driverId,
     required this.isAccepting,
     required this.isDeclining,
+    required this.acceptCooldownRemaining,
+    this.canAcceptDeclined = false,
     required this.onAccept,
     required this.onDecline,
     RideTrackingService? rideTrackingService,
@@ -30,6 +35,16 @@ class DriverRideRequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isBusy = isAccepting || isDeclining;
+    final isAcceptCoolingDown = acceptCooldownRemaining > Duration.zero;
+    final hasDeclined = ride.declinedDriverIds.contains(driverId);
+    final requestLabel = hasDeclined
+        ? 'Declined'
+        : ride.preferredDriverId == driverId
+        ? 'Requested you'
+        : 'Open request';
+    final canPreviewRoute =
+        ride.pickupLocation.latLng != null &&
+        ride.dropoffLocation.latLng != null;
 
     return StreamBuilder<PassengerReviewProfile>(
       stream: rideTrackingService.watchPassengerProfile(ride.passengerId),
@@ -65,9 +80,13 @@ class DriverRideRequestCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   PassengerStatusChip(
-                    label: ride.status.label,
-                    textColor: PassengerUi.highlightAmber,
-                    backgroundColor: PassengerUi.warningSoft,
+                    label: requestLabel,
+                    textColor: hasDeclined
+                        ? PassengerUi.primary
+                        : PassengerUi.highlightAmber,
+                    backgroundColor: hasDeclined
+                        ? PassengerUi.dangerSoft
+                        : PassengerUi.warningSoft,
                   ),
                 ],
               ),
@@ -76,14 +95,14 @@ class DriverRideRequestCard extends StatelessWidget {
                 icon: Icons.my_location_rounded,
                 iconColor: PassengerUi.secondary,
                 label: 'Pickup',
-                value: ride.pickupLocation.displayLabel,
+                value: ride.pickupLocation.publicDisplayLabel,
               ),
               const SizedBox(height: 8),
               _RouteLine(
                 icon: Icons.location_on_rounded,
                 iconColor: PassengerUi.primary,
                 label: 'Drop-off',
-                value: ride.dropoffLocation.displayLabel,
+                value: ride.dropoffLocation.publicDisplayLabel,
               ),
               const SizedBox(height: 12),
               Row(
@@ -120,31 +139,26 @@ class DriverRideRequestCard extends StatelessWidget {
                       style: PassengerUi.bodyText.copyWith(fontSize: 13),
                     ),
                   ),
+                  if (canPreviewRoute) ...<Widget>[
+                    const SizedBox(width: 8),
+                    RideLocationPreviewButton(
+                      pickupLocation: ride.pickupLocation,
+                      dropoffLocation: ride.dropoffLocation,
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: isBusy ? null : onDecline,
-                      icon: isDeclining
-                          ? SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: PassengerUi.primary,
-                              ),
-                            )
-                          : const Icon(Icons.close_rounded, size: 18),
-                      label: const Text('Decline'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
+              if (hasDeclined) ...<Widget>[
+                _DeclinedRequestNotice(canAccept: canAcceptDeclined),
+                if (canAcceptDeclined) ...<Widget>[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: isBusy ? null : onAccept,
+                      onPressed: isBusy || isAcceptCoolingDown
+                          ? null
+                          : onAccept,
                       icon: isAccepting
                           ? SizedBox(
                               width: 16,
@@ -155,11 +169,62 @@ class DriverRideRequestCard extends StatelessWidget {
                               ),
                             )
                           : const Icon(Icons.check_rounded, size: 18),
-                      label: const Text('Accept'),
+                      label: Text(
+                        isAcceptCoolingDown
+                            ? 'Wait ${BookingActionCooldownService.formatRemaining(acceptCooldownRemaining)}'
+                            : 'Accept request',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                 ],
-              ),
+              ] else
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: isBusy ? null : onDecline,
+                        icon: isDeclining
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: PassengerUi.primary,
+                                ),
+                              )
+                            : const Icon(Icons.close_rounded, size: 18),
+                        label: const Text('Decline'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: isBusy || isAcceptCoolingDown
+                            ? null
+                            : onAccept,
+                        icon: isAccepting
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded, size: 18),
+                        label: Text(
+                          isAcceptCoolingDown
+                              ? 'Wait ${BookingActionCooldownService.formatRemaining(acceptCooldownRemaining)}'
+                              : 'Accept',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         );
@@ -175,6 +240,41 @@ class DriverRideRequestCard extends StatelessWidget {
           driverId: driverId,
           bookingId: ride.bookingId,
         ),
+      ),
+    );
+  }
+}
+
+class _DeclinedRequestNotice extends StatelessWidget {
+  final bool canAccept;
+
+  const _DeclinedRequestNotice({required this.canAccept});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: PassengerUi.mutedSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: PassengerUi.border),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(Icons.block_rounded, size: 17, color: PassengerUi.primary),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              canAccept
+                  ? 'Declined by you. You can still accept it here.'
+                  : 'Declined by you. Still open in the queue.',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
+            ),
+          ),
+        ],
       ),
     );
   }

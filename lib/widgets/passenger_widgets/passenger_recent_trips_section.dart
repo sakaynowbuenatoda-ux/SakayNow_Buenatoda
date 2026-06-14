@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../pages/profile/driver_profile.dart';
 import '../../services/ride_tracking_service.dart';
 import '../firebase_storage_image.dart';
+import '../maps/ride_location_preview_dialog.dart';
 import '../time_ago_text.dart';
 import 'passenger_ui.dart';
 
@@ -65,7 +65,8 @@ class PassengerRecentTripsSection extends StatelessWidget {
               PassengerEmptyState(
                 icon: Icons.error_outline_rounded,
                 title: 'Unable to load trips',
-                description: snapshot.error.toString(),
+                description:
+                    'Recent trips could not be loaded. Please try again.',
               ),
             ],
           );
@@ -124,7 +125,12 @@ class PassengerTripCard extends StatelessWidget {
     final ride = trip.ride;
     final driver = trip.driver;
     final passengerRating = ride.passengerDriverReviewRating;
+    final hasReviewComment =
+        ride.passengerDriverReviewComment?.trim().isNotEmpty == true;
     final canReview = ride.canPassengerReviewDriver;
+    final canPreviewRoute =
+        ride.pickupLocation.latLng != null &&
+        ride.dropoffLocation.latLng != null;
 
     return InkWell(
       borderRadius: BorderRadius.circular(12),
@@ -177,13 +183,6 @@ class PassengerTripCard extends StatelessWidget {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _routeLabel(ride),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
-                      ),
                     ],
                   ),
                 ),
@@ -198,6 +197,11 @@ class PassengerTripCard extends StatelessWidget {
                       : PassengerUi.dangerSoft,
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            _HistoryRouteBlock(
+              pickup: ride.pickupLocation.displayLabel,
+              dropoff: ride.dropoffLocation.displayLabel,
             ),
             const SizedBox(height: 12),
             Row(
@@ -217,6 +221,13 @@ class PassengerTripCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
+                if (canPreviewRoute) ...<Widget>[
+                  RideLocationPreviewButton(
+                    pickupLocation: ride.pickupLocation,
+                    dropoffLocation: ride.dropoffLocation,
+                  ),
+                  const SizedBox(width: 6),
+                ],
                 Icon(Icons.chevron_right_rounded, color: PassengerUi.body),
               ],
             ),
@@ -227,6 +238,8 @@ class PassengerTripCard extends StatelessWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: <Widget>[
                 _InfoPill(label: ride.fareLabel ?? 'Fare pending'),
+                if (ride.distanceLabel != 'Calculating')
+                  _InfoPill(label: ride.distanceLabel),
                 _RatingPill(
                   icon: Icons.star_rounded,
                   label: driver.reviewCount == 0
@@ -240,8 +253,10 @@ class PassengerTripCard extends StatelessWidget {
                   label: passengerRating == null
                       ? canReview
                             ? 'Tap to review'
-                            : 'No review'
-                      : 'Your review $passengerRating',
+                            : 'No comment'
+                      : hasReviewComment
+                      ? 'Commented'
+                      : 'No comment',
                 ),
               ],
             ),
@@ -250,16 +265,77 @@ class PassengerTripCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  String _routeLabel(Ride ride) {
-    final pickup = ride.pickupLocation.displayLabel;
-    final dropoff = ride.dropoffLocation.displayLabel;
+class _HistoryRouteBlock extends StatelessWidget {
+  final String pickup;
+  final String dropoff;
 
-    if (ride.distanceLabel != 'Calculating') {
-      return '${ride.distanceLabel} - $pickup to $dropoff';
-    }
+  const _HistoryRouteBlock({required this.pickup, required this.dropoff});
 
-    return '$pickup to $dropoff';
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        _HistoryLocationLine(
+          icon: Icons.my_location_rounded,
+          iconColor: PassengerUi.secondary,
+          label: 'Pickup',
+          value: pickup,
+        ),
+        const SizedBox(height: 7),
+        _HistoryLocationLine(
+          icon: Icons.location_on_rounded,
+          iconColor: PassengerUi.primary,
+          label: 'Drop-off',
+          value: dropoff,
+        ),
+      ],
+    );
+  }
+}
+
+class _HistoryLocationLine extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+
+  const _HistoryLocationLine({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 16, color: iconColor),
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: RichText(
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            text: TextSpan(
+              style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
+              children: <InlineSpan>[
+                TextSpan(text: '$label: '),
+                TextSpan(
+                  text: value,
+                  style: PassengerUi.valueText.copyWith(fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

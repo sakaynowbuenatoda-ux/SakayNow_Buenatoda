@@ -286,6 +286,8 @@ class _CenteredReviewFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+      insetAnimationDuration: const Duration(milliseconds: 180),
+      insetAnimationCurve: Curves.easeOutCubic,
       backgroundColor: PassengerUi.surface,
       surfaceTintColor: PassengerUi.surface,
       elevation: 14,
@@ -294,12 +296,7 @@ class _CenteredReviewFrame extends StatelessWidget {
         side: BorderSide(color: PassengerUi.border),
       ),
       child: SingleChildScrollView(
-        padding: EdgeInsets.only(
-          left: 18,
-          top: 18,
-          right: 18,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + 18,
-        ),
+        padding: const EdgeInsets.all(18),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: child,

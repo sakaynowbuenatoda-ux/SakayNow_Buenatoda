@@ -37,10 +37,7 @@ void main() {
       expect(rules, contains('request.resource.data.is_active is bool'));
       expect(rules, contains('isVerifiedUser(resource.data)'));
       expect(rules, contains('isUsableAccount(resource.data)'));
-      expect(
-        rules,
-        contains('allow update: if isValidDriverAvailabilityUpdate(userId);'),
-      );
+      expect(rules, contains('&& isValidDriverAvailabilityUpdate(userId);'));
     });
 
     test('allow verified auth users to sync email verification status', () {
@@ -52,22 +49,53 @@ void main() {
       expect(
         rules,
         contains(
-          ".hasOnly(['email_verified', 'email_verified_at', 'updated_at'])",
+          ".hasOnly(['email', 'email_verified', 'email_verified_at', 'updated_at'])",
         ),
+      );
+      expect(rules, contains('request.auth.token.email is string'));
+      expect(rules, contains('request.resource.data.email is string'));
+      expect(
+        rules,
+        contains('request.resource.data.email == request.auth.token.email'),
       );
       expect(rules, contains('request.resource.data.email_verified == true'));
       expect(
         rules,
         contains('request.resource.data.email_verified_at == request.time'),
       );
-      expect(
-        rules,
-        contains('allow update: if isValidEmailVerificationUpdate(userId);'),
-      );
+      expect(rules, contains('&& isValidEmailVerificationUpdate(userId);'));
       expect(
         rules,
         contains(".hasAny(['email_verified', 'email_verified_at'])"),
       );
+    });
+
+    test('allow passengers to sync only quick destination fields', () {
+      expect(
+        rules,
+        contains('function isValidQuickDestinationsUpdate(userId)'),
+      );
+      expect(
+        rules,
+        contains(
+          "'quick_destinations',\n            'quick_destinations_updated_at'",
+        ),
+      );
+      expect(
+        rules,
+        contains('request.resource.data.quick_destinations is list'),
+      );
+      expect(
+        rules,
+        contains('request.resource.data.quick_destinations.size() <= 20'),
+      );
+      expect(
+        rules,
+        contains(
+          'request.resource.data.quick_destinations_updated_at == request.time',
+        ),
+      );
+      expect(rules, contains('&& isValidQuickDestinationsUpdate(userId);'));
     });
 
     test('tolerate legacy user records in driver gates', () {
@@ -135,7 +163,23 @@ void main() {
       expect(rules, contains('match /conversations/{conversationId}'));
       expect(
         rules,
+        contains('function isUserVisibleConversation(conversationData)'),
+      );
+      expect(rules, contains("conversationData.type in ['ride', 'support']"));
+      expect(rules, contains('&& isUserVisibleConversation(conversationData)'));
+      expect(
+        rules,
         contains('request.auth.uid in request.resource.data.participant_ids'),
+      );
+      expect(
+        rules,
+        contains('function isAdminCreatedSupportConversation(conversationId)'),
+      );
+      expect(
+        rules,
+        contains(
+          "conversationId == 'support_' + request.resource.data.support_user_id",
+        ),
       );
       expect(rules, contains('match /messages/{messageId}'));
       expect(
@@ -144,6 +188,88 @@ void main() {
       );
       expect(rules, contains('request.resource.data.text.size() <= 1000'));
       expect(rules, contains('canWriteConversation(parentConversation())'));
+    });
+
+    test('allow report duplicate checks without opening report reads', () {
+      expect(rules, contains('function isMissingDailyReportProbe(reportId)'));
+      expect(
+        rules,
+        contains(
+          r"reportId.matches('^daily_[0-9]{8}_[A-Za-z0-9_-]+_[A-Za-z0-9_-]+$')",
+        ),
+      );
+      expect(rules, contains('&& !exists(reportDocumentPath(reportId))'));
+      expect(
+        rules,
+        contains('allow get: if isMissingDailyReportProbe(reportId);'),
+      );
+      expect(
+        rules,
+        contains(
+          '|| (signedIn() && resource.data.reporter_id == request.auth.uid)',
+        ),
+      );
+      expect(
+        rules,
+        contains(
+          '|| (signedIn() && resource.data.reported_user_id == request.auth.uid)',
+        ),
+      );
+      expect(rules, contains('allow update, delete: if isAdmin();'));
+    });
+
+    test('require active usable admin accounts for admin privileges', () {
+      expect(rules, contains('function isActiveAccount(userData)'));
+      expect(rules, contains("userData.get('is_active', true) == true"));
+      expect(rules, contains('&& isActiveAccount(signedInUser())'));
+      expect(rules, contains('function isMainAdmin()'));
+      expect(rules, contains('function isMainAdminRole(userData)'));
+    });
+
+    test('protect admin user documents from client-side mutation', () {
+      expect(
+        rules,
+        contains(
+          'allow update, delete: if isAdmin() && !isAdminRole(resource.data);',
+        ),
+      );
+      expect(rules, contains('allow update: if !isAdminRole(resource.data)'));
+    });
+
+    test('allow admin direct messages only from the active main admin', () {
+      expect(
+        rules,
+        contains(
+          'function isAdminCreatedAdminDirectConversation(conversationId)',
+        ),
+      );
+      expect(rules, contains("request.resource.data.type == 'admin_direct'"));
+      expect(
+        rules,
+        contains(
+          "conversationId == 'admin_direct_' + request.auth.uid + '_' + request.resource.data.target_admin_id",
+        ),
+      );
+      expect(
+        rules,
+        contains('&& isActiveAdminId(request.resource.data.target_admin_id)'),
+      );
+      expect(
+        rules,
+        contains(
+          '&& !isMainAdminRole(userById(request.resource.data.target_admin_id))',
+        ),
+      );
+      expect(
+        rules,
+        contains(
+          "request.resource.data.type in ['ride', 'support', 'admin_direct']",
+        ),
+      );
+      expect(
+        rules,
+        contains('|| isAdminCreatedAdminDirectConversation(conversationId)'),
+      );
     });
   });
 }

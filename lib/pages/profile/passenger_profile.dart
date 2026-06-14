@@ -62,7 +62,8 @@ class _PassengerProfilePageState extends State<PassengerProfilePage> {
               child: PassengerEmptyState(
                 icon: Icons.error_outline_rounded,
                 title: 'Unable to load passenger',
-                description: snapshot.error.toString(),
+                description:
+                    'Passenger profile could not be loaded. Please try again.',
               ),
             );
           }
@@ -391,7 +392,7 @@ class _ReviewsPanel extends StatelessWidget {
           return PassengerEmptyState(
             icon: Icons.error_outline_rounded,
             title: 'Unable to load reviews',
-            description: snapshot.error.toString(),
+            description: 'Reviews could not be loaded. Please try again.',
           );
         }
 

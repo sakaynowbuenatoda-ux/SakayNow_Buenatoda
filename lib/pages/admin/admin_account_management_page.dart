@@ -18,7 +18,7 @@ class AdminAccountManagementPage extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return AdminErrorCard(
-              message: 'Unable to load account management: ${snapshot.error}',
+              message: 'Unable to load account management. Please try again.',
             );
           }
 

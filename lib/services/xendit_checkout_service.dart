@@ -38,11 +38,29 @@ class XenditCheckoutService {
       throw ArgumentError('Xendit checkout requires a cashless method.');
     }
 
+    return createCheckoutSessionForPaymentType(
+      bookingId: bookingId,
+      paymentMethodType: xenditType,
+      paymentMethodId: paymentMethod.id,
+    );
+  }
+
+  Future<XenditCheckoutSession> createCheckoutSessionForPaymentType({
+    required String bookingId,
+    required String paymentMethodType,
+    String? paymentMethodId,
+  }) async {
+    final normalizedType = paymentMethodType.trim();
+    if (normalizedType.isEmpty) {
+      throw ArgumentError('Xendit checkout requires a payment method type.');
+    }
+
     final callable = _functions.httpsCallable('createXenditCheckoutSession');
     final result = await callable.call<Map<Object?, Object?>>(<String, Object?>{
       'booking_id': bookingId,
-      'payment_method_type': xenditType,
-      'payment_method_id': paymentMethod.id,
+      'payment_method_type': normalizedType,
+      if (paymentMethodId != null && paymentMethodId.trim().isNotEmpty)
+        'payment_method_id': paymentMethodId.trim(),
     });
 
     return XenditCheckoutSession.fromMap(result.data);
@@ -51,12 +69,12 @@ class XenditCheckoutService {
   Future<void> openCheckoutUrl(String checkoutUrl) async {
     final uri = Uri.tryParse(checkoutUrl.trim());
     if (uri == null || !uri.hasScheme) {
-      throw StateError('Xendit checkout URL is not valid.');
+      throw Exception('Xendit checkout URL is not valid.');
     }
 
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched) {
-      throw StateError('Unable to open Xendit checkout.');
+      throw Exception('Unable to open Xendit checkout.');
     }
   }
 }

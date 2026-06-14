@@ -35,4 +35,18 @@ class AdminAccountService {
 
     return userId;
   }
+
+  Future<void> deactivateAdminAccount({required String adminUserId}) async {
+    final callable = _functions.httpsCallable('deactivateAdminAccount');
+    await callable.call<Map<String, dynamic>>({
+      'admin_user_id': adminUserId.trim(),
+    });
+  }
+
+  Future<void> restoreAdminAccount({required String adminUserId}) async {
+    final callable = _functions.httpsCallable('restoreAdminAccount');
+    await callable.call<Map<String, dynamic>>({
+      'admin_user_id': adminUserId.trim(),
+    });
+  }
 }

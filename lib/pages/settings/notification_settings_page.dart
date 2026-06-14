@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/notification_preferences.dart';
 import '../../services/notification_service.dart';
+import '../../utils/user_facing_error_message.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 
 class NotificationSettingsPage extends StatefulWidget {
@@ -51,7 +52,11 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       }
 
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(
+          error,
+          fallback:
+              'Unable to load notification preferences. Please try again.',
+        );
         _isLoading = false;
       });
     }
@@ -77,7 +82,11 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
 
       setState(() {
         _preferences = previousPreferences;
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(
+          error,
+          fallback:
+              'Unable to save notification preferences. Please try again.',
+        );
       });
     } finally {
       if (mounted) {

@@ -30,7 +30,7 @@ class ProfileReviewsCard extends StatelessWidget {
           return PassengerEmptyState(
             icon: Icons.error_outline_rounded,
             title: 'Unable to load reviews',
-            description: snapshot.error.toString(),
+            description: 'Reviews could not be loaded. Please try again.',
           );
         }
 

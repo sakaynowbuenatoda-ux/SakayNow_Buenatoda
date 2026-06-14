@@ -19,7 +19,7 @@ class AdminLiveDriverMap extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return AdminErrorCard(
-            message: 'Unable to load live driver locations: ${snapshot.error}',
+            message: 'Unable to load live driver locations. Please try again.',
           );
         }
 
@@ -106,6 +106,7 @@ class _AdminLiveDriverMapContent extends StatelessWidget {
                               ? _boundsForDrivers(drivers)
                               : null,
                           markers: _driverMarkers(drivers),
+                          profilePins: _driverProfilePins(drivers),
                           mapType:
                               AppPreferencesController.instance.googleMapType,
                           zoomControlsEnabled: true,
@@ -145,6 +146,22 @@ class _AdminLiveDriverMapContent extends StatelessWidget {
         rotation: driver.heading ?? 0,
       );
     }).toSet();
+  }
+
+  List<MapProfilePin> _driverProfilePins(
+    List<AdminDriverLocationRecord> drivers,
+  ) {
+    return drivers
+        .map(
+          (driver) => MapProfilePin(
+            markerId: MarkerId('admin_driver_${driver.driverId}'),
+            name: driver.fullName,
+            imageUrl: driver.profileImageUrl,
+            detail: 'Active driver',
+            accentColor: AdminUi.secondary,
+          ),
+        )
+        .toList(growable: false);
   }
 
   LatLngBounds _boundsForDrivers(List<AdminDriverLocationRecord> drivers) {

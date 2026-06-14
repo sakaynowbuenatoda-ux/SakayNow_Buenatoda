@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +8,9 @@ import '../core/auth/registration_service.dart';
 import '../core/auth/signup_validators.dart';
 import '../pages/auth/auth_gate.dart';
 import '../pages/auth/auth_ui.dart';
+import '../utils/user_facing_error_message.dart';
 import 'account_creation_success_dialog.dart';
+import 'registration_image_preview.dart';
 import 'terms_and_privacy_policy_sheet.dart';
 
 class PassengerSignup extends StatefulWidget {
@@ -38,8 +38,8 @@ class _PassengerSignupState extends State<PassengerSignup> {
 
   String? _gender;
   String _passengerType = 'regular';
-  File? _idFile;
-  File? _selfieFile;
+  RegistrationImageSelection? _idFile;
+  RegistrationImageSelection? _selfieFile;
 
   @override
   void dispose() {
@@ -53,23 +53,36 @@ class _PassengerSignupState extends State<PassengerSignup> {
   }
 
   Future<void> _pickId() async {
-    try {
-      final file = await _picker.pickImage(source: ImageSource.gallery);
-      if (!mounted || file == null) return;
-      setState(() => _idFile = File(file.path));
-    } on PlatformException {
-      _showMessage('Unable to open gallery. Please check app permissions.');
-    }
+    final selection = await _pickRegistrationImage(ImageSource.gallery);
+    if (!mounted || selection == null) return;
+    setState(() => _idFile = selection);
   }
 
   Future<void> _captureSelfie() async {
+    final selection = await _pickRegistrationImage(ImageSource.camera);
+    if (!mounted || selection == null) return;
+    setState(() => _selfieFile = selection);
+  }
+
+  Future<RegistrationImageSelection?> _pickRegistrationImage(
+    ImageSource source,
+  ) async {
     try {
-      final file = await _picker.pickImage(source: ImageSource.camera);
-      if (!mounted || file == null) return;
-      setState(() => _selfieFile = File(file.path));
+      final file = await _picker.pickImage(source: source);
+      if (file == null) return null;
+      return await RegistrationImageSelection.fromXFile(file);
     } on PlatformException {
-      _showMessage('Unable to open camera. Please check app permissions.');
+      _showMessage(
+        source == ImageSource.camera
+            ? 'Unable to open camera. Please check app permissions.'
+            : 'Unable to open gallery. Please check app permissions.',
+      );
+    } on RegistrationImageSelectionException catch (e) {
+      _showMessage(e.message);
+    } catch (_) {
+      _showMessage('Unable to read selected image. Please try another photo.');
     }
+    return null;
   }
 
   void _showPoliciesSheet() {
@@ -180,7 +193,8 @@ class _PassengerSignupState extends State<PassengerSignup> {
       } else if (e.code == 'invalid-email') {
         message = 'Please enter a valid email address.';
       } else if (e.code == 'operation-not-allowed') {
-        message = 'Email and password signup is disabled in Firebase Auth.';
+        message =
+            'Email signup is not available right now. Please contact an admin.';
       }
 
       if (!mounted) return;
@@ -191,7 +205,7 @@ class _PassengerSignupState extends State<PassengerSignup> {
     } on RegistrationDocumentUploadException {
       if (!mounted) return;
       _showMessage(
-        'Account created, but document upload failed. You can update your documents later.',
+        'Account created, but your verification photos were not uploaded. You can add them later from your profile.',
       );
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => AuthGate()),
@@ -199,7 +213,12 @@ class _PassengerSignupState extends State<PassengerSignup> {
       );
     } catch (e) {
       if (!mounted) return;
-      _showMessage('Error: $e');
+      _showMessage(
+        userFacingErrorMessage(
+          e,
+          fallback: 'Unable to create your account. Please try again.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -207,14 +226,17 @@ class _PassengerSignupState extends State<PassengerSignup> {
 
   String _firebaseErrorMessage(FirebaseException e) {
     if (e.code == 'permission-denied') {
-      return 'Unable to save account details. Please check Firebase rules.';
+      return 'Unable to save account details right now. Please contact an admin.';
     }
 
     if (e.code == 'network-request-failed' || e.code == 'unavailable') {
       return 'Network error. Please check your connection and try again.';
     }
 
-    return e.message ?? 'Signup failed. Please try again.';
+    return userFacingErrorMessage(
+      e,
+      fallback: 'Signup failed. Please try again.',
+    );
   }
 
   InputDecoration _inputDecoration({
@@ -293,7 +315,7 @@ class _PassengerSignupState extends State<PassengerSignup> {
     required String subtitle,
     required IconData icon,
     required VoidCallback onTap,
-    required File? file,
+    required RegistrationImageSelection? file,
   }) {
     return Container(
       width: double.infinity,
@@ -354,14 +376,10 @@ class _PassengerSignupState extends State<PassengerSignup> {
           ),
           if (file != null) ...[
             SizedBox(height: 14),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.file(
-                file,
-                height: 200,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
+            RegistrationImagePreview(
+              selection: file,
+              height: 200,
+              borderRadius: 16,
             ),
           ],
         ],
@@ -705,15 +723,7 @@ class _PassengerSignupState extends State<PassengerSignup> {
           ),
           if (_selfieFile != null) ...[
             SizedBox(height: 14),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                _selfieFile!,
-                height: 210,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            ),
+            RegistrationImagePreview(selection: _selfieFile!, height: 210),
           ],
           SizedBox(height: 18),
           Container(

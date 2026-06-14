@@ -65,7 +65,8 @@ class _PassengerPaymentMethodsPageState
                   return PassengerEmptyState(
                     icon: Icons.error_outline_rounded,
                     title: 'Unable to load payments',
-                    description: snapshot.error.toString(),
+                    description:
+                        'Payment methods could not be loaded. Please try again.',
                   );
                 }
 
@@ -242,107 +243,100 @@ class _PaymentMethodFormSheetState extends State<_PaymentMethodFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
-
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      padding: EdgeInsets.only(bottom: keyboardInset),
-      child: Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        backgroundColor: Colors.transparent,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-            decoration: BoxDecoration(
-              color: PassengerUi.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: PassengerUi.border),
-              boxShadow: PassengerUi.cardShadow,
-            ),
-            child: Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            widget.initialMethod == null
-                                ? 'Add Payment'
-                                : 'Edit Payment',
-                            style: PassengerUi.cardTitle,
-                          ),
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      insetAnimationDuration: const Duration(milliseconds: 180),
+      insetAnimationCurve: Curves.easeOutCubic,
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+          decoration: BoxDecoration(
+            color: PassengerUi.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: PassengerUi.border),
+            boxShadow: PassengerUi.cardShadow,
+          ),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          widget.initialMethod == null
+                              ? 'Add Payment'
+                              : 'Edit Payment',
+                          style: PassengerUi.cardTitle,
                         ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<PassengerPaymentMethodType>(
-                      value: _type,
-                      decoration: const InputDecoration(
-                        labelText: 'Type',
-                        border: OutlineInputBorder(),
                       ),
-                      items:
-                          const <PassengerPaymentMethodType>[
-                                PassengerPaymentMethodType.gcash,
-                                PassengerPaymentMethodType.maya,
-                                PassengerPaymentMethodType.card,
-                              ]
-                              .map(
-                                (type) =>
-                                    DropdownMenuItem<
-                                      PassengerPaymentMethodType
-                                    >(value: type, child: Text(type.label)),
-                              )
-                              .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _type = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _labelController,
-                      decoration: InputDecoration(
-                        labelText: 'Label',
-                        hintText: _type.label,
-                        border: const OutlineInputBorder(),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close_rounded),
                       ),
-                      textInputAction: TextInputAction.next,
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<PassengerPaymentMethodType>(
+                    value: _type,
+                    decoration: const InputDecoration(
+                      labelText: 'Type',
+                      border: OutlineInputBorder(),
                     ),
-                    const SizedBox(height: 12),
-                    _XenditCheckoutNote(type: _type),
-                    const SizedBox(height: 8),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _isDefault,
-                      title: Text(
-                        'Use as default',
-                        style: PassengerUi.bodyText,
-                      ),
-                      onChanged: (value) => setState(() => _isDefault = value),
+                    items:
+                        const <PassengerPaymentMethodType>[
+                              PassengerPaymentMethodType.gcash,
+                              PassengerPaymentMethodType.maya,
+                              PassengerPaymentMethodType.card,
+                            ]
+                            .map(
+                              (type) =>
+                                  DropdownMenuItem<PassengerPaymentMethodType>(
+                                    value: type,
+                                    child: Text(type.label),
+                                  ),
+                            )
+                            .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _type = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _labelController,
+                    decoration: InputDecoration(
+                      labelText: 'Label',
+                      hintText: _type.label,
+                      border: const OutlineInputBorder(),
                     ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _submit,
-                        icon: const Icon(Icons.save_rounded),
-                        label: const Text('Save Payment'),
-                      ),
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 12),
+                  _XenditCheckoutNote(type: _type),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _isDefault,
+                    title: Text('Use as default', style: PassengerUi.bodyText),
+                    onChanged: (value) => setState(() => _isDefault = value),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _submit,
+                      icon: const Icon(Icons.save_rounded),
+                      label: const Text('Save Payment'),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),

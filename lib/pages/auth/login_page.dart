@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/app_assets.dart';
+import '../../core/auth/signup_validators.dart';
 import '../../core/session/session_service.dart';
+import '../../utils/user_facing_error_message.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'auth_ui.dart';
+import 'forgot_password_page.dart';
 import 'signup_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -62,7 +65,12 @@ class _LoginPageState extends State<LoginPage> {
       }
       _showMessage(message);
     } catch (e) {
-      _showMessage('An error occurred: $e');
+      _showMessage(
+        userFacingErrorMessage(
+          e,
+          fallback: 'Unable to sign in. Please try again.',
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -74,6 +82,17 @@ class _LoginPageState extends State<LoginPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _openForgotPasswordPage() {
+    final email = _emailController.text.trim();
+    final initialEmail = SignupValidators.email(email) == null ? email : null;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ForgotPasswordPage(initialEmail: initialEmail),
+      ),
+    );
   }
 
   @override
@@ -219,11 +238,7 @@ class _LoginPageState extends State<LoginPage> {
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: TextButton(
-                                    onPressed: () {
-                                      _showMessage(
-                                        'Forgot password not implemented.',
-                                      );
-                                    },
+                                    onPressed: _openForgotPasswordPage,
                                     style: TextButton.styleFrom(
                                       minimumSize: Size.zero,
                                       padding: const EdgeInsets.symmetric(

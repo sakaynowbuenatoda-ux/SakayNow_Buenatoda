@@ -25,6 +25,7 @@ class LocationPinPickerSheet extends StatefulWidget {
   final LatLng initialTarget;
   final Color accentColor;
   final bool myLocationEnabled;
+  final double heightFactor;
 
   const LocationPinPickerSheet({
     super.key,
@@ -33,6 +34,7 @@ class LocationPinPickerSheet extends StatefulWidget {
     required this.initialTarget,
     required this.accentColor,
     this.myLocationEnabled = false,
+    this.heightFactor = 0.82,
   });
 
   @override
@@ -61,7 +63,7 @@ class _LocationPinPickerSheetState extends State<LocationPinPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final height = MediaQuery.sizeOf(context).height * 0.82;
+    final height = MediaQuery.sizeOf(context).height * widget.heightFactor;
 
     return Container(
       height: height,
@@ -121,7 +123,7 @@ class _LocationPinPickerSheetState extends State<LocationPinPickerSheet> {
               18,
               14,
               18,
-              18 + PassengerUi.pageBottomInset(context),
+              18 + PassengerUi.pageBottomInset(context, baseSpacing: 8),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,

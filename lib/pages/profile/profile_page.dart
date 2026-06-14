@@ -69,8 +69,7 @@ class _ProfilePageState extends State<ProfilePage> {
             child: PassengerEmptyState(
               icon: Icons.person_off_outlined,
               title: 'Profile not found',
-              description:
-                  'No user record was found for this account in Firestore.',
+              description: 'No profile details were found for this account.',
             ),
           );
         }

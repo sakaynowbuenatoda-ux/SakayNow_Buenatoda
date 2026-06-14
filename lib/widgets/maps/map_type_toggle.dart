@@ -44,7 +44,7 @@ class MapTypeToggle extends StatelessWidget {
                   ),
                 ),
                 _MapTypeButton(
-                  tooltip: 'Satellite',
+                  tooltip: 'Satellite with labels',
                   icon: Icons.satellite_alt_rounded,
                   isSelected:
                       controller.mapTypePreference ==

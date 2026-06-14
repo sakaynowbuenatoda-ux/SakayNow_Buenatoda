@@ -44,7 +44,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
                 if (snapshot.hasError) {
                   return _NotificationsErrorState(
-                    message: snapshot.error.toString(),
+                    message:
+                        'Notifications could not be loaded. Please try again.',
                   );
                 }
 

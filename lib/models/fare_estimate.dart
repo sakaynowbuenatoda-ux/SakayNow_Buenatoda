@@ -14,6 +14,9 @@ class FareEstimate {
   final bool isOutsideBuenavista;
   final String? pickupBarangay;
   final String? dropoffBarangay;
+  final int driverPickupSurcharge;
+  final int? driverToPickupDistanceMeters;
+  final int driverPickupBarangayHopEstimate;
   final int discountAmount;
   final double discountRate;
   final String? discountCode;
@@ -30,6 +33,9 @@ class FareEstimate {
     required this.isOutsideBuenavista,
     this.pickupBarangay,
     this.dropoffBarangay,
+    this.driverPickupSurcharge = 0,
+    this.driverToPickupDistanceMeters,
+    this.driverPickupBarangayHopEstimate = 1,
     this.discountAmount = 0,
     this.discountRate = 0,
     this.discountCode,
@@ -39,7 +45,9 @@ class FareEstimate {
   String get amountLabel => '$currency $amount';
   String get baseAmountLabel => '$currency $baseAmount';
   String get discountAmountLabel => '$currency $discountAmount';
+  String get driverPickupSurchargeLabel => '$currency $driverPickupSurcharge';
   bool get hasDiscount => discountAmount > 0 && amount < baseAmount;
+  bool get hasDriverPickupSurcharge => driverPickupSurcharge > 0;
 
   FareEstimate applyStudentDiscount({
     required bool isEligible,
@@ -104,6 +112,9 @@ class FareEstimate {
       isOutsideBuenavista: isOutsideBuenavista,
       pickupBarangay: pickupBarangay,
       dropoffBarangay: dropoffBarangay,
+      driverPickupSurcharge: driverPickupSurcharge,
+      driverToPickupDistanceMeters: driverToPickupDistanceMeters,
+      driverPickupBarangayHopEstimate: driverPickupBarangayHopEstimate,
       discountAmount: discountAmount,
       discountRate: discountRate,
       discountCode: discountCode,
@@ -123,6 +134,9 @@ class FareEstimate {
       'is_outside_buenavista': isOutsideBuenavista,
       'pickup_barangay': pickupBarangay,
       'dropoff_barangay': dropoffBarangay,
+      'driver_pickup_surcharge': driverPickupSurcharge,
+      'driver_to_pickup_distance_meters': driverToPickupDistanceMeters,
+      'driver_pickup_barangay_hop_estimate': driverPickupBarangayHopEstimate,
       'discount_applied': hasDiscount,
       'discount_amount': discountAmount,
       'discount_rate': discountRate,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../utils/user_facing_error_message.dart';
 import '../../widgets/confirmation_dialog.dart';
 import 'admin_models.dart';
 import 'admin_navigation.dart';
@@ -76,7 +77,7 @@ class _AdminRestrictedUsersPageState extends State<AdminRestrictedUsersPage> {
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return AdminErrorCard(
-                message: 'Unable to load restricted users: ${snapshot.error}',
+                message: 'Unable to load restricted users. Please try again.',
               );
             }
 
@@ -227,9 +228,16 @@ class _AdminRestrictedUsersPageState extends State<AdminRestrictedUsersPage> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Restore failed: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback: 'Unable to restore this account. Please try again.',
+            ),
+          ),
+        ),
+      );
     }
   }
 

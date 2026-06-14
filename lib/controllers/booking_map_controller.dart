@@ -20,6 +20,7 @@ import '../services/google_directions_service.dart';
 import '../services/google_places_service.dart';
 import '../services/location_service.dart';
 import '../services/ride_tracking_service.dart';
+import '../utils/user_facing_error_message.dart';
 import '../widgets/maps/map_marker_icons.dart';
 
 enum BookingLocationTarget { pickup, dropoff }
@@ -146,6 +147,34 @@ class BookingMapController extends ChangeNotifier {
     return _rideTrackingService.watchPassengerActiveRide(passengerId);
   }
 
+  FareEstimate? fareEstimateForDriver(AvailableDriver driver) {
+    final selectedRoute = route;
+    if (selectedRoute == null ||
+        pickupLocation == null ||
+        dropoffLocation == null) {
+      return fareEstimate;
+    }
+
+    return _estimateFare(
+      distanceMeters: estimate?.distanceMeters ?? selectedRoute.distanceMeters,
+      driverToPickupDistanceMeters: driverToPickupDistanceMeters(driver),
+    );
+  }
+
+  int? driverToPickupDistanceMeters(AvailableDriver driver) {
+    final pickup = pickupLocation?.latLng;
+    if (pickup == null) {
+      return null;
+    }
+
+    return Geolocator.distanceBetween(
+      driver.location.latitude,
+      driver.location.longitude,
+      pickup.latitude,
+      pickup.longitude,
+    ).round();
+  }
+
   Set<Marker> get markers {
     final markers = <Marker>{};
     final current = currentLatLng;
@@ -244,7 +273,11 @@ class BookingMapController extends ChangeNotifier {
       cameraTarget = pickupLocation!.latLng;
       locationMessage = null;
     } on Exception catch (error) {
-      locationMessage = error.toString();
+      locationMessage = userFacingErrorMessage(
+        error,
+        fallback:
+            'Unable to use your current location. Please set your pickup manually.',
+      );
     } finally {
       isInitializing = false;
       notifyListeners();
@@ -282,7 +315,11 @@ class BookingMapController extends ChangeNotifier {
       );
       return pickupLocation;
     } on Exception catch (error) {
-      locationMessage = error.toString();
+      locationMessage = userFacingErrorMessage(
+        error,
+        fallback:
+            'Unable to use your current location. Please set your pickup manually.',
+      );
       notifyListeners();
       return null;
     }
@@ -304,7 +341,10 @@ class BookingMapController extends ChangeNotifier {
       }
     } on Exception catch (error) {
       if (token == _pickupSearchToken) {
-        errorMessage = error.toString();
+        errorMessage = userFacingErrorMessage(
+          error,
+          fallback: 'Unable to search pickup locations. Please try again.',
+        );
         pickupPredictions = <PlacePrediction>[];
       }
     } finally {
@@ -331,7 +371,10 @@ class BookingMapController extends ChangeNotifier {
       }
     } on Exception catch (error) {
       if (token == _dropoffSearchToken) {
-        errorMessage = error.toString();
+        errorMessage = userFacingErrorMessage(
+          error,
+          fallback: 'Unable to search drop-off locations. Please try again.',
+        );
         dropoffPredictions = <PlacePrediction>[];
       }
     } finally {
@@ -388,6 +431,9 @@ class BookingMapController extends ChangeNotifier {
     required BookingLocationTarget target,
     required String label,
     required String address,
+    String? name,
+    String? placeId,
+    bool useLabelAsName = true,
     double? latitude,
     double? longitude,
   }) async {
@@ -401,7 +447,12 @@ class BookingMapController extends ChangeNotifier {
 
       final location = RideLocation(
         address: address,
-        name: label,
+        name: _knownLocationName(
+          explicitName: name,
+          fallbackLabel: label,
+          useFallbackLabel: useLabelAsName,
+        ),
+        placeId: _nullableString(placeId),
         latitude: latitude,
         longitude: longitude,
       );
@@ -421,6 +472,24 @@ class BookingMapController extends ChangeNotifier {
     final location = details.toRideLocation();
     await _setLocation(target: target, location: location);
     return location;
+  }
+
+  String? _knownLocationName({
+    required String? explicitName,
+    required String fallbackLabel,
+    required bool useFallbackLabel,
+  }) {
+    final name = _nullableString(explicitName);
+    if (name != null) {
+      return name;
+    }
+
+    return useFallbackLabel ? fallbackLabel : null;
+  }
+
+  String? _nullableString(String? value) {
+    final text = value?.trim() ?? '';
+    return text.isEmpty ? null : text;
   }
 
   Future<bool> resolveTypedLocations({
@@ -453,7 +522,10 @@ class BookingMapController extends ChangeNotifier {
       await refreshRoute();
       return canCreateBooking;
     } on Exception catch (error) {
-      errorMessage = error.toString();
+      errorMessage = userFacingErrorMessage(
+        error,
+        fallback: 'Unable to prepare this route. Please check both locations.',
+      );
       notifyListeners();
       return false;
     }
@@ -514,7 +586,7 @@ class BookingMapController extends ChangeNotifier {
       locationBias: currentLatLng ?? MapConfig.buenavistaCenter,
     );
     if (results.isEmpty) {
-      throw StateError('No map result found for "$normalized".');
+      throw StateError('No matching place found for "$normalized".');
     }
 
     final details = await _placesService.fetchDetails(results.first.placeId);
@@ -681,13 +753,17 @@ class BookingMapController extends ChangeNotifier {
     errorMessage = null;
   }
 
-  FareEstimate _estimateFare({required int distanceMeters}) {
+  FareEstimate _estimateFare({
+    required int distanceMeters,
+    int? driverToPickupDistanceMeters,
+  }) {
     return _fareService.estimateFare(
       pickupLocation: pickupLocation!,
       dropoffLocation: dropoffLocation!,
       distanceMeters: distanceMeters,
       studentDiscountEligible: isStudentDiscountEligible,
       settings: fareSettings,
+      driverToPickupDistanceMeters: driverToPickupDistanceMeters,
     );
   }
 
@@ -707,7 +783,7 @@ class BookingMapController extends ChangeNotifier {
       onError: (Object _) {
         isFareSettingsLoading = false;
         fareSettingsError =
-            'Unable to load latest fare settings. Default fare table is shown.';
+            'Unable to load the latest fare guide. Estimated fares are shown for now.';
         notifyListeners();
       },
     );
@@ -822,7 +898,10 @@ class BookingMapController extends ChangeNotifier {
       errorMessage = null;
       return bookingId;
     } on Exception catch (error) {
-      errorMessage = error.toString();
+      errorMessage = userFacingErrorMessage(
+        error,
+        fallback: 'Unable to request this ride. Please try again.',
+      );
       return null;
     } finally {
       isBookingLoading = false;

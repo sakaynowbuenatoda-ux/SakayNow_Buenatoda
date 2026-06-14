@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'active_drivers.dart';
+import 'admin_accounts_page.dart';
 import 'admin_booking_history_page.dart';
 import 'admin_deactivated_users_page.dart';
 import 'admin_restricted_users_page.dart';
@@ -72,6 +73,15 @@ class AdminNavigation {
       MaterialPageRoute(
         builder: (_) => AdminRestrictedUsersPage(adminId: adminId),
       ),
+    );
+  }
+
+  static void openAdminAccounts(
+    BuildContext context, {
+    required String adminId,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => AdminAccountsPage(adminId: adminId)),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../utils/user_facing_error_message.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../auth/auth_gate.dart';
 
@@ -203,7 +204,12 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       }
     } catch (error) {
       if (mounted) {
-        _showError(error.toString());
+        _showError(
+          userFacingErrorMessage(
+            error,
+            fallback: 'Unable to change password. Please try again.',
+          ),
+        );
       }
     } finally {
       if (mounted) {

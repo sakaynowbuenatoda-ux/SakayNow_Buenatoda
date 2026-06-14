@@ -122,7 +122,7 @@ class _AdminCreateAccountPageState extends State<AdminCreateAccountPage> {
                       autocorrect: false,
                       decoration: AdminUi.inputDecoration(
                         labelText: 'Email',
-                        hintText: 'admin@example.com',
+                        hintText: 'Official admin email',
                         prefixIcon: const Icon(Icons.email_outlined),
                       ),
                       validator: SignupValidators.email,

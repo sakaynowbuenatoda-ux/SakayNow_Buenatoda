@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../utils/user_facing_error_message.dart';
 import '../../widgets/confirmation_dialog.dart';
 import 'admin_models.dart';
 import 'admin_service.dart';
@@ -75,7 +76,7 @@ class _AdminDeactivatedUsersPageState extends State<AdminDeactivatedUsersPage> {
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return AdminErrorCard(
-                message: 'Unable to load deactivated users: ${snapshot.error}',
+                message: 'Unable to load deactivated users. Please try again.',
               );
             }
 
@@ -228,9 +229,16 @@ class _AdminDeactivatedUsersPageState extends State<AdminDeactivatedUsersPage> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Restore failed: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback: 'Unable to restore this account. Please try again.',
+            ),
+          ),
+        ),
+      );
     }
   }
 

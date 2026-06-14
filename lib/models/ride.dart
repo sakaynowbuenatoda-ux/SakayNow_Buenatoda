@@ -34,9 +34,12 @@ class Ride {
   final String? fareRuleLabel;
   final String paymentMethod;
   final String? paymentMethodLabel;
+  final String? paymentMethodId;
+  final String? paymentMethodType;
   final String paymentProvider;
   final String paymentStatus;
-  final String? payMongoCheckoutUrl;
+  final String? xenditInvoiceId;
+  final String? checkoutUrl;
   final int? driverPassengerReviewRating;
   final int? passengerDriverReviewRating;
   final String? passengerDriverReviewComment;
@@ -67,9 +70,12 @@ class Ride {
     required this.fareRuleLabel,
     required this.paymentMethod,
     required this.paymentMethodLabel,
+    required this.paymentMethodId,
+    required this.paymentMethodType,
     required this.paymentProvider,
     required this.paymentStatus,
-    required this.payMongoCheckoutUrl,
+    required this.xenditInvoiceId,
+    required this.checkoutUrl,
     required this.driverPassengerReviewRating,
     required this.passengerDriverReviewRating,
     required this.passengerDriverReviewComment,
@@ -186,11 +192,16 @@ class Ride {
       ),
       paymentMethod: _readNullableString(data['payment_method']) ?? 'cash',
       paymentMethodLabel: _readNullableString(data['payment_method_label']),
+      paymentMethodId: _readNullableString(data['payment_method_id']),
+      paymentMethodType: _readNullableString(data['payment_method_type']),
       paymentProvider: _readNullableString(data['payment_provider']) ?? 'cash',
       paymentStatus:
           _readNullableString(data['payment_status']) ?? 'cash_pending',
-      payMongoCheckoutUrl: _readNullableString(
-        data['xendit_checkout_url'] ?? data['paymongo_checkout_url'],
+      xenditInvoiceId: _readNullableString(data['xendit_invoice_id']),
+      checkoutUrl: _readNullableString(
+        data['checkout_url'] ??
+            data['xendit_checkout_url'] ??
+            data['paymongo_checkout_url'],
       ),
       driverPassengerReviewRating: _readReviewRating(
         data['driver_passenger_review'],
@@ -319,20 +330,39 @@ class Ride {
     };
   }
 
+  String? get xenditPaymentMethodType {
+    final explicitType = paymentMethodType?.trim();
+    if (explicitType != null && explicitType.isNotEmpty) {
+      return explicitType;
+    }
+
+    return switch (paymentMethod.trim().toLowerCase()) {
+      'gcash' => 'GCASH',
+      'maya' || 'paymaya' => 'PAYMAYA',
+      'card' => 'CREDIT_CARD',
+      _ => null,
+    };
+  }
+
   String get paymentStatusLabel {
+    if (status == RideStatus.cancelled && paymentStatus != 'paid') {
+      return 'No payment collected';
+    }
+
     return switch (paymentStatus) {
       'paid' => 'Paid',
       'cash_collected' => 'Cash collected',
+      'cash_cancelled' => 'No payment collected',
       'checkout_pending' => 'Checkout pending',
       'checkout_failed' => 'Checkout failed',
+      'checkout_cancelled' => 'Checkout cancelled',
+      'payment_cancelled' => 'Payment cancelled',
       'cash_pending' => 'Cash pending',
       _ => paymentStatus.replaceAll('_', ' '),
     };
   }
 
-  bool get usesPayMongo => paymentProvider == 'paymongo';
-  bool get usesOnlineCheckout =>
-      paymentProvider == 'xendit' || paymentProvider == 'paymongo';
+  bool get usesOnlineCheckout => paymentProvider == 'xendit';
   bool get isPaymentPaid =>
       paymentStatus == 'paid' || paymentStatus == 'cash_collected';
 

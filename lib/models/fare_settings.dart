@@ -218,6 +218,10 @@ class FareSettings {
       '${amountLabel(outsideBuenavistaMinFare)}-${amountLabel(outsideBuenavistaMaxFare)}';
   String get studentDiscountLabel =>
       '${(studentDiscountRate * 100).round()}% student discount';
+  String get passengerFareGuideDescription =>
+      'Base fare starts at $oneBarangayFareLabel, up to 5 barangays is $buenavistaFiveBarangayFareLabel, and extended routes are $outsideBuenavistaRangeLabel.';
+  String get passengerStudentDiscountDescription =>
+      'Verified students receive ${(studentDiscountRate * 100).round()}% off eligible rides.';
 
   String amountLabel(int amount) => '$currency $amount';
 

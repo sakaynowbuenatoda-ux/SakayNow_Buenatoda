@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/auth/signup_validators.dart';
 import '../../services/profile_picture_service.dart';
+import '../../utils/user_facing_error_message.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'models/profile_view_data.dart';
@@ -39,9 +40,13 @@ class ProfileDetailsLoaderPage extends StatelessWidget {
                 child: PassengerEmptyState(
                   icon: Icons.error_outline_rounded,
                   title: 'Unable to load details',
-                  description:
-                      snapshot.error?.toString() ??
-                      'No profile record was found for this account.',
+                  description: snapshot.hasError
+                      ? userFacingErrorMessage(
+                          snapshot.error,
+                          fallback:
+                              'Unable to load profile details. Please try again.',
+                        )
+                      : 'No profile details were found for this account.',
                 ),
               ),
             ),
@@ -224,7 +229,10 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
 
       final message = error.code == 'permission-denied'
           ? 'You can only update your own age and gender.'
-          : error.message ?? 'Unable to update profile details.';
+          : userFacingErrorMessage(
+              error,
+              fallback: 'Unable to update profile details.',
+            );
       await _showValidationDialog(
         icon: Icons.error_outline_rounded,
         iconColor: Colors.red.shade600,
@@ -238,7 +246,10 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
       await _showValidationDialog(
         icon: Icons.error_outline_rounded,
         iconColor: Colors.red.shade600,
-        message: 'Unable to update profile details: $error',
+        message: userFacingErrorMessage(
+          error,
+          fallback: 'Unable to update profile details. Please try again.',
+        ),
       );
     } finally {
       if (mounted) {
@@ -342,7 +353,10 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
       await _showValidationDialog(
         icon: Icons.error_outline_rounded,
         iconColor: Colors.red.shade600,
-        message: 'Unable to update profile picture: $error',
+        message: userFacingErrorMessage(
+          error,
+          fallback: 'Unable to update profile picture. Please try again.',
+        ),
       );
     } finally {
       if (mounted) {
@@ -535,6 +549,11 @@ class _EditProfileDetailsDialogState extends State<_EditProfileDetailsDialog> {
   late final TextEditingController _ageController;
   String? _gender;
 
+  static const double _dialogHorizontalInset = 24;
+  static const double _dialogVerticalInset = 24;
+  static const double _dialogReservedHorizontalSpace = 48;
+  static const double _dialogMaxContentWidth = 340;
+
   static const List<DropdownMenuItem<String>> _genderOptions =
       <DropdownMenuItem<String>>[
         DropdownMenuItem(value: 'male', child: Text('Male')),
@@ -557,7 +576,19 @@ class _EditProfileDetailsDialogState extends State<_EditProfileDetailsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final availableContentWidth =
+        MediaQuery.sizeOf(context).width -
+        (_dialogHorizontalInset * 2) -
+        _dialogReservedHorizontalSpace;
+    final dialogContentWidth = availableContentWidth
+        .clamp(0.0, _dialogMaxContentWidth)
+        .toDouble();
+
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: _dialogHorizontalInset,
+        vertical: _dialogVerticalInset,
+      ),
       backgroundColor: PassengerUi.surface,
       surfaceTintColor: PassengerUi.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -576,35 +607,39 @@ class _EditProfileDetailsDialogState extends State<_EditProfileDetailsDialog> {
           Expanded(child: Text('Edit Details', style: PassengerUi.cardTitle)),
         ],
       ),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            TextFormField(
-              controller: _ageController,
-              keyboardType: TextInputType.number,
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.digitsOnly,
-              ],
-              validator: _validateAge,
-              decoration: const InputDecoration(
-                labelText: 'Age',
-                prefixIcon: Icon(Icons.cake_outlined),
+      content: SizedBox(
+        width: dialogContentWidth,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              TextFormField(
+                controller: _ageController,
+                keyboardType: TextInputType.number,
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
+                validator: _validateAge,
+                decoration: const InputDecoration(
+                  labelText: 'Age',
+                  prefixIcon: Icon(Icons.cake_outlined),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _gender,
-              items: _genderOptions,
-              validator: (value) => value == null ? 'Gender is required' : null,
-              onChanged: (value) => setState(() => _gender = value),
-              decoration: const InputDecoration(
-                labelText: 'Gender',
-                prefixIcon: Icon(Icons.wc_rounded),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _gender,
+                items: _genderOptions,
+                validator: (value) =>
+                    value == null ? 'Gender is required' : null,
+                onChanged: (value) => setState(() => _gender = value),
+                decoration: const InputDecoration(
+                  labelText: 'Gender',
+                  prefixIcon: Icon(Icons.wc_rounded),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: <Widget>[

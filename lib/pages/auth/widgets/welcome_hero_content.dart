@@ -35,7 +35,7 @@ class WelcomeHeroContent extends StatelessWidget {
         const _SignalPill(),
         SizedBox(height: compact ? 16 : 20),
         Text(
-          'Move around Buenatoda with less waiting.',
+          'Move around Buenavista with less waiting.',
           textAlign: textAlign,
           style: GoogleFonts.poppins(
             color: AuthUi.title,
@@ -49,7 +49,7 @@ class WelcomeHeroContent extends StatelessWidget {
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),
           child: Text(
-            'Book rides, track trip status, and keep passenger and driver workflows connected in one clean mobile system.',
+            'Book rides with one action, cashless payments, and real-time driver tracking.',
             textAlign: textAlign,
             style: GoogleFonts.poppins(
               color: AuthUi.body,

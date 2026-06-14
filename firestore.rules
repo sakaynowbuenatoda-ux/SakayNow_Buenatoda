@@ -22,10 +22,6 @@ service cloud.firestore {
       return userRole(userData) in ['admin', 'Admin', 'ADMIN'];
     }
 
-    function isAdmin() {
-      return signedIn() && isAdminRole(signedInUser());
-    }
-
     function isPassengerRole(userData) {
       return userRole(userData) in [
         'passenger',
@@ -67,6 +63,43 @@ service cloud.firestore {
         && isNotDeactivated(userData);
     }
 
+    function isActiveAccount(userData) {
+      return userData.get('is_active', true) == true
+        && isUsableAccount(userData);
+    }
+
+    function isMainAdminRole(userData) {
+      return isAdminRole(userData)
+        && userData.get('first_name', '') is string
+        && userData.get('first_name', '').matches('^\\s*[Aa][Dd][Mm][Ii][Nn]\\s*$');
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && isAdminRole(signedInUser())
+        && isActiveAccount(signedInUser());
+    }
+
+    function isMainAdmin() {
+      return signedIn()
+        && isMainAdminRole(signedInUser())
+        && isActiveAccount(signedInUser());
+    }
+
+    function userById(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+
+    function userDocumentExists(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+    function isActiveAdminId(userId) {
+      return userDocumentExists(userId)
+        && isAdminRole(userById(userId))
+        && isActiveAccount(userById(userId));
+    }
+
     function isVerifiedDriver() {
       return signedIn()
         && isDriverRole(signedInUser())
@@ -102,14 +135,95 @@ service cloud.firestore {
       return conversationData.type == 'support';
     }
 
+    function isAdminDirectConversation(conversationData) {
+      return conversationData.type == 'admin_direct';
+    }
+
+    function isUserVisibleConversation(conversationData) {
+      return conversationData.type in ['ride', 'support'];
+    }
+
     function canReadConversation(conversationData) {
-      return isConversationParticipant(conversationData)
-        || (isAdmin() && isSupportConversation(conversationData));
+      return (
+          isConversationParticipant(conversationData)
+          && isUserVisibleConversation(conversationData)
+        )
+        || (isAdmin() && isSupportConversation(conversationData))
+        || (
+          isAdmin()
+          && isAdminDirectConversation(conversationData)
+          && request.auth.uid in conversationData.participant_ids
+        );
     }
 
     function canWriteConversation(conversationData) {
-      return isConversationParticipant(conversationData)
-        || (isAdmin() && isSupportConversation(conversationData));
+      return (
+          isConversationParticipant(conversationData)
+          && isUserVisibleConversation(conversationData)
+        )
+        || (isAdmin() && isSupportConversation(conversationData))
+        || (
+          isAdmin()
+          && isAdminDirectConversation(conversationData)
+          && request.auth.uid in conversationData.participant_ids
+        );
+    }
+
+    function isAdminCreatedSupportConversation(conversationId) {
+      return isAdmin()
+        && request.resource.data.type == 'support'
+        && request.resource.data.support_user_id is string
+        && request.resource.data.support_user_id.size() > 0
+        && conversationId == 'support_' + request.resource.data.support_user_id
+        && request.resource.data.participant_ids.size() == 1
+        && request.resource.data.participant_ids[0] == request.resource.data.support_user_id
+        && request.resource.data.participant_roles[request.resource.data.support_user_id] in [
+          'driver',
+          'passenger'
+        ];
+    }
+
+    function isAdminCreatedAdminDirectConversation(conversationId) {
+      return isMainAdmin()
+        && request.resource.data.type == 'admin_direct'
+        && request.resource.data.keys().hasOnly([
+          'conversation_id',
+          'type',
+          'main_admin_id',
+          'target_admin_id',
+          'participant_ids',
+          'participant_names',
+          'participant_roles',
+          'updated_at'
+        ])
+        && request.resource.data.target_admin_id is string
+        && request.resource.data.target_admin_id.size() > 0
+        && request.resource.data.target_admin_id != request.auth.uid
+        && request.resource.data.main_admin_id == request.auth.uid
+        && conversationId == 'admin_direct_' + request.auth.uid + '_' + request.resource.data.target_admin_id
+        && isActiveAdminId(request.resource.data.target_admin_id)
+        && !isMainAdminRole(userById(request.resource.data.target_admin_id))
+        && request.resource.data.participant_ids.size() == 2
+        && request.resource.data.participant_ids[0] == request.auth.uid
+        && request.resource.data.participant_ids[1] == request.resource.data.target_admin_id
+        && request.resource.data.participant_names is map
+        && request.resource.data.participant_roles is map
+        && request.resource.data.participant_roles[request.auth.uid] == 'admin'
+        && request.resource.data.participant_roles[request.resource.data.target_admin_id] == 'admin';
+    }
+
+    function hasStableConversationUpdate(conversationData) {
+      return request.resource.data.conversation_id == conversationData.conversation_id
+        && request.resource.data.type == conversationData.type
+        && request.resource.data.participant_ids == conversationData.participant_ids
+        && (
+          !isAdminDirectConversation(conversationData)
+          || (
+            request.resource.data.main_admin_id == conversationData.main_admin_id
+            && request.resource.data.target_admin_id == conversationData.target_admin_id
+            && request.resource.data.participant_roles == conversationData.participant_roles
+          )
+        );
     }
 
     function ratingAggregateKeys() {
@@ -237,10 +351,28 @@ service cloud.firestore {
         && request.auth.token.email_verified == true
         && request.resource.data.diff(resource.data)
           .affectedKeys()
-          .hasOnly(['email_verified', 'email_verified_at', 'updated_at'])
+          .hasOnly(['email', 'email_verified', 'email_verified_at', 'updated_at'])
+        && request.auth.token.email is string
+        && request.resource.data.email is string
+        && request.resource.data.email == request.auth.token.email
         && request.resource.data.email_verified == true
         && request.resource.data.email_verified_at == request.time
         && request.resource.data.updated_at == request.time
+        && hasNoRatingAggregateChanges();
+    }
+
+    function isValidQuickDestinationsUpdate(userId) {
+      return isSelf(userId)
+        && isPassengerRole(resource.data)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'quick_destinations',
+            'quick_destinations_updated_at'
+          ])
+        && request.resource.data.quick_destinations is list
+        && request.resource.data.quick_destinations.size() <= 20
+        && request.resource.data.quick_destinations_updated_at == request.time
         && hasNoRatingAggregateChanges();
     }
 
@@ -458,6 +590,20 @@ service cloud.firestore {
         || (isVerifiedDriver() && isOpenBookingQueueRecord(bookingData));
     }
 
+    function reportDocumentPath(reportId) {
+      return /databases/$(database)/documents/reports/$(reportId);
+    }
+
+    function isDailyReportDocumentId(reportId) {
+      return reportId.matches('^daily_[0-9]{8}_[A-Za-z0-9_-]+_[A-Za-z0-9_-]+$');
+    }
+
+    function isMissingDailyReportProbe(reportId) {
+      return signedIn()
+        && isDailyReportDocumentId(reportId)
+        && !exists(reportDocumentPath(reportId));
+    }
+
     match /users/{userId} {
       allow create: if isValidSignup(userId);
       allow read: if isSelf(userId)
@@ -485,12 +631,20 @@ service cloud.firestore {
             && isPassengerRole(resource.data)
             && isVerifiedDriver()
         );
-      allow update: if isValidSelfDeactivation(userId);
-      allow update: if isValidProfilePictureUpdate(userId);
-      allow update: if isValidSelfProfileDetailsUpdate(userId);
-      allow update: if isValidDriverAvailabilityUpdate(userId);
-      allow update: if isValidEmailVerificationUpdate(userId);
-      allow update: if isSelf(userId)
+      allow update: if !isAdminRole(resource.data)
+        && isValidSelfDeactivation(userId);
+      allow update: if !isAdminRole(resource.data)
+        && isValidProfilePictureUpdate(userId);
+      allow update: if !isAdminRole(resource.data)
+        && isValidSelfProfileDetailsUpdate(userId);
+      allow update: if !isAdminRole(resource.data)
+        && isValidDriverAvailabilityUpdate(userId);
+      allow update: if !isAdminRole(resource.data)
+        && isValidEmailVerificationUpdate(userId);
+      allow update: if !isAdminRole(resource.data)
+        && isValidQuickDestinationsUpdate(userId);
+      allow update: if !isAdminRole(resource.data)
+        && isSelf(userId)
         && request.resource.data.user_id == resource.data.user_id
         && request.resource.data.email == resource.data.email
         && request.resource.data.role == resource.data.role
@@ -507,7 +661,7 @@ service cloud.firestore {
           !hasProfilePictureChanges()
           || isValidProfilePictureUpdate(userId)
         );
-      allow update, delete: if isAdmin();
+      allow update, delete: if isAdmin() && !isAdminRole(resource.data);
 
       match /payment_methods/{methodId} {
         allow read: if isSelf(userId) || isAdmin();
@@ -622,6 +776,7 @@ service cloud.firestore {
     }
 
     match /reports/{reportId} {
+      allow get: if isMissingDailyReportProbe(reportId);
       allow read: if isAdmin()
         || (signedIn() && resource.data.reporter_id == request.auth.uid)
         || (signedIn() && resource.data.reported_user_id == request.auth.uid);
@@ -637,13 +792,18 @@ service cloud.firestore {
       allow read: if canReadConversation(resource.data);
       allow create: if signedIn()
         && request.resource.data.conversation_id == conversationId
-        && request.resource.data.type in ['ride', 'support']
+        && request.resource.data.type in ['ride', 'support', 'admin_direct']
         && request.resource.data.participant_ids is list
-        && request.auth.uid in request.resource.data.participant_ids;
+        && (
+          (
+            request.resource.data.type in ['ride', 'support']
+            && request.auth.uid in request.resource.data.participant_ids
+          )
+          || isAdminCreatedSupportConversation(conversationId)
+          || isAdminCreatedAdminDirectConversation(conversationId)
+        );
       allow update: if canWriteConversation(resource.data)
-        && request.resource.data.conversation_id == resource.data.conversation_id
-        && request.resource.data.type == resource.data.type
-        && request.resource.data.participant_ids == resource.data.participant_ids;
+        && hasStableConversationUpdate(resource.data);
       allow delete: if isAdmin();
 
       match /messages/{messageId} {

@@ -4,7 +4,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../config/map_config.dart';
 import '../../controllers/quick_destinations_controller.dart';
 import '../../models/ride_location.dart';
-import '../../services/google_places_service.dart';
 import '../../services/location_service.dart';
 import '../../widgets/maps/location_pin_picker_sheet.dart';
 import '../../widgets/maps/map_text_styles.dart';
@@ -23,7 +22,6 @@ class PassengerQuickDestinationsPage extends StatefulWidget {
 
 class _PassengerQuickDestinationsPageState
     extends State<PassengerQuickDestinationsPage> {
-  final GooglePlacesService _placesService = GooglePlacesService();
   final LocationService _locationService = const LocationService();
 
   @override
@@ -110,9 +108,7 @@ class _PassengerQuickDestinationsPageState
                           Text(destination.label, style: MapTextStyles.title),
                           const SizedBox(height: 3),
                           Text(
-                            destination.address?.trim().isNotEmpty == true
-                                ? destination.address!
-                                : 'Set location',
+                            destination.locationDisplayLabel,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: MapTextStyles.body,
@@ -192,7 +188,10 @@ class _PassengerQuickDestinationsPageState
 
     await _saveDestination(
       destination.copyWith(
-        address: _locationDisplayText(picked),
+        address: _savedDestinationAddress(picked),
+        pinName: _pinNameFromLocation(picked),
+        pinPlaceId: picked.placeId,
+        clearPinDetails: !_hasPinDetails(picked),
         latitude: picked.latitude,
         longitude: picked.longitude,
       ),
@@ -220,6 +219,7 @@ class _PassengerQuickDestinationsPageState
         initialTarget: pickerTarget.location,
         accentColor: destination?.accentColor ?? PassengerUi.accentBlue,
         myLocationEnabled: pickerTarget.usesCurrentLocation,
+        heightFactor: 0.9,
       ),
     );
 
@@ -233,23 +233,13 @@ class _PassengerQuickDestinationsPageState
     }
 
     final location = selected.location;
-    try {
-      final address = await _placesService.reverseGeocode(location);
-      return RideLocation(
-        address: address,
-        name: 'Pinned location',
-        latitude: location.latitude,
-        longitude: location.longitude,
-      );
-    } on Exception {
-      return RideLocation(
-        address:
-            '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}',
-        name: 'Pinned location',
-        latitude: location.latitude,
-        longitude: location.longitude,
-      );
-    }
+    final coordinateLabel =
+        '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}';
+    return RideLocation(
+      address: coordinateLabel,
+      latitude: location.latitude,
+      longitude: location.longitude,
+    );
   }
 
   Future<_PickerTarget> _quickDestinationPickerTarget(
@@ -274,15 +264,6 @@ class _PassengerQuickDestinationsPageState
         usesCurrentLocation: false,
       );
     }
-  }
-
-  String _locationDisplayText(RideLocation location) {
-    final name = location.name?.trim();
-    if (name != null && name.isNotEmpty && name != 'Pinned location') {
-      return name;
-    }
-
-    return location.address;
   }
 
   Future<void> _saveDestination(PassengerQuickDestination destination) async {
@@ -343,10 +324,10 @@ class _QuickDestinationFormDialogState
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-
     return Dialog(
-      insetPadding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      insetAnimationDuration: const Duration(milliseconds: 180),
+      insetAnimationCurve: Curves.easeOutCubic,
       backgroundColor: Colors.transparent,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 430),
@@ -433,8 +414,9 @@ class _QuickDestinationFormDialogState
                     onPressed: _pickLocation,
                     icon: const Icon(Icons.push_pin_outlined),
                     label: Text(
-                      _selectedLocation?.address ??
-                          widget.destination?.address ??
+                      (_selectedLocation == null
+                              ? widget.destination?.locationDisplayLabel
+                              : _rideLocationDisplayText(_selectedLocation!)) ??
                           'Set location',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -511,7 +493,13 @@ class _QuickDestinationFormDialogState
       PassengerQuickDestination(
         id: existing?.id ?? 'custom_${DateTime.now().microsecondsSinceEpoch}',
         label: label,
-        address: location?.address ?? existing?.address,
+        address: location == null
+            ? existing?.address
+            : _savedDestinationAddress(location),
+        pinName: location == null
+            ? existing?.pinName
+            : _pinNameFromLocation(location),
+        pinPlaceId: location == null ? existing?.pinPlaceId : location.placeId,
         icon: _selectedIconOption.icon,
         customEmoji: customEmoji.isEmpty ? null : customEmoji,
         accentColor: _selectedIconOption.accentColor,
@@ -604,6 +592,35 @@ _DestinationIconOption _optionForDestination(
     (option) => option.icon == destination.icon,
     orElse: () => _destinationIconOptions.first,
   );
+}
+
+String _rideLocationDisplayText(RideLocation location) {
+  return _pinDisplayText(location) ??
+      location.coordinateLabel ??
+      location.address;
+}
+
+String _savedDestinationAddress(RideLocation location) {
+  return _hasPinDetails(location)
+      ? location.address
+      : location.coordinateLabel ?? location.address;
+}
+
+String? _pinNameFromLocation(RideLocation location) {
+  final name = location.name?.trim();
+  if (name == null || name.isEmpty || name == 'Pinned location') {
+    return null;
+  }
+
+  return name;
+}
+
+String? _pinDisplayText(RideLocation location) {
+  return location.googlePinDisplayLabel ?? _pinNameFromLocation(location);
+}
+
+bool _hasPinDetails(RideLocation location) {
+  return _pinDisplayText(location) != null;
 }
 
 class _PickerTarget {

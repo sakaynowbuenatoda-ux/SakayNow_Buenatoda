@@ -6,6 +6,7 @@ import '../../core/preferences/app_preferences_controller.dart';
 import '../../core/session/session_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/notification_service.dart';
+import '../../utils/user_facing_error_message.dart';
 import '../../widgets/animated_tab_switcher.dart';
 import '../../widgets/admin_widgets/admin_appbar.dart';
 import '../../widgets/firebase_storage_image.dart';
@@ -76,8 +77,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
       AdminMonitoringPage(adminId: widget.userId),
       AdminAccountManagementPage(adminId: widget.userId),
       AdminManagementPage(adminId: widget.userId),
-      AdminInsightsPage(adminId: widget.userId),
       AdminMessagesPage(adminId: widget.userId),
+      AdminInsightsPage(adminId: widget.userId),
       AdminReportsPage(adminId: widget.userId),
     ];
   }
@@ -87,9 +88,16 @@ class _AdminHomePageState extends State<AdminHomePage> {
       await SessionService.signOut();
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Logout failed: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback: 'Unable to log out. Please try again.',
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -299,8 +307,8 @@ const List<_AdminDestination> _adminDestinations = <_AdminDestination>[
   _AdminDestination(icon: Icons.monitor_heart_rounded, label: 'Monitoring'),
   _AdminDestination(icon: Icons.manage_accounts_rounded, label: 'Accounts'),
   _AdminDestination(icon: Icons.tune_rounded, label: 'Management'),
-  _AdminDestination(icon: Icons.analytics_rounded, label: 'Insights'),
   _AdminDestination(icon: Icons.chat_bubble_rounded, label: 'Messages'),
+  _AdminDestination(icon: Icons.analytics_rounded, label: 'Insights'),
   _AdminDestination(icon: Icons.assessment_rounded, label: 'Reports'),
 ];
 

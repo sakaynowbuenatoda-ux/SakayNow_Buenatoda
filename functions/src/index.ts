@@ -32,9 +32,10 @@ const xenditSecretKey = defineSecret("XENDIT_SECRET_KEY");
 const xenditWebhookToken = defineSecret("XENDIT_WEBHOOK_TOKEN");
 const paymongoApiBaseUrl = "https://api.paymongo.com/v1";
 const xenditApiBaseUrl = "https://api.xendit.co";
-const checkoutSuccessUrl = process.env.PAYMONGO_SUCCESS_URL ??
+const checkoutSuccessUrl = process.env.XENDIT_SUCCESS_URL ??
   "https://sakaynow-buenatoda.web.app/payment/success";
-const checkoutCancelUrl = process.env.PAYMONGO_CANCEL_URL ??
+const checkoutCancelUrl = process.env.XENDIT_FAILURE_URL ??
+  process.env.XENDIT_CANCEL_URL ??
   "https://sakaynow-buenatoda.web.app/payment/cancelled";
 const checkoutAllowedMethods = new Set(["gcash", "paymaya", "card"]);
 const xenditAllowedMethods = new Set(["GCASH", "PAYMAYA", "CREDIT_CARD"]);
@@ -171,13 +172,26 @@ export const createXenditCheckoutSession = onCall(
     }
 
     const existingInvoiceId = readOptionalString(booking.xendit_invoice_id);
-    const existingCheckoutUrl = readOptionalString(booking.xendit_checkout_url);
+    const existingCheckoutUrl =
+      readOptionalString(booking.xendit_checkout_url) ??
+      readOptionalString(booking.checkout_url);
     const paymentStatus = readOptionalString(booking.payment_status);
     if (
       existingInvoiceId &&
       existingCheckoutUrl &&
       paymentStatus !== "checkout_failed"
     ) {
+      await bookingRef.set(
+        {
+          xendit_checkout_url: existingCheckoutUrl,
+          checkout_url: existingCheckoutUrl,
+          payment_method_type: paymentMethodType,
+          payment_provider: "xendit",
+          updated_at: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+
       return {
         session_id: existingInvoiceId,
         checkout_url: existingCheckoutUrl,
@@ -219,9 +233,11 @@ export const createXenditCheckoutSession = onCall(
       {
         xendit_invoice_id: invoiceId,
         xendit_checkout_url: checkoutUrl,
+        checkout_url: checkoutUrl,
         xendit_invoice_status: invoice.status ?? "PENDING",
         payment_status: "checkout_pending",
         payment_method: methodLabelForStorage(paymentMethodType),
+        payment_method_type: paymentMethodType,
         payment_provider: "xendit",
         updated_at: FieldValue.serverTimestamp(),
       },
@@ -446,6 +462,190 @@ export const createAdminAccount = onCall(
           "Unable to create admin account.",
       );
     }
+  },
+);
+
+export const deactivateAdminAccount = onCall(
+  {
+    region: "asia-southeast1",
+  },
+  async (request) => {
+    const requesterId = request.auth?.uid;
+    if (!requesterId) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in as the main admin to deactivate admin accounts.",
+      );
+    }
+
+    const requesterSnapshot = await firestore
+      .collection("users")
+      .doc(requesterId)
+      .get();
+    const requester = requesterSnapshot.data();
+    if (!requesterSnapshot.exists || !requester || !isMainAdmin(requester)) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only the active main admin account can deactivate admin accounts.",
+      );
+    }
+
+    const adminUserId = readRequiredString(request.data, "admin_user_id");
+    if (adminUserId === requesterId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The main admin account cannot be deactivated.",
+      );
+    }
+
+    const targetRef = firestore.collection("users").doc(adminUserId);
+    const targetSnapshot = await targetRef.get();
+    const target = targetSnapshot.data();
+    if (!targetSnapshot.exists || !target) {
+      throw new HttpsError("not-found", "Admin account was not found.");
+    }
+
+    if (normalizedUserRole(target) !== "admin") {
+      throw new HttpsError(
+        "invalid-argument",
+        "Only admin accounts can be deactivated here.",
+      );
+    }
+
+    if (hasMainAdminName(target)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The main admin account cannot be deactivated.",
+      );
+    }
+
+    if (isDeletedAccount(target)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Deleted admin accounts cannot be deactivated.",
+      );
+    }
+
+    const targetName = fullName(target);
+    if (!isDeactivatedAccount(target)) {
+      await targetRef.set(
+        {
+          is_active: false,
+          is_deactivated: true,
+          account_status: "deactivated",
+          deactivated_at: FieldValue.serverTimestamp(),
+          updated_at: FieldValue.serverTimestamp(),
+          deactivated_by: requesterId,
+        },
+        {merge: true},
+      );
+    }
+
+    await writeAdminLog({
+      action: "admin_account_deactivated",
+      adminId: requesterId,
+      adminName: fullName(requester),
+      summary: `${targetName} admin account was deactivated.`,
+      targetId: adminUserId,
+      targetName,
+      targetRole: "admin",
+      metadata: {admin_user_id: adminUserId},
+    });
+
+    return {admin_user_id: adminUserId};
+  },
+);
+
+export const restoreAdminAccount = onCall(
+  {
+    region: "asia-southeast1",
+  },
+  async (request) => {
+    const requesterId = request.auth?.uid;
+    if (!requesterId) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in as the main admin to restore admin accounts.",
+      );
+    }
+
+    const requesterSnapshot = await firestore
+      .collection("users")
+      .doc(requesterId)
+      .get();
+    const requester = requesterSnapshot.data();
+    if (!requesterSnapshot.exists || !requester || !isMainAdmin(requester)) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only the active main admin account can restore admin accounts.",
+      );
+    }
+
+    const adminUserId = readRequiredString(request.data, "admin_user_id");
+    if (adminUserId === requesterId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The main admin account does not need restoration.",
+      );
+    }
+
+    const targetRef = firestore.collection("users").doc(adminUserId);
+    const targetSnapshot = await targetRef.get();
+    const target = targetSnapshot.data();
+    if (!targetSnapshot.exists || !target) {
+      throw new HttpsError("not-found", "Admin account was not found.");
+    }
+
+    if (normalizedUserRole(target) !== "admin") {
+      throw new HttpsError(
+        "invalid-argument",
+        "Only admin accounts can be restored here.",
+      );
+    }
+
+    if (hasMainAdminName(target)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The main admin account does not need restoration.",
+      );
+    }
+
+    if (isDeletedAccount(target)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Deleted admin accounts cannot be restored.",
+      );
+    }
+
+    const targetName = fullName(target);
+    if (isDeactivatedAccount(target) || !readOptionalBool(target.is_active, true)) {
+      await targetRef.set(
+        {
+          is_active: true,
+          is_deactivated: false,
+          account_status: "active",
+          deactivated_at: FieldValue.delete(),
+          deactivated_by: FieldValue.delete(),
+          restored_at: FieldValue.serverTimestamp(),
+          restored_by: requesterId,
+          updated_at: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+    }
+
+    await writeAdminLog({
+      action: "admin_account_restored",
+      adminId: requesterId,
+      adminName: fullName(requester),
+      summary: `${targetName} admin account was restored.`,
+      targetId: adminUserId,
+      targetName,
+      targetRole: "admin",
+      metadata: {admin_user_id: adminUserId},
+    });
+
+    return {admin_user_id: adminUserId};
   },
 );
 
@@ -1601,13 +1801,17 @@ async function notifyAdmins(params: Omit<AppNotificationParams, "userId">) {
     .where("role", "==", "admin")
     .get();
 
-  await Promise.all(snapshot.docs.map((doc) =>
-    createAppNotification({
-      ...params,
-      userId: doc.id,
-      role: "admin",
-    }),
-  ));
+  await Promise.all(
+    snapshot.docs
+      .filter((doc) => isActiveAccount(doc.data()))
+      .map((doc) =>
+        createAppNotification({
+          ...params,
+          userId: doc.id,
+          role: "admin",
+        }),
+      ),
+  );
 }
 
 function notificationDocumentId(params: AppNotificationParams) {
@@ -2241,6 +2445,7 @@ async function notificationRecipientIds(params: {
     .get();
 
   return adminSnapshot.docs
+    .filter((doc) => isActiveAccount(doc.data()))
     .map((doc) => doc.id)
     .filter((adminId) => adminId !== params.senderId);
 }
@@ -2255,7 +2460,12 @@ async function notificationTargetsForUsers(
   for (const userId of uniqueUserIds) {
     const userRef = firestore.collection("users").doc(userId);
     const userSnapshot = await userRef.get();
-    if (!notificationPreferencesAllow(userSnapshot.data() ?? {}, channel)) {
+    const userData = userSnapshot.data() ?? {};
+    if (normalizedUserRole(userData) === "admin" && !isActiveAccount(userData)) {
+      continue;
+    }
+
+    if (!notificationPreferencesAllow(userData, channel)) {
       continue;
     }
 
@@ -2301,7 +2511,8 @@ function notificationTitle(params: {
   senderId: string;
   senderRole: string;
 }) {
-  if (params.senderRole === "admin") {
+  const conversationType = readOptionalString(params.conversation.type);
+  if (params.senderRole === "admin" && conversationType !== "admin_direct") {
     return "SakayNow Support";
   }
 
@@ -2533,7 +2744,20 @@ async function adminNameForId(adminId: string) {
 
 function isMainAdmin(user: Record<string, unknown>) {
   return normalizedUserRole(user) === "admin" &&
-    (readOptionalString(user.first_name)?.toLowerCase() ?? "") === "admin";
+    hasMainAdminName(user) &&
+    isActiveAccount(user);
+}
+
+function hasMainAdminName(user: Record<string, unknown>) {
+  return (readOptionalString(user.first_name)?.toLowerCase() ?? "") ===
+    "admin";
+}
+
+function isActiveAccount(user: Record<string, unknown>) {
+  return readOptionalBool(user.is_active, true) &&
+    !isBannedAccount(user) &&
+    !isDeactivatedAccount(user) &&
+    !isDeletedAccount(user);
 }
 
 function validateAdminAccountInput(params: {

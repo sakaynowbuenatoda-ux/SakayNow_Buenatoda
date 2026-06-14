@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../utils/user_facing_error_message.dart';
 import 'admin_action_logs_page.dart';
 import 'admin_create_account_page.dart';
 import 'admin_models.dart';
+import 'admin_navigation.dart';
 import 'admin_service.dart';
 import 'widgets/admin_shared.dart';
 import 'widgets/fare_settings_editor.dart';
@@ -21,7 +23,7 @@ class AdminManagementPage extends StatelessWidget {
         builder: (context, adminSnapshot) {
           if (adminSnapshot.hasError) {
             return AdminErrorCard(
-              message: 'Unable to load admin profile: ${adminSnapshot.error}',
+              message: 'Unable to load admin profile. Please try again.',
             );
           }
 
@@ -36,7 +38,7 @@ class AdminManagementPage extends StatelessWidget {
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return AdminErrorCard(
-                  message: 'Unable to load management data: ${snapshot.error}',
+                  message: 'Unable to load management data. Please try again.',
                 );
               }
 
@@ -105,7 +107,13 @@ class AdminManagementPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const _AdminLogsPreviewCard(),
+                  if (currentAdmin.isMainAdmin)
+                    _ManagementAdminGrid(
+                      left: _AdminAccountsPreviewCard(adminId: adminId),
+                      right: const _AdminLogsPreviewCard(),
+                    )
+                  else
+                    const _AdminLogsPreviewCard(),
                   const SizedBox(height: 20),
                   _ManagementBottomGrid(
                     payment: _ManagementSurfacePanel(
@@ -121,7 +129,7 @@ class AdminManagementPage extends StatelessWidget {
                             icon: Icons.payments_rounded,
                             accentColor: AdminUi.secondary,
                             description:
-                                '$cashlessTrips booking record(s) reference a cashless method such as GCash, Maya, Xendit, or PayMongo. Payment method setup remains separate from account management.',
+                                '$cashlessTrips trip(s) use a cashless method such as GCash, Maya, or card checkout. Payment setup remains separate from account management.',
                           ),
                           const SizedBox(height: 12),
                           AdminInfoPanel(
@@ -129,22 +137,22 @@ class AdminManagementPage extends StatelessWidget {
                             icon: Icons.fact_check_rounded,
                             accentColor: AdminUi.highlightAmber,
                             description:
-                                '$settledPaymentTrips payment record(s) are marked settled, while $pendingPaymentTrips still need checkout completion or cash collection.',
+                                '$settledPaymentTrips payment(s) are settled, while $pendingPaymentTrips still need checkout completion or cash collection.',
                           ),
                         ],
                       ),
                     ),
                     records: _ManagementSurfacePanel(
                       icon: Icons.folder_copy_rounded,
-                      title: 'Ride Record Management',
-                      subtitle: 'Keep closed ride records ready for review.',
+                      title: 'Ride History Management',
+                      subtitle: 'Keep closed trips ready for review.',
                       accentColor: AdminUi.accentBlue,
                       child: AdminInfoPanel(
-                        title: 'Record readiness',
+                        title: 'Trip history readiness',
                         icon: Icons.folder_copy_rounded,
                         accentColor: AdminUi.accentBlue,
                         description:
-                            '$closedTripRecords closed ride record(s) are available for reports, payment review, and fare transparency checks. Live dispatch stays in Monitoring.',
+                            '$closedTripRecords closed trip(s) are available for reports, payment review, and fare transparency checks. Live dispatch stays in Monitoring.',
                       ),
                     ),
                   ),
@@ -177,18 +185,123 @@ class AdminManagementPage extends StatelessWidget {
     final method = booking.paymentMethod?.toLowerCase().trim() ?? '';
     return method.contains('gcash') ||
         method.contains('maya') ||
-        method.contains('xendit') ||
-        method.contains('paymongo');
+        method.contains('card') ||
+        method.contains('xendit');
   }
 
   static bool _hasPendingPayment(AdminBookingRecord booking) {
+    if (booking.isCancelled) {
+      return false;
+    }
+
     final status = booking.paymentStatus?.toLowerCase().trim() ?? '';
     return status.contains('pending') || status == 'checkout_failed';
   }
 
   static bool _hasSettledPayment(AdminBookingRecord booking) {
+    if (booking.isCancelled) {
+      return false;
+    }
+
     final status = booking.paymentStatus?.toLowerCase().trim() ?? '';
     return status == 'paid' || status == 'cash_collected';
+  }
+}
+
+class _AdminAccountsPreviewCard extends StatelessWidget {
+  final String adminId;
+
+  const _AdminAccountsPreviewCard({required this.adminId});
+
+  @override
+  Widget build(BuildContext context) {
+    return _ManagementSurfacePanel(
+      icon: Icons.admin_panel_settings_rounded,
+      title: 'Admin Accounts',
+      subtitle: 'Message or deactivate secondary admin accounts.',
+      accentColor: AdminUi.primary,
+      child: StreamBuilder<List<AdminUserRecord>>(
+        stream: AdminService.watchManagedAdmins(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return _InlinePanelState(
+              icon: Icons.error_outline_rounded,
+              title: 'Unable to load admin accounts',
+              description:
+                  'Admin accounts could not be loaded. Please try again.',
+              accentColor: AdminUi.danger,
+            );
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          final admins = snapshot.data!;
+          final activeAdmins = admins
+              .where((admin) => !admin.isDeactivated && !admin.isDeleted)
+              .length;
+          final deactivatedAdmins = admins
+              .where((admin) => admin.isDeactivated && !admin.isDeleted)
+              .length;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  const spacing = 12.0;
+                  final twoColumns = constraints.maxWidth >= 420;
+                  final width = twoColumns
+                      ? (constraints.maxWidth - spacing) / 2
+                      : constraints.maxWidth;
+
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: spacing,
+                    children: [
+                      _MiniAdminMetric(
+                        width: width,
+                        label: 'Active admins',
+                        value: activeAdmins.toString(),
+                        icon: Icons.verified_user_rounded,
+                        accentColor: AdminUi.successText,
+                      ),
+                      _MiniAdminMetric(
+                        width: width,
+                        label: 'Deactivated',
+                        value: deactivatedAdmins.toString(),
+                        icon: Icons.no_accounts_rounded,
+                        accentColor: AdminUi.danger,
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerRight,
+                child: AdminActionButton(
+                  label: 'Open Admin Accounts',
+                  icon: Icons.arrow_forward_rounded,
+                  backgroundColor: AdminUi.mutedSurface,
+                  foregroundColor: AdminUi.primary,
+                  onPressed: () => AdminNavigation.openAdminAccounts(
+                    context,
+                    adminId: adminId,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -209,7 +322,7 @@ class _AdminLogsPreviewCard extends StatelessWidget {
             return _InlinePanelState(
               icon: Icons.error_outline_rounded,
               title: 'Unable to load logs',
-              description: snapshot.error.toString(),
+              description: 'Admin logs could not be loaded. Please try again.',
               accentColor: AdminUi.danger,
             );
           }
@@ -307,6 +420,68 @@ class _AdminLogPreviewRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MiniAdminMetric extends StatelessWidget {
+  final double width;
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color accentColor;
+
+  const _MiniAdminMetric({
+    required this.width,
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: AdminUi.surface.withValues(
+            alpha: AdminUi.isDarkMode ? 0.55 : 1,
+          ),
+          borderRadius: AdminUi.radius,
+          border: Border.all(color: AdminUi.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AdminUi.soft(accentColor, alpha: 0.12),
+                borderRadius: AdminUi.radius,
+              ),
+              child: Icon(icon, color: accentColor, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(value, style: AdminUi.valueText),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AdminUi.labelText,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -412,7 +587,10 @@ class _MainAdminReauthDialogState extends State<_MainAdminReauthDialog> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Authentication failed: $error';
+        _errorMessage = userFacingErrorMessage(
+          error,
+          fallback: 'Unable to confirm admin password. Please try again.',
+        );
       });
     } finally {
       if (mounted) {
@@ -515,6 +693,36 @@ class _MainAdminReauthDialogState extends State<_MainAdminReauthDialog> {
   }
 }
 
+class _ManagementAdminGrid extends StatelessWidget {
+  final Widget left;
+  final Widget right;
+
+  const _ManagementAdminGrid({required this.left, required this.right});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 14.0;
+        final twoColumns = constraints.maxWidth >= 920;
+        final itemWidth = twoColumns
+            ? (constraints.maxWidth - spacing) / 2
+            : constraints.maxWidth;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          crossAxisAlignment: WrapCrossAlignment.start,
+          children: [
+            SizedBox(width: itemWidth, child: left),
+            SizedBox(width: itemWidth, child: right),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _ManagementTopGrid extends StatelessWidget {
   final Widget metrics;
   final Widget fareEditor;
@@ -596,7 +804,8 @@ class _ManagementMetricsPanel extends StatelessWidget {
     return _ManagementSurfacePanel(
       icon: Icons.analytics_rounded,
       title: 'Management Metrics',
-      subtitle: 'A quick snapshot of fare, payment, and ride record readiness.',
+      subtitle:
+          'A quick snapshot of fare, payment, and ride history readiness.',
       accentColor: AdminUi.accentBlue,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -613,7 +822,7 @@ class _ManagementMetricsPanel extends StatelessWidget {
               _MetricFrame(
                 width: cardWidth,
                 child: AdminMetricCard(
-                  label: 'Fare records',
+                  label: 'Fare-ready trips',
                   value: fareTaggedTrips.toString(),
                   helper: 'Bookings with visible fare labels',
                   icon: Icons.receipt_long_rounded,
@@ -623,7 +832,7 @@ class _ManagementMetricsPanel extends StatelessWidget {
               _MetricFrame(
                 width: cardWidth,
                 child: AdminMetricCard(
-                  label: 'Cashless records',
+                  label: 'Cashless trips',
                   value: cashlessTrips.toString(),
                   helper: 'Bookings using GCash, Maya, or checkout',
                   icon: Icons.account_balance_wallet_rounded,
@@ -643,9 +852,9 @@ class _ManagementMetricsPanel extends StatelessWidget {
               _MetricFrame(
                 width: cardWidth,
                 child: AdminMetricCard(
-                  label: 'Closed records',
+                  label: 'Closed trips',
                   value: closedTripRecords.toString(),
-                  helper: 'Completed or cancelled ride records',
+                  helper: 'Completed or cancelled trips',
                   icon: Icons.inventory_2_rounded,
                   accentColor: AdminUi.primary,
                 ),

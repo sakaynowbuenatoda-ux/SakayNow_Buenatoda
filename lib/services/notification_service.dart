@@ -489,9 +489,11 @@ class NotificationService {
 
     final title = data['title']?.toString().trim();
     final conversationType = data['conversation_type']?.toString().trim();
-    final subtitle = conversationType == 'support'
-        ? (role == 'admin' ? 'Support request' : 'Admin')
-        : 'Ride chat';
+    final subtitle = switch (conversationType) {
+      'support' => role == 'admin' ? 'Support request' : 'Admin',
+      'admin_direct' => 'Admin direct',
+      _ => 'Ride chat',
+    };
 
     _pushChatWhenNavigatorIsReady(
       conversationId: conversationId,

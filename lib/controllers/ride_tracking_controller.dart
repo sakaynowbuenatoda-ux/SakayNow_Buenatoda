@@ -7,11 +7,13 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../config/map_config.dart';
 import '../models/distance_matrix_result.dart';
 import '../models/ride.dart';
+import '../models/ride_location.dart';
 import '../models/ride_status.dart';
 import '../services/distance_matrix_service.dart';
 import '../services/geofencing_service.dart';
 import '../services/location_service.dart';
 import '../services/ride_tracking_service.dart';
+import '../utils/user_facing_error_message.dart';
 
 enum RideViewerRole { passenger, driver }
 
@@ -74,7 +76,9 @@ class RideTrackingController extends ChangeNotifier {
         Marker(
           markerId: const MarkerId('pickup_location'),
           position: pickup,
-          infoWindow: InfoWindow(title: activeRide.pickupLocation.displayLabel),
+          infoWindow: InfoWindow(
+            title: _locationLabel(activeRide.pickupLocation),
+          ),
           icon: BitmapDescriptor.defaultMarkerWithHue(
             BitmapDescriptor.hueGreen,
           ),
@@ -88,7 +92,7 @@ class RideTrackingController extends ChangeNotifier {
           markerId: const MarkerId('dropoff_location'),
           position: dropoff,
           infoWindow: InfoWindow(
-            title: activeRide.dropoffLocation.displayLabel,
+            title: _locationLabel(activeRide.dropoffLocation),
           ),
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
@@ -109,6 +113,10 @@ class RideTrackingController extends ChangeNotifier {
     }
 
     return markers;
+  }
+
+  String _locationLabel(RideLocation location) {
+    return isDriver ? location.publicDisplayLabel : location.displayLabel;
   }
 
   Set<Polyline> get polylines {
@@ -197,7 +205,10 @@ class RideTrackingController extends ChangeNotifier {
           },
           onError: (Object error) {
             isLoading = false;
-            errorMessage = error.toString();
+            errorMessage = userFacingErrorMessage(
+              error,
+              fallback: 'Unable to load this ride. Please try again.',
+            );
             notifyListeners();
           },
         );
@@ -214,7 +225,8 @@ class RideTrackingController extends ChangeNotifier {
   Future<void> updateStatus(RideStatus status) async {
     final current = ride?.status;
     if (current != null && current != status && !current.canMoveTo(status)) {
-      errorMessage = 'Invalid ride status transition.';
+      errorMessage =
+          'This ride step is not available yet. Please follow the current trip status.';
       notifyListeners();
       return;
     }
@@ -230,7 +242,10 @@ class RideTrackingController extends ChangeNotifier {
       );
       errorMessage = null;
     } on Exception catch (error) {
-      errorMessage = error.toString();
+      errorMessage = userFacingErrorMessage(
+        error,
+        fallback: 'Unable to update this ride. Please try again.',
+      );
     } finally {
       isUpdatingStatus = false;
       notifyListeners();
@@ -252,14 +267,22 @@ class RideTrackingController extends ChangeNotifier {
           _publishDriverLocation(position);
         },
         onError: (Object error) {
-          errorMessage = error.toString();
+          errorMessage = userFacingErrorMessage(
+            error,
+            fallback:
+                'Unable to share your driver location. Please check location access.',
+          );
           isPublishingLocation = false;
           notifyListeners();
         },
       );
       errorMessage = null;
     } on Exception catch (error) {
-      errorMessage = error.toString();
+      errorMessage = userFacingErrorMessage(
+        error,
+        fallback:
+            'Unable to share your driver location. Please check location access.',
+      );
       isPublishingLocation = false;
       notifyListeners();
     }
@@ -278,7 +301,10 @@ class RideTrackingController extends ChangeNotifier {
       );
       _refreshEtaIfNeeded();
     } on Exception catch (error) {
-      errorMessage = error.toString();
+      errorMessage = userFacingErrorMessage(
+        error,
+        fallback: 'Unable to update your driver location right now.',
+      );
       notifyListeners();
     }
   }
@@ -325,7 +351,10 @@ class RideTrackingController extends ChangeNotifier {
         );
       }
     } on Exception catch (error) {
-      errorMessage = error.toString();
+      errorMessage = userFacingErrorMessage(
+        error,
+        fallback: 'Unable to refresh the ride estimate right now.',
+      );
       notifyListeners();
     }
   }

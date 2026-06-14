@@ -31,7 +31,7 @@ class SessionService {
       final userDoc = await _firestore.collection('users').doc(uid).get();
 
       if (!userDoc.exists) {
-        throw StateError('User record not found in Firestore.');
+        throw StateError('Account profile not found.');
       }
 
       final AppUser user = AppUser.fromMap(
@@ -43,11 +43,13 @@ class SessionService {
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') {
         throw StateError(
-          'Firestore denied access to your user profile. Check your Firestore rules for users/$uid.',
+          'You do not have access to this account profile right now.',
         );
       }
 
-      throw StateError('Failed to load user profile: ${e.message ?? e.code}');
+      throw StateError(
+        'Unable to load your account profile. Please try again.',
+      );
     }
   }
 
@@ -56,7 +58,7 @@ class SessionService {
       userDoc,
     ) async {
       if (!userDoc.exists) {
-        throw StateError('User record not found in Firestore.');
+        throw StateError('Account profile not found.');
       }
 
       final AppUser user = AppUser.fromMap(

@@ -112,4 +112,68 @@ void main() {
     expect(fare.discountRate, 0.5);
     expect(fare.discountLabel, '50% student discount');
   });
+
+  test('adds no driver pickup surcharge within one barangay range', () {
+    const service = FareService();
+
+    final fare = service.estimateFare(
+      pickupLocation: const RideLocation(
+        address: 'Poblacion, Buenavista',
+        name: 'Poblacion',
+      ),
+      dropoffLocation: const RideLocation(
+        address: 'Poblacion, Buenavista',
+        name: 'Poblacion',
+      ),
+      distanceMeters: 900,
+      driverToPickupDistanceMeters: FareService.oneBarangayRangeMeters,
+    );
+
+    expect(fare.amount, 25);
+    expect(fare.driverPickupSurcharge, 0);
+    expect(fare.driverPickupBarangayHopEstimate, 1);
+  });
+
+  test('adds five pesos when driver is more than one barangay away', () {
+    const service = FareService();
+
+    final fare = service.estimateFare(
+      pickupLocation: const RideLocation(
+        address: 'Poblacion, Buenavista',
+        name: 'Poblacion',
+      ),
+      dropoffLocation: const RideLocation(
+        address: 'Poblacion, Buenavista',
+        name: 'Poblacion',
+      ),
+      distanceMeters: 900,
+      driverToPickupDistanceMeters: FareService.oneBarangayRangeMeters + 1,
+    );
+
+    expect(fare.amount, 30);
+    expect(fare.baseAmount, 30);
+    expect(fare.driverPickupSurcharge, 5);
+    expect(fare.driverPickupBarangayHopEstimate, 2);
+  });
+
+  test('limits driver pickup surcharge to ten pesos', () {
+    const service = FareService();
+
+    final fare = service.estimateFare(
+      pickupLocation: const RideLocation(
+        address: 'Poblacion, Buenavista',
+        name: 'Poblacion',
+      ),
+      dropoffLocation: const RideLocation(
+        address: 'Poblacion, Buenavista',
+        name: 'Poblacion',
+      ),
+      distanceMeters: 900,
+      driverToPickupDistanceMeters: 9000,
+    );
+
+    expect(fare.amount, 35);
+    expect(fare.driverPickupSurcharge, 10);
+    expect(fare.driverPickupBarangayHopEstimate, greaterThan(2));
+  });
 }

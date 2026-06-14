@@ -4,9 +4,11 @@ import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/time_ago_text.dart';
+import '../../utils/user_facing_error_message.dart';
 import '../admin/admin_models.dart';
 import '../admin/admin_service.dart';
 import '../admin/widgets/admin_shared.dart';
+import '../admin/widgets/admin_message_user_button.dart';
 
 class ViewUserProfilePage extends StatefulWidget {
   final String adminId;
@@ -50,7 +52,7 @@ class _ViewUserProfilePageState extends State<ViewUserProfilePage> {
             return PassengerPageContainer(
               maxContentWidth: AdminUi.detailContentWidth,
               child: AdminErrorCard(
-                message: 'Unable to load user profile: ${snapshot.error}',
+                message: 'Unable to load this user profile. Please try again.',
               ),
             );
           }
@@ -62,8 +64,7 @@ class _ViewUserProfilePageState extends State<ViewUserProfilePage> {
               child: AdminEmptyCollection(
                 icon: Icons.person_off_outlined,
                 title: 'User not found',
-                description:
-                    'This account record could not be loaded from Firestore.',
+                description: 'This account profile could not be loaded.',
               ),
             );
           }
@@ -81,8 +82,8 @@ class _ViewUserProfilePageState extends State<ViewUserProfilePage> {
                 SizedBox(height: 16),
                 _AdminProfileActions(
                   user: user,
+                  adminId: widget.adminId,
                   isProcessing: _isProcessing,
-                  onMessage: () => _showMessageComingSoon(user),
                   onRestrict: user.isBanned || user.isAdmin
                       ? null
                       : () => _confirmAndRunAction(
@@ -141,9 +142,16 @@ class _ViewUserProfilePageState extends State<ViewUserProfilePage> {
         return;
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Action failed: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback: 'Action failed. Please try again.',
+            ),
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isProcessing = false);
@@ -174,16 +182,6 @@ class _ViewUserProfilePageState extends State<ViewUserProfilePage> {
     }
 
     await _runAction(action: action, successMessage: successMessage);
-  }
-
-  void _showMessageComingSoon(AdminUserRecord user) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Messaging ${user.fullName} will be available when admin messaging is connected.',
-        ),
-      ),
-    );
   }
 }
 
@@ -412,15 +410,15 @@ class _BasicInfoCard extends StatelessWidget {
 
 class _AdminProfileActions extends StatelessWidget {
   final AdminUserRecord user;
+  final String adminId;
   final bool isProcessing;
-  final VoidCallback onMessage;
   final VoidCallback? onRestrict;
   final VoidCallback? onRestore;
 
   const _AdminProfileActions({
     required this.user,
+    required this.adminId,
     required this.isProcessing,
-    required this.onMessage,
     required this.onRestrict,
     required this.onRestore,
   });
@@ -437,11 +435,12 @@ class _AdminProfileActions extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              OutlinedButton.icon(
-                onPressed: onMessage,
-                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-                label: const Text('Message'),
-              ),
+              if (user.isPassengerOrDriver && !user.isDeleted)
+                AdminMessageUserButton(
+                  adminId: adminId,
+                  user: user,
+                  enabled: !isProcessing,
+                ),
               if (user.isBanned)
                 AdminActionButton(
                   label: 'Restore Access',
@@ -478,7 +477,8 @@ class _DriverReviewsSection extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return AdminErrorCard(
-            message: 'Unable to load driver reviews: ${snapshot.error}',
+            message:
+                'Unable to load driver reviews. Please try again in a moment.',
           );
         }
 
@@ -498,7 +498,7 @@ class _DriverReviewsSection extends StatelessWidget {
                 icon: Icons.reviews_outlined,
                 title: 'No driver reviews yet',
                 description:
-                    'Driver review records will appear here after passengers submit feedback.',
+                    'Driver reviews will appear here after passengers submit feedback.',
               )
             else
               ...reviews.map(

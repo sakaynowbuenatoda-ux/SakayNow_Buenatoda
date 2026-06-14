@@ -16,6 +16,9 @@ class FareService {
   static const int outsideBuenavistaMaxFare =
       FareSettings.defaultOutsideBuenavistaMaxFare;
   static const double barangayHopDistanceMeters = 1700;
+  static const int oneBarangayRangeMeters = 2500;
+  static const int driverPickupSurchargePerExtraBarangay = 5;
+  static const int maxDriverPickupSurcharge = 10;
 
   static const List<String> buenavistaBarangays = <String>[
     'Anonang',
@@ -61,9 +64,20 @@ class FareService {
     required int distanceMeters,
     bool studentDiscountEligible = false,
     FareSettings settings = FareSettings.defaults,
+    int? driverToPickupDistanceMeters,
   }) {
     final activeSettings = settings.normalized();
     final normalizedDistance = distanceMeters < 0 ? 0 : distanceMeters;
+    final normalizedDriverDistance =
+        driverToPickupDistanceMeters == null || driverToPickupDistanceMeters < 0
+        ? null
+        : driverToPickupDistanceMeters;
+    final driverPickupHopEstimate = driverPickupBarangayHopsForDistance(
+      normalizedDriverDistance,
+    );
+    final driverPickupSurcharge = driverPickupSurchargeForDistance(
+      normalizedDriverDistance,
+    );
     final pickupBarangay = detectBuenavistaBarangay(pickupLocation);
     final dropoffBarangay = detectBuenavistaBarangay(dropoffLocation);
     final outsideBuenavista =
@@ -79,7 +93,7 @@ class FareService {
     if (!outsideBuenavista && hopEstimate <= 1) {
       return _applyDiscounts(
         FareEstimate(
-          amount: activeSettings.oneBarangayFare,
+          amount: activeSettings.oneBarangayFare + driverPickupSurcharge,
           currency: activeSettings.currency,
           ruleCode: 'buenavista_one_barangay',
           ruleLabel: 'Buenavista 1 barangay',
@@ -88,6 +102,9 @@ class FareService {
           isOutsideBuenavista: false,
           pickupBarangay: pickupBarangay,
           dropoffBarangay: dropoffBarangay,
+          driverPickupSurcharge: driverPickupSurcharge,
+          driverToPickupDistanceMeters: normalizedDriverDistance,
+          driverPickupBarangayHopEstimate: driverPickupHopEstimate,
         ),
         studentDiscountEligible: studentDiscountEligible,
         settings: activeSettings,
@@ -97,7 +114,8 @@ class FareService {
     if (!outsideBuenavista && hopEstimate <= 5) {
       return _applyDiscounts(
         FareEstimate(
-          amount: activeSettings.buenavistaFiveBarangayFare,
+          amount:
+              activeSettings.buenavistaFiveBarangayFare + driverPickupSurcharge,
           currency: activeSettings.currency,
           ruleCode: 'buenavista_up_to_five_barangays',
           ruleLabel: 'Buenavista up to 5 barangays',
@@ -106,6 +124,9 @@ class FareService {
           isOutsideBuenavista: false,
           pickupBarangay: pickupBarangay,
           dropoffBarangay: dropoffBarangay,
+          driverPickupSurcharge: driverPickupSurcharge,
+          driverToPickupDistanceMeters: normalizedDriverDistance,
+          driverPickupBarangayHopEstimate: driverPickupHopEstimate,
         ),
         studentDiscountEligible: studentDiscountEligible,
         settings: activeSettings,
@@ -114,7 +135,9 @@ class FareService {
 
     return _applyDiscounts(
       FareEstimate(
-        amount: _distanceFare(normalizedDistance, activeSettings),
+        amount:
+            _distanceFare(normalizedDistance, activeSettings) +
+            driverPickupSurcharge,
         currency: activeSettings.currency,
         ruleCode: outsideBuenavista
             ? 'outside_buenavista_distance'
@@ -127,6 +150,9 @@ class FareService {
         isOutsideBuenavista: outsideBuenavista,
         pickupBarangay: pickupBarangay,
         dropoffBarangay: dropoffBarangay,
+        driverPickupSurcharge: driverPickupSurcharge,
+        driverToPickupDistanceMeters: normalizedDriverDistance,
+        driverPickupBarangayHopEstimate: driverPickupHopEstimate,
       ),
       studentDiscountEligible: studentDiscountEligible,
       settings: activeSettings,
@@ -201,7 +227,32 @@ class FareService {
       return 1;
     }
 
-    if (distanceMeters <= 2500) {
+    return _estimateDistanceBarangayHops(distanceMeters);
+  }
+
+  int driverPickupSurchargeForDistance(int? distanceMeters) {
+    final extraBarangayHops =
+        driverPickupBarangayHopsForDistance(distanceMeters) - 1;
+    if (extraBarangayHops <= 0) {
+      return 0;
+    }
+
+    return math.min(
+      extraBarangayHops * driverPickupSurchargePerExtraBarangay,
+      maxDriverPickupSurcharge,
+    );
+  }
+
+  int driverPickupBarangayHopsForDistance(int? distanceMeters) {
+    if (distanceMeters == null || distanceMeters <= 0) {
+      return 1;
+    }
+
+    return _estimateDistanceBarangayHops(distanceMeters);
+  }
+
+  int _estimateDistanceBarangayHops(int distanceMeters) {
+    if (distanceMeters <= oneBarangayRangeMeters) {
       return 1;
     }
 

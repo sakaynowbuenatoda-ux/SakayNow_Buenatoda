@@ -1,35 +1,63 @@
-SakayNow Buenatoda is a mobile transportation booking system for tricycles built with Flutter + Firebase.
+SakayNow Buenatoda is a Flutter and Firebase mobile transportation booking
+system for tricycles in Buenavista, Bohol.
+
 It supports three roles:
 
-Passenger – Book rides, manage trips
-Driver – Accept bookings, manage queue
-Admin – Monitor system, manage users
+- Passenger: book rides, manage trips, save locations, and pay by cash or Xendit checkout.
+- Driver: accept bookings, manage availability, monitor trips, and receive cashless-ready rides when payout details are configured.
+- Admin: monitor users, trips, reports, verification, and system records.
 
-The system focuses on:
+## Objectives of the Study
 
-Real-time ride booking
-Role-based navigation
-Clean, modern UI/UX
-Scalable Firebase backend
+The main objective of this study is to design and develop SakayNow Buenatoda, a
+geofencing-based mobile application for efficient, safe, and transparent
+tricycle booking.
 
-Objectives of the Study
-          The main objective of this study is to design and develop SakayNow Buenatoda, a geofencing-based mobile application for efficient, safe, and transparent tricycle booking.
 Specifically, this study aims to:
-1.	To develop a mobile booking system that enables one-tap ride requests, driver acceptance, saved locations, and driver availability control. 
-2.	To implement location-based features including geofencing and real-time tracking for accurate driver-passenger matching and trip monitoring. 
-3.	To ensure fare efficiency and payment convenience through fixed/LGU-based fare transparency, student discounts, and cashless payment integration (GCash and Maya). 
-4.	To incorporate evaluation and feedback mechanisms such as driver rating, review, ranking, and reporting systems. 
-5.	To establish security and verification processes for students and drivers through ID validation and admin approval. 
-6.	To develop an admin dashboard for monitoring users, trips, reports, and overall system performance. 
 
-Purpose and Description
-          The purpose of this project is to provide a mobile-based tricycle booking system that improves accessibility, efficiency, and safety of transportation in Buenavista, Bohol. SakayNow Buenatoda functions as an integrated platform where passengers can easily book rides, track drivers in real time, and ensure transparent fare pricing, while drivers can manage bookings and improve service performance.
-SakayNow Buenatoda has the following capabilities:
-•	Ride Booking System – Allows passengers to request rides through one-tap booking, with driver acceptance and saved locations for faster transactions.
-•	Geolocation and Tracking – Provides geofencing-based driver matching and real-time tracking to monitor trips and improve ride efficiency.
-•	Fare and Payment System – Displays fixed or LGU-based fare rates, supports student discounts, and integrates cashless payments such as GCash and Maya.
-•	Rating and Feedback System – Enables passengers to rate drivers, provide reviews, and submit reports to improve service quality and accountability.
-•	Driver Management System – Allows drivers to toggle availability and includes a ranking system based on performance, ratings, and completed trips.
-•	Verification and Security System – Ensures safety through student ID verification and driver verification requiring a valid license and NBI clearance, subject to admin approval.
-•	Administrative Monitoring System – Provides an admin dashboard for managing users, verifying accounts, monitoring trips, and reviewing reports.
+1. Develop a mobile booking system that enables ride requests, driver acceptance, saved locations, and driver availability control.
+2. Implement location-based features including geofencing and real-time tracking for accurate driver-passenger matching and trip monitoring.
+3. Ensure fare efficiency and payment convenience through LGU-based fare transparency, student discounts, cash payments, and Xendit online checkout for GCash, Maya, and card payments.
+4. Incorporate evaluation and feedback mechanisms such as driver rating, review, ranking, and reporting systems.
+5. Establish security and verification processes for students and drivers through ID validation and admin approval.
+6. Develop an admin dashboard for monitoring users, trips, reports, verification status, and overall system performance.
 
+## Scope
+
+SakayNow Buenatoda includes:
+
+- Ride booking with passenger pickup/drop-off, driver queue acceptance, and active ride monitoring.
+- Geofencing-based driver matching and live ride tracking.
+- Fare estimates, fare records, student discount handling, and cash collection status.
+- Xendit online checkout for supported cashless methods.
+- Passenger and driver reviews, reports, and rankings.
+- Driver availability, payout account readiness, and trip summaries.
+- Admin monitoring for accounts, trips, reports, and verification.
+
+## Xendit Configuration
+
+Online checkout is handled through Xendit only.
+
+Required Firebase Functions secrets:
+
+```sh
+firebase functions:secrets:set XENDIT_SECRET_KEY
+firebase functions:secrets:set XENDIT_WEBHOOK_TOKEN
+```
+
+Optional redirect environment variables for deployed functions:
+
+```sh
+XENDIT_SUCCESS_URL=https://sakaynow-buenatoda.web.app/payment/success
+XENDIT_FAILURE_URL=https://sakaynow-buenatoda.web.app/payment/cancelled
+```
+
+Xendit webhook callback URL:
+
+```text
+https://asia-southeast1-sakaynow-buenatoda.cloudfunctions.net/xenditWebhook
+```
+
+In the Xendit dashboard, configure the callback token to match the
+`XENDIT_WEBHOOK_TOKEN` Firebase secret. The webhook updates booking payment
+records from `checkout_pending` to `paid` or `checkout_failed`.

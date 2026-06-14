@@ -163,7 +163,7 @@ class _AdminBookingHistoryPageState extends State<AdminBookingHistoryPage> {
                         ),
                         AdminStatusChip(
                           label:
-                              '${bookings.length} ${bookings.length == 1 ? 'record' : 'records'}',
+                              '${bookings.length} ${bookings.length == 1 ? 'trip' : 'trips'}',
                           textColor: _section.accentColor,
                           backgroundColor: AdminUi.soft(
                             _section.accentColor,
@@ -228,7 +228,7 @@ class _AdminBookingHistoryPageState extends State<AdminBookingHistoryPage> {
       return 'Try a different status, search term, or date-time range.';
     }
 
-    return 'Ride records will appear here after passengers start booking trips.';
+    return 'Trips will appear here after passengers start booking rides.';
   }
 
   bool _matchesSearch(
@@ -702,13 +702,13 @@ extension AdminBookingHistorySectionDetails on AdminBookingHistorySection {
   String get subtitle {
     switch (this) {
       case AdminBookingHistorySection.all:
-        return 'All ride records sorted by newest booking timestamp.';
+        return 'All trips sorted by newest booking time.';
       case AdminBookingHistorySection.ongoing:
-        return 'Accepted, arriving, ongoing, and assigned ride records.';
+        return 'Accepted, arriving, ongoing, and assigned trips.';
       case AdminBookingHistorySection.completed:
-        return 'Finished ride records ready for service review.';
+        return 'Finished trips ready for service review.';
       case AdminBookingHistorySection.cancelled:
-        return 'Cancelled and rejected ride records for follow-up.';
+        return 'Cancelled and rejected trips for follow-up.';
     }
   }
 

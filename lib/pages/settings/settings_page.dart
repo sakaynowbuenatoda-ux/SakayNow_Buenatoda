@@ -138,15 +138,16 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
         ),
-      SettingsTileData(
-        title: 'Deactivate Account',
-        subtitle: 'Disable your account after password confirmation.',
-        icon: Icons.no_accounts_outlined,
-        accentColor: Colors.red.shade600,
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const DeactivateAccountPage()),
+      if (!isAdmin)
+        SettingsTileData(
+          title: 'Deactivate Account',
+          subtitle: 'Disable your account after password confirmation.',
+          icon: Icons.no_accounts_outlined,
+          accentColor: Colors.red.shade600,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const DeactivateAccountPage()),
+          ),
         ),
-      ),
     ];
 
     final appItems = <SettingsTileData>[

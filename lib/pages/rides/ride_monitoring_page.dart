@@ -8,6 +8,7 @@ import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../pages/messages/ride_chat_navigation.dart';
 import '../../pages/profile/passenger_profile.dart';
+import '../../services/booking_action_cooldown_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../services/xendit_checkout_service.dart';
 import '../../widgets/confirmation_dialog.dart';
@@ -264,7 +265,10 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
                   const SizedBox(height: 16),
                   _RideEtaCard(ride: ride),
                   const SizedBox(height: 16),
-                  _RideRouteCard(ride: ride),
+                  _RideRouteCard(
+                    ride: ride,
+                    usePublicLocationLabels: _controller.isDriver,
+                  ),
                   const SizedBox(height: 16),
                   _RidePaymentCard(
                     ride: ride,
@@ -323,16 +327,24 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
   }
 
   Future<void> _openXenditCheckout(Ride ride) async {
-    final checkoutUrl = ride.payMongoCheckoutUrl;
-    if (checkoutUrl == null || checkoutUrl.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Xendit checkout is not ready yet.')),
-      );
-      return;
-    }
-
     setState(() => _isOpeningCheckout = true);
     try {
+      var checkoutUrl = ride.checkoutUrl?.trim();
+      if (checkoutUrl == null || checkoutUrl.isEmpty) {
+        final paymentMethodType = ride.xenditPaymentMethodType;
+        if (paymentMethodType == null || paymentMethodType.trim().isEmpty) {
+          throw Exception('Xendit payment method is not ready yet.');
+        }
+
+        final session = await _xenditCheckoutService
+            .createCheckoutSessionForPaymentType(
+              bookingId: ride.bookingId,
+              paymentMethodType: paymentMethodType,
+              paymentMethodId: ride.paymentMethodId,
+            );
+        checkoutUrl = session.checkoutUrl;
+      }
+
       await _xenditCheckoutService.openCheckoutUrl(checkoutUrl);
     } on Exception catch (error) {
       if (!mounted) {
@@ -420,8 +432,12 @@ class _RideMetricTile extends StatelessWidget {
 
 class _RideRouteCard extends StatelessWidget {
   final Ride ride;
+  final bool usePublicLocationLabels;
 
-  const _RideRouteCard({required this.ride});
+  const _RideRouteCard({
+    required this.ride,
+    required this.usePublicLocationLabels,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -432,14 +448,18 @@ class _RideRouteCard extends StatelessWidget {
             icon: Icons.my_location_rounded,
             iconColor: PassengerUi.secondary,
             label: 'Pickup',
-            value: ride.pickupLocation.displayLabel,
+            value: usePublicLocationLabels
+                ? ride.pickupLocation.publicDisplayLabel
+                : ride.pickupLocation.displayLabel,
           ),
           const SizedBox(height: 12),
           _LocationRow(
             icon: Icons.location_on_rounded,
             iconColor: PassengerUi.primary,
             label: 'Drop-off',
-            value: ride.dropoffLocation.displayLabel,
+            value: usePublicLocationLabels
+                ? ride.dropoffLocation.publicDisplayLabel
+                : ride.dropoffLocation.displayLabel,
           ),
         ],
       ),
@@ -855,6 +875,30 @@ class _RideActions extends StatelessWidget {
     }
 
     await controller.cancelRide();
+    if (!context.mounted || controller.errorMessage != null) {
+      return;
+    }
+
+    final target = controller.isDriver
+        ? BookingActionCooldownTarget.driverAccept
+        : BookingActionCooldownTarget.passengerBooking;
+    final cooldown = await BookingActionCooldownService.instance
+        .startAfterCancellation(userId: controller.userId, target: target);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    final actionLabel = controller.isDriver
+        ? 'accept another request'
+        : 'request another ride';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Ride cancelled. You can $actionLabel in ${BookingActionCooldownService.formatRemaining(cooldown)}.',
+        ),
+      ),
+    );
   }
 
   RideStatus? _nextDriverStatus(RideStatus status) {

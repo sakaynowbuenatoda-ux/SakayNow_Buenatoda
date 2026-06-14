@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_assets.dart';
 import '../core/session/session_service.dart';
+import '../utils/user_facing_error_message.dart';
 import 'passenger_widgets/passenger_ui.dart';
 
 class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
@@ -41,7 +42,12 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Logout failed: $e'),
+          content: Text(
+            userFacingErrorMessage(
+              e,
+              fallback: 'Unable to log out. Please try again.',
+            ),
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );

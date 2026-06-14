@@ -78,7 +78,7 @@ class _AdminUnverifiedUsersPageState extends State<AdminUnverifiedUsersPage> {
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return AdminErrorCard(
-                message: 'Unable to load $_collectionLabel: ${snapshot.error}',
+                message: 'Unable to load $_collectionLabel. Please try again.',
               );
             }
 
@@ -159,8 +159,8 @@ class _AdminUnverifiedUsersPageState extends State<AdminUnverifiedUsersPage> {
       _showDrivers ? 'Unverified Drivers' : 'Unverified Passengers';
 
   String get _pageSubtitle => _showDrivers
-      ? 'Review drivers who uploaded a selfie, NBI clearance, and license before turning is_verified to true.'
-      : 'Review passengers who uploaded a selfie and ID before turning is_verified to true.';
+      ? 'Review drivers who uploaded a selfie, NBI clearance, and license before approving their account.'
+      : 'Review passengers who uploaded a selfie and ID before approving their account.';
 
   String get _collectionLabel =>
       _showDrivers ? 'unverified drivers' : 'unverified passengers';

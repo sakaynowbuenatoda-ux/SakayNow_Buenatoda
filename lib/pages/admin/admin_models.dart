@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../models/ride_location.dart';
 import 'widgets/admin_ui.dart';
 
 class AdminUserRecord {
@@ -186,10 +187,10 @@ class AdminUserRecord {
   }
 
   String get statusLabel {
-    if (isAdmin) return 'Developer managed';
     if (isDeleted) return 'Deleted';
     if (isBanned) return 'Restricted';
     if (isDeactivated) return 'Deactivated';
+    if (isAdmin) return 'Developer managed';
     if (isPendingVerification) return 'Pending verification';
     if (isVerified && isActive) return 'Verified';
     if (isVerified) return 'Verified';
@@ -253,6 +254,7 @@ class AdminUserRecord {
 class AdminDriverLocationRecord {
   final String driverId;
   final String fullName;
+  final String? profileImageUrl;
   final LatLng latLng;
   final double? heading;
   final DateTime? updatedAt;
@@ -260,6 +262,7 @@ class AdminDriverLocationRecord {
   const AdminDriverLocationRecord({
     required this.driverId,
     required this.fullName,
+    required this.profileImageUrl,
     required this.latLng,
     required this.heading,
     required this.updatedAt,
@@ -285,6 +288,7 @@ class AdminDriverLocationRecord {
     return AdminDriverLocationRecord(
       driverId: driverId,
       fullName: driver.fullName,
+      profileImageUrl: driver.profileImageUrl,
       latLng: LatLng(latitude, longitude),
       heading: _readDouble(locationData['heading']),
       updatedAt: AdminUserRecord._readDate(locationData['updated_at']),
@@ -306,6 +310,8 @@ class AdminBookingRecord {
   final String driverId;
   final String pickupLocation;
   final String dropoffLocation;
+  final RideLocation? pickupRideLocation;
+  final RideLocation? dropoffRideLocation;
   final String status;
   final DateTime? timestamp;
   final String? paymentMethod;
@@ -318,6 +324,8 @@ class AdminBookingRecord {
     required this.driverId,
     required this.pickupLocation,
     required this.dropoffLocation,
+    required this.pickupRideLocation,
+    required this.dropoffRideLocation,
     required this.status,
     required this.timestamp,
     required this.paymentMethod,
@@ -329,13 +337,23 @@ class AdminBookingRecord {
     DocumentSnapshot<Map<String, dynamic>> document,
   ) {
     final data = document.data() ?? <String, dynamic>{};
+    final pickupRideLocation = _readRideLocation(data['pickup_location']);
+    final dropoffRideLocation = _readRideLocation(data['dropoff_location']);
 
     return AdminBookingRecord(
       bookingId: (data['booking_id'] ?? document.id).toString(),
       passengerId: (data['passenger_id'] ?? '').toString().trim(),
       driverId: (data['driver_id'] ?? '').toString().trim(),
-      pickupLocation: _readLocation(data['pickup_location']),
-      dropoffLocation: _readLocation(data['dropoff_location']),
+      pickupLocation: _readLocation(
+        data['pickup_location'],
+        parsedLocation: pickupRideLocation,
+      ),
+      dropoffLocation: _readLocation(
+        data['dropoff_location'],
+        parsedLocation: dropoffRideLocation,
+      ),
+      pickupRideLocation: pickupRideLocation,
+      dropoffRideLocation: dropoffRideLocation,
       status: (data['status'] ?? 'pending').toString().trim().toLowerCase(),
       timestamp: AdminUserRecord._readDate(data['timestamp']),
       paymentMethod: _readNullableString(
@@ -363,6 +381,29 @@ class AdminBookingRecord {
       status == 'ongoing' ||
       status == 'in_progress' ||
       status == 'assigned';
+  bool get canPreviewRoute =>
+      pickupRideLocation?.hasCoordinates == true &&
+      dropoffRideLocation?.hasCoordinates == true;
+
+  String get paymentStatusLabel {
+    final normalized = paymentStatus?.toLowerCase().trim() ?? '';
+    if (isCancelled && normalized != 'paid') {
+      return 'No payment collected';
+    }
+
+    return switch (normalized) {
+      'paid' => 'Paid',
+      'cash_collected' => 'Cash collected',
+      'cash_cancelled' => 'No payment collected',
+      'checkout_pending' => 'Checkout pending',
+      'checkout_failed' => 'Checkout failed',
+      'checkout_cancelled' => 'Checkout cancelled',
+      'payment_cancelled' => 'Payment cancelled',
+      'cash_pending' => 'Cash pending',
+      '' => 'Pending',
+      _ => _titleCase(normalized.replaceAll('_', ' ')),
+    };
+  }
 
   String get statusLabel {
     if (status.isEmpty) {
@@ -387,17 +428,22 @@ class AdminBookingRecord {
     return AdminUi.warningSoft;
   }
 
-  static String _readLocation(Object? value) {
-    if (value is Map<String, dynamic>) {
-      final address = value['address']?.toString().trim() ?? '';
-      final name = value['name']?.toString().trim() ?? '';
-      return address.isNotEmpty
-          ? address
-          : (name.isNotEmpty ? name : 'Unknown');
+  static String _readLocation(Object? value, {RideLocation? parsedLocation}) {
+    final location = parsedLocation ?? _readRideLocation(value);
+    if (location != null) {
+      return location.publicDisplayLabel;
     }
 
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? 'Unknown' : text;
+  }
+
+  static RideLocation? _readRideLocation(Object? value) {
+    if (value is Map || value is GeoPoint) {
+      return RideLocation.fromMap(value);
+    }
+
+    return null;
   }
 
   static String? _readNullableString(Object? value) {
@@ -425,6 +471,14 @@ class AdminBookingRecord {
     }
 
     return null;
+  }
+
+  static String _titleCase(String value) {
+    return value
+        .split(' ')
+        .where((part) => part.isNotEmpty)
+        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
   }
 }
 

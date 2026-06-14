@@ -93,7 +93,8 @@ class _PassengerRideSummary extends StatelessWidget {
           return PassengerEmptyState(
             icon: Icons.error_outline_rounded,
             title: 'Unable to load dashboard',
-            description: snapshot.error.toString(),
+            description:
+                'Ride dashboard details could not be loaded. Please try again.',
           );
         }
 
@@ -301,7 +302,7 @@ class _PassengerSafetyCard extends StatelessWidget {
     }
 
     if (isVerified) {
-      return 'Your account is verified, profile editing is available, and ride records stay ready for support and reporting.';
+      return 'Your account is verified, profile editing is available, and trip history stays ready for support and reporting.';
     }
 
     if (_isStudent) {
@@ -336,7 +337,8 @@ class _DashboardPaymentMethodsPreview extends StatelessWidget {
           return PassengerEmptyState(
             icon: Icons.error_outline_rounded,
             title: 'Unable to load payments',
-            description: snapshot.error.toString(),
+            description:
+                'Payment methods could not be loaded. Please try again.',
           );
         }
 

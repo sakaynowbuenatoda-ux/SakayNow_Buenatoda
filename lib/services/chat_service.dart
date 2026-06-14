@@ -9,6 +9,10 @@ class ChatService {
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
   static const int maxMessageLength = 1000;
+  static final List<String> _userVisibleConversationTypes = <String>[
+    ConversationType.ride.firestoreValue,
+    ConversationType.support.firestoreValue,
+  ];
 
   final FirebaseFirestore _firestore;
 
@@ -24,16 +28,15 @@ class ChatService {
       return Stream<List<ChatConversation>>.value(<ChatConversation>[]);
     }
 
-    return _conversations
-        .where('participant_ids', arrayContains: normalizedUserId)
-        .snapshots()
-        .map((snapshot) {
-          final conversations = snapshot.docs
-              .map(ChatConversation.fromDocument)
-              .toList();
-          conversations.sort(_compareConversationsByActivity);
-          return conversations;
-        });
+    return _userConversationsQuery(normalizedUserId).snapshots().map((
+      snapshot,
+    ) {
+      final conversations = snapshot.docs
+          .map(ChatConversation.fromDocument)
+          .toList();
+      conversations.sort(_compareConversationsByActivity);
+      return conversations;
+    });
   }
 
   Stream<List<ChatConversation>> watchAdminSupportConversations() {
@@ -134,6 +137,55 @@ class ChatService {
     return conversationId;
   }
 
+  Future<String> ensureAdminConversation({
+    required String currentAdminId,
+    required String currentAdminName,
+    required String targetAdminId,
+    required String targetAdminName,
+  }) async {
+    final normalizedCurrentAdminId = currentAdminId.trim();
+    final normalizedTargetAdminId = targetAdminId.trim();
+    if (normalizedCurrentAdminId.isEmpty || normalizedTargetAdminId.isEmpty) {
+      throw ArgumentError('Admin conversations require two admin accounts.');
+    }
+
+    if (normalizedCurrentAdminId == normalizedTargetAdminId) {
+      throw ArgumentError('Choose another admin to message.');
+    }
+
+    final conversationId =
+        'admin_direct_${normalizedCurrentAdminId}_$normalizedTargetAdminId';
+    final conversationRef = _conversations.doc(conversationId);
+
+    await conversationRef.set(<String, dynamic>{
+      'conversation_id': conversationId,
+      'type': ConversationType.adminDirect.firestoreValue,
+      'main_admin_id': normalizedCurrentAdminId,
+      'target_admin_id': normalizedTargetAdminId,
+      'participant_ids': <String>[
+        normalizedCurrentAdminId,
+        normalizedTargetAdminId,
+      ],
+      'participant_names': <String, String>{
+        normalizedCurrentAdminId: _normalizeName(
+          currentAdminName,
+          fallback: 'Main Admin',
+        ),
+        normalizedTargetAdminId: _normalizeName(
+          targetAdminName,
+          fallback: 'Admin',
+        ),
+      },
+      'participant_roles': <String, String>{
+        normalizedCurrentAdminId: 'admin',
+        normalizedTargetAdminId: 'admin',
+      },
+      'updated_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    return conversationId;
+  }
+
   Future<String> createRideConversationFromBooking(String bookingId) async {
     final bookingSnapshot = await _firestore
         .collection('bookings')
@@ -206,6 +258,7 @@ class ChatService {
     required String senderId,
     required String senderRole,
     required String text,
+    String? clientMessageId,
   }) async {
     final normalizedText = text.trim();
     if (normalizedText.isEmpty) {
@@ -216,6 +269,7 @@ class ChatService {
       throw ArgumentError('Message is too long.');
     }
 
+    final normalizedClientMessageId = clientMessageId?.trim() ?? '';
     final conversationRef = _conversations.doc(conversationId);
     final messageRef = conversationRef.collection('messages').doc();
 
@@ -234,7 +288,7 @@ class ChatService {
         throw StateError('You are not part of this conversation.');
       }
 
-      transaction.set(messageRef, <String, dynamic>{
+      final messageData = <String, dynamic>{
         'message_id': messageRef.id,
         'conversation_id': conversationId,
         'sender_id': senderId,
@@ -243,7 +297,12 @@ class ChatService {
         'type': 'text',
         'read_by': <String, bool>{senderId: true},
         'created_at': FieldValue.serverTimestamp(),
-      });
+      };
+      if (normalizedClientMessageId.isNotEmpty) {
+        messageData['client_message_id'] = normalizedClientMessageId;
+      }
+
+      transaction.set(messageRef, messageData);
 
       final updates = <String, dynamic>{
         'last_message_text': normalizedText,
@@ -311,9 +370,7 @@ class ChatService {
       return;
     }
 
-    final snapshot = await _conversations
-        .where('participant_ids', arrayContains: normalizedUserId)
-        .get();
+    final snapshot = await _userConversationsQuery(normalizedUserId).get();
     final batch = _firestore.batch();
     var hasUpdates = false;
 
@@ -378,6 +435,12 @@ class ChatService {
     final aDate = a.latestActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0);
     final bDate = b.latestActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0);
     return bDate.compareTo(aDate);
+  }
+
+  Query<Map<String, dynamic>> _userConversationsQuery(String userId) {
+    return _conversations
+        .where('participant_ids', arrayContains: userId)
+        .where('type', whereIn: _userVisibleConversationTypes);
   }
 }
 

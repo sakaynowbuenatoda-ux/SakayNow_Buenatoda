@@ -140,24 +140,32 @@ class _ConversationListPageState extends State<ConversationListPage> {
                           'Try searching by user name, role, message, or conversation ID.',
                     )
                   else
-                    ...filteredConversations.asMap().entries.map(
-                      (entry) => Padding(
+                    ...filteredConversations.asMap().entries.map((entry) {
+                      final conversation = entry.value;
+                      final targetUserId = _targetUserIdFor(conversation);
+
+                      return Padding(
+                        key: ValueKey<String>(
+                          'conversation_${conversation.conversationId}',
+                        ),
                         padding: EdgeInsets.only(
                           bottom: entry.key == filteredConversations.length - 1
                               ? 0
                               : 12,
                         ),
                         child: _ConversationCard(
-                          conversation: entry.value,
+                          conversation: conversation,
                           currentUserId: widget.currentUserId,
                           currentUserRole: widget.currentUserRole,
-                          targetProfileFuture: _targetProfileFutureFor(
-                            entry.value,
+                          avatarIdentity:
+                              targetUserId ?? conversation.conversationId,
+                          targetProfileFuture: _profileFutureForTarget(
+                            targetUserId,
                           ),
-                          onTap: () => _openConversation(entry.value),
+                          onTap: () => _openConversation(conversation),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                 ],
               );
             },
@@ -264,9 +272,7 @@ class _ConversationListPageState extends State<ConversationListPage> {
     return searchable.contains(_query);
   }
 
-  Future<ChatParticipantProfile?>? _targetProfileFutureFor(
-    ChatConversation conversation,
-  ) {
+  String? _targetUserIdFor(ChatConversation conversation) {
     if (conversation.isSupport && widget.currentUserRole != 'admin') {
       return null;
     }
@@ -275,13 +281,25 @@ class _ConversationListPageState extends State<ConversationListPage> {
         ? conversation.supportUserId ??
               conversation.otherParticipantId(widget.currentUserId)
         : conversation.otherParticipantId(widget.currentUserId);
-    if (targetUserId == null || targetUserId.trim().isEmpty) {
+    final normalizedTargetUserId = targetUserId?.trim() ?? '';
+    if (normalizedTargetUserId.isEmpty) {
+      return null;
+    }
+
+    return normalizedTargetUserId;
+  }
+
+  Future<ChatParticipantProfile?>? _profileFutureForTarget(
+    String? targetUserId,
+  ) {
+    final normalizedTargetUserId = targetUserId?.trim() ?? '';
+    if (normalizedTargetUserId.isEmpty) {
       return null;
     }
 
     return _profileFutures.putIfAbsent(
-      targetUserId,
-      () => _chatService.loadParticipantProfile(targetUserId),
+      normalizedTargetUserId,
+      () => _chatService.loadParticipantProfile(normalizedTargetUserId),
     );
   }
 }
@@ -468,6 +486,7 @@ class _ConversationCard extends StatelessWidget {
   final ChatConversation conversation;
   final String currentUserId;
   final String currentUserRole;
+  final String avatarIdentity;
   final Future<ChatParticipantProfile?>? targetProfileFuture;
   final VoidCallback onTap;
 
@@ -475,6 +494,7 @@ class _ConversationCard extends StatelessWidget {
     required this.conversation,
     required this.currentUserId,
     required this.currentUserRole,
+    required this.avatarIdentity,
     required this.targetProfileFuture,
     required this.onTap,
   });
@@ -532,8 +552,12 @@ class _ConversationCard extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: _ConversationAvatar(
+                    key: ValueKey<String>(
+                      'conversation_avatar_$avatarIdentity',
+                    ),
                     title: title,
                     isSupport: conversation.isSupport,
+                    avatarIdentity: avatarIdentity,
                     profileFuture: targetProfileFuture,
                   ),
                 ),
@@ -686,11 +710,14 @@ class _UnreadCountBadge extends StatelessWidget {
 class _ConversationAvatar extends StatelessWidget {
   final String title;
   final bool isSupport;
+  final String avatarIdentity;
   final Future<ChatParticipantProfile?>? profileFuture;
 
   const _ConversationAvatar({
+    super.key,
     required this.title,
     required this.isSupport,
+    required this.avatarIdentity,
     required this.profileFuture,
   });
 
@@ -707,10 +734,16 @@ class _ConversationAvatar extends StatelessWidget {
     }
 
     return FutureBuilder<ChatParticipantProfile?>(
+      key: ValueKey<String>('conversation_profile_$avatarIdentity'),
       future: future,
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return fallback;
+        }
+
         final profile = snapshot.data;
         return FirebaseStorageImage(
+          key: ValueKey<String>('conversation_image_$avatarIdentity'),
           imageUrl: profile?.profileImageUrl,
           fallback: fallback,
         );

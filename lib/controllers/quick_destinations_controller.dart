@@ -75,12 +75,16 @@ class QuickDestinationsController extends ChangeNotifier {
     required String address,
     required double latitude,
     required double longitude,
+    String? pinName,
+    String? pinPlaceId,
   }) {
     final color = _customColors[destinations.length % _customColors.length];
     return PassengerQuickDestination(
       id: 'custom_${DateTime.now().microsecondsSinceEpoch}',
       label: label,
       address: address,
+      pinName: pinName,
+      pinPlaceId: pinPlaceId,
       icon: Icons.place_rounded,
       accentColor: color,
       backgroundColor: color.withValues(alpha: 0.12),
@@ -175,6 +179,8 @@ class QuickDestinationsController extends ChangeNotifier {
       'id': destination.id,
       'label': destination.label,
       'address': destination.address,
+      'pin_name': destination.pinName,
+      'pin_place_id': destination.pinPlaceId,
       'icon': _iconKey(destination.icon),
       'custom_emoji': destination.customEmoji,
       'accent_color': destination.accentColor.toARGB32(),
@@ -231,6 +237,15 @@ class QuickDestinationsController extends ChangeNotifier {
       address: (data['address'] as String?)?.trim().isEmpty == true
           ? null
           : data['address'] as String?,
+      pinName: _nullableString(
+        data['pin_name'] ?? data['pinName'] ?? data['name'],
+      ),
+      pinPlaceId: _nullableString(
+        data['pin_place_id'] ??
+            data['pinPlaceId'] ??
+            data['place_id'] ??
+            data['placeId'],
+      ),
       icon: icon,
       customEmoji: (data['custom_emoji'] as String?)?.trim().isEmpty == true
           ? null
@@ -282,6 +297,11 @@ class QuickDestinationsController extends ChangeNotifier {
       'hospital' => Icons.local_hospital_rounded,
       _ => Icons.place_rounded,
     };
+  }
+
+  String? _nullableString(Object? value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? null : text;
   }
 }
 

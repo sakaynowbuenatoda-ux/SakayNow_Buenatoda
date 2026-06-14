@@ -209,7 +209,7 @@ class AdminMonitoringPage extends StatelessWidget {
                         icon: Icons.task_alt_rounded,
                         accentColor: AdminUi.successText,
                         description:
-                            '${monitoring.completedTrips} completed trip record(s) are available for admin review and service tracking.',
+                            '${monitoring.completedTrips} completed trip(s) are available for admin review and service tracking.',
                       ),
                     ],
                   );

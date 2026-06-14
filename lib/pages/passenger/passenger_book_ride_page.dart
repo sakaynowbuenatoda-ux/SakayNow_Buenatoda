@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -7,14 +9,18 @@ import '../../controllers/quick_destinations_controller.dart';
 import '../../core/preferences/app_preferences_controller.dart';
 import '../../models/driver_rating.dart';
 import '../../controllers/ride_tracking_controller.dart';
+import '../../models/fare_estimate.dart';
 import '../../models/place_prediction.dart';
 import '../../models/passenger_payment_method.dart';
 import '../../models/ride_location.dart';
 import '../../models/ride_status.dart';
 import '../../services/geofencing_service.dart';
+import '../../services/booking_action_cooldown_service.dart';
 import '../../services/payment_method_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../services/xendit_checkout_service.dart';
+import '../../utils/user_facing_error_message.dart';
+import '../../widgets/action_cooldown_notice.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/maps/location_pin_picker_sheet.dart';
 import '../../widgets/maps/place_search_field.dart';
@@ -50,6 +56,8 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
   final TextEditingController _pickupController = TextEditingController();
   final TextEditingController _destinationController = TextEditingController();
   final PaymentMethodService _paymentMethodService = PaymentMethodService();
+  final BookingActionCooldownService _bookingCooldownService =
+      BookingActionCooldownService.instance;
   late final BookingMapController _controller;
   late final QuickDestinationsController _quickDestinationsController;
   BookingLocationTarget _activeMapTarget = BookingLocationTarget.dropoff;
@@ -68,6 +76,15 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
     )..load();
     _pickupController.addListener(_rebuildForTypedLocations);
     _destinationController.addListener(_rebuildForTypedLocations);
+    _bookingCooldownService.addListener(_handleBookingCooldownChanged);
+    unawaited(
+      _bookingCooldownService.loadForUser(
+        userId: widget.passengerId,
+        targets: const <BookingActionCooldownTarget>[
+          BookingActionCooldownTarget.passengerBooking,
+        ],
+      ),
+    );
     _initialize();
   }
 
@@ -75,6 +92,7 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
   void dispose() {
     _pickupController.removeListener(_rebuildForTypedLocations);
     _destinationController.removeListener(_rebuildForTypedLocations);
+    _bookingCooldownService.removeListener(_handleBookingCooldownChanged);
     _pickupController.dispose();
     _destinationController.dispose();
     _controller.dispose();
@@ -97,6 +115,15 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
       body: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
+          final bookingCooldownRemaining = _bookingCooldownService.remainingFor(
+            userId: widget.passengerId,
+            target: BookingActionCooldownTarget.passengerBooking,
+          );
+          final isBookingCoolingDown = bookingCooldownRemaining > Duration.zero;
+          final canOpenDriverPanel =
+              !isBookingCoolingDown &&
+              (_controller.canCreateBooking || _hasTypedLocations);
+
           return SafeArea(
             child: SingleChildScrollView(
               padding: PassengerUi.pagePadding(context),
@@ -254,7 +281,7 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Booking now checks drivers within a wider barangay-scale geofence around your pickup.',
+                            'SakayNow checks verified drivers around your pickup and shows farther active drivers when nearby options are limited.',
                             style: MapTextStyles.body,
                           ),
                         ),
@@ -262,12 +289,18 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  if (isBookingCoolingDown) ...<Widget>[
+                    ActionCooldownNotice(
+                      icon: Icons.timer_rounded,
+                      message:
+                          'You can request another ride in ${BookingActionCooldownService.formatRemaining(bookingCooldownRemaining)}.',
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _controller.canCreateBooking
-                          ? _openDriverSelectionPanel
-                          : _hasTypedLocations
+                      onPressed: canOpenDriverPanel
                           ? _openDriverSelectionPanel
                           : null,
                       icon: _controller.isBookingLoading
@@ -281,7 +314,9 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
                             )
                           : const Icon(Icons.two_wheeler_rounded),
                       label: Text(
-                        _controller.isBookingLoading
+                        isBookingCoolingDown
+                            ? 'Wait ${BookingActionCooldownService.formatRemaining(bookingCooldownRemaining)}'
+                            : _controller.isBookingLoading
                             ? 'Requesting Ride...'
                             : 'Request Ride',
                       ),
@@ -301,6 +336,12 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
       _destinationController.text.trim().isNotEmpty;
 
   void _rebuildForTypedLocations() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _handleBookingCooldownChanged() {
     if (mounted) {
       setState(() {});
     }
@@ -356,7 +397,10 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
         return;
       }
 
-      _showSnackBar(error.toString());
+      _showErrorSnackBar(
+        error,
+        fallback: 'Unable to set this pickup. Please choose another place.',
+      );
     }
   }
 
@@ -373,7 +417,10 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
         return;
       }
 
-      _showSnackBar(error.toString());
+      _showErrorSnackBar(
+        error,
+        fallback: 'Unable to set this drop-off. Please choose another place.',
+      );
     }
   }
 
@@ -399,6 +446,7 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
             _controller.currentLatLng ??
             MapConfig.buenavistaCenter,
         myLocationEnabled: _controller.currentLatLng != null,
+        heightFactor: target == BookingLocationTarget.dropoff ? 0.9 : 0.82,
       ),
     );
 
@@ -422,7 +470,10 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
         return;
       }
 
-      _showSnackBar(error.toString());
+      _showErrorSnackBar(
+        error,
+        fallback: 'Unable to set this pinned location. Please try again.',
+      );
       return;
     }
 
@@ -447,7 +498,10 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
         return;
       }
 
-      _showSnackBar(error.toString());
+      _showErrorSnackBar(
+        error,
+        fallback: 'Unable to set this map location. Please try again.',
+      );
       return;
     }
 
@@ -480,7 +534,10 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
       final location = await _controller.selectKnownLocation(
         target: target,
         label: destination.label,
-        address: destination.address ?? destination.label,
+        address: destination.bookingAddress,
+        name: destination.pinDisplayLabel,
+        placeId: destination.pinPlaceId,
+        useLabelAsName: false,
         latitude: destination.latitude,
         longitude: destination.longitude,
       );
@@ -498,11 +555,25 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
         return;
       }
 
-      _showSnackBar(error.toString());
+      _showErrorSnackBar(
+        error,
+        fallback: 'Unable to use this saved destination. Please try again.',
+      );
     }
   }
 
   Future<void> _openDriverSelectionPanel() async {
+    final bookingCooldownRemaining = _bookingCooldownService.remainingFor(
+      userId: widget.passengerId,
+      target: BookingActionCooldownTarget.passengerBooking,
+    );
+    if (bookingCooldownRemaining > Duration.zero) {
+      _showSnackBar(
+        'Please wait ${BookingActionCooldownService.formatRemaining(bookingCooldownRemaining)} before requesting another ride.',
+      );
+      return;
+    }
+
     final ready = await _controller.resolveTypedLocations(
       pickupText: _pickupController.text,
       dropoffText: _destinationController.text,
@@ -575,6 +646,10 @@ class _PassengerBookRidePageState extends State<PassengerBookRidePage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showErrorSnackBar(Object error, {required String fallback}) {
+    _showSnackBar(userFacingErrorMessage(error, fallback: fallback));
   }
 
   PassengerPaymentMethod _selectedPaymentMethod(
@@ -887,8 +962,30 @@ class _DriverSelectionPanel extends StatefulWidget {
 class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
   final GeofencingService _geofencingService = const GeofencingService();
   final XenditCheckoutService _xenditCheckoutService = XenditCheckoutService();
+  final BookingActionCooldownService _bookingCooldownService =
+      BookingActionCooldownService.instance;
   bool _isExpanded = false;
   String? _bookingDriverId;
+
+  @override
+  void initState() {
+    super.initState();
+    _bookingCooldownService.addListener(_handleBookingCooldownChanged);
+    unawaited(
+      _bookingCooldownService.loadForUser(
+        userId: widget.controller.passengerId,
+        targets: const <BookingActionCooldownTarget>[
+          BookingActionCooldownTarget.passengerBooking,
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _bookingCooldownService.removeListener(_handleBookingCooldownChanged);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -913,6 +1010,10 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
           );
           final mapHeight = _isExpanded ? sheetHeight * 0.52 : 220.0;
           final selectedDriver = _selectedBookingDriver(sortedDrivers);
+          final bookingCooldownRemaining = _bookingCooldownService.remainingFor(
+            userId: widget.controller.passengerId,
+            target: BookingActionCooldownTarget.passengerBooking,
+          );
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -981,6 +1082,10 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
                                     widget.controller.initialCameraTarget,
                                 bounds: widget.controller.route?.bounds,
                                 markers: _driverMarkers(sortedDrivers),
+                                profilePins: _driverProfilePins(
+                                  sortedDrivers,
+                                  pickup,
+                                ),
                                 polylines: widget.controller.polylines,
                                 circles: _driverCircles(),
                                 mapType: AppPreferencesController
@@ -1041,8 +1146,11 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
                               'Fare pending',
                           fareNote: widget.controller.fareNotice,
                           paymentMethod: widget.paymentMethod,
+                          bookingCooldownRemaining: bookingCooldownRemaining,
                           distanceLabelBuilder: (driver) =>
                               _distanceLabel(driver, pickup),
+                          fareEstimateBuilder: (driver) =>
+                              widget.controller.fareEstimateForDriver(driver),
                           onBookDriver: _bookDriver,
                           onRequestAnyway: () => _bookDriver(null),
                         ),
@@ -1053,6 +1161,12 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
         },
       ),
     );
+  }
+
+  void _handleBookingCooldownChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   AvailableDriver? _selectedBookingDriver(List<AvailableDriver> drivers) {
@@ -1171,6 +1285,25 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
     return markers;
   }
 
+  List<MapProfilePin> _driverProfilePins(
+    List<AvailableDriver> drivers,
+    LatLng? pickup,
+  ) {
+    return drivers
+        .map(
+          (driver) => MapProfilePin(
+            markerId: MarkerId('driver_${driver.driverId}'),
+            name: driver.fullName,
+            imageUrl: driver.profileImageUrl,
+            detail: pickup == null
+                ? 'Active nearby'
+                : _distanceLabel(driver, pickup),
+            accentColor: PassengerUi.accentBlue,
+          ),
+        )
+        .toList(growable: false);
+  }
+
   Set<Circle> _driverCircles() {
     final pickup = widget.controller.pickupLocation?.latLng;
     if (pickup == null) {
@@ -1209,6 +1342,21 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
   }
 
   Future<void> _bookDriver(AvailableDriver? driver) async {
+    final bookingCooldownRemaining = _bookingCooldownService.remainingFor(
+      userId: widget.controller.passengerId,
+      target: BookingActionCooldownTarget.passengerBooking,
+    );
+    if (bookingCooldownRemaining > Duration.zero) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please wait ${BookingActionCooldownService.formatRemaining(bookingCooldownRemaining)} before requesting another ride.',
+          ),
+        ),
+      );
+      return;
+    }
+
     final driverId = driver?.driverId;
     final paymentMethod = _effectivePaymentMethod(driver);
 
@@ -1233,7 +1381,15 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
         } on Exception catch (error) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Xendit checkout failed: $error')),
+              SnackBar(
+                content: Text(
+                  userFacingErrorMessage(
+                    error,
+                    fallback:
+                        'Online checkout could not open. Please try again or pay with cash.',
+                  ),
+                ),
+              ),
             );
           }
         }
@@ -1279,7 +1435,9 @@ class _DriverPanelContent extends StatelessWidget {
   final String fareLabel;
   final String? fareNote;
   final PassengerPaymentMethod paymentMethod;
+  final Duration bookingCooldownRemaining;
   final String Function(AvailableDriver driver) distanceLabelBuilder;
+  final FareEstimate? Function(AvailableDriver driver) fareEstimateBuilder;
   final ValueChanged<AvailableDriver> onBookDriver;
   final VoidCallback onRequestAnyway;
 
@@ -1293,7 +1451,9 @@ class _DriverPanelContent extends StatelessWidget {
     required this.fareLabel,
     this.fareNote,
     required this.paymentMethod,
+    required this.bookingCooldownRemaining,
     required this.distanceLabelBuilder,
+    required this.fareEstimateBuilder,
     required this.onBookDriver,
     required this.onRequestAnyway,
   });
@@ -1301,6 +1461,7 @@ class _DriverPanelContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasNearbyDrivers = nearbyDrivers.isNotEmpty;
+    final isBookingCoolingDown = bookingCooldownRemaining > Duration.zero;
 
     return SingleChildScrollView(
       child: Column(
@@ -1311,17 +1472,27 @@ class _DriverPanelContent extends StatelessWidget {
             fareNote: fareNote,
             paymentMethod: paymentMethod,
           ),
+          if (isBookingCoolingDown) ...<Widget>[
+            const SizedBox(height: 12),
+            ActionCooldownNotice(
+              icon: Icons.timer_rounded,
+              message:
+                  'Booking is available again in ${BookingActionCooldownService.formatRemaining(bookingCooldownRemaining)}.',
+            ),
+          ],
           const SizedBox(height: 16),
           if (hasNearbyDrivers)
             _DriverListSection(
               title: 'Active drivers nearby',
               subtitle: hasPickup
-                  ? 'Inside the wider booking geofence'
+                  ? 'Closest to your pickup area'
                   : 'Sorted by availability',
               drivers: nearbyDrivers,
               bookingDriverId: bookingDriverId,
               selectedPaymentMethod: paymentMethod,
+              bookingCooldownRemaining: bookingCooldownRemaining,
               distanceLabelBuilder: distanceLabelBuilder,
+              fareEstimateBuilder: fareEstimateBuilder,
               onBookDriver: onBookDriver,
             )
           else
@@ -1329,6 +1500,7 @@ class _DriverPanelContent extends StatelessWidget {
               hasActiveDrivers: otherActiveDrivers.isNotEmpty,
               isBooking: isRequestingAny || isBookingLoading,
               selectedPaymentMethod: paymentMethod,
+              bookingCooldownRemaining: bookingCooldownRemaining,
               onRequestAnyway: onRequestAnyway,
             ),
           if (otherActiveDrivers.isNotEmpty) ...<Widget>[
@@ -1338,12 +1510,14 @@ class _DriverPanelContent extends StatelessWidget {
                   ? 'Other active drivers'
                   : 'Active drivers',
               subtitle: hasNearbyDrivers
-                  ? 'Available but outside the booking geofence'
+                  ? 'Still active, but farther from pickup'
                   : 'Available verified drivers right now',
               drivers: otherActiveDrivers,
               bookingDriverId: bookingDriverId,
               selectedPaymentMethod: paymentMethod,
+              bookingCooldownRemaining: bookingCooldownRemaining,
               distanceLabelBuilder: distanceLabelBuilder,
+              fareEstimateBuilder: fareEstimateBuilder,
               onBookDriver: onBookDriver,
             ),
           ],
@@ -1359,7 +1533,9 @@ class _DriverListSection extends StatelessWidget {
   final List<AvailableDriver> drivers;
   final String? bookingDriverId;
   final PassengerPaymentMethod selectedPaymentMethod;
+  final Duration bookingCooldownRemaining;
   final String Function(AvailableDriver driver) distanceLabelBuilder;
+  final FareEstimate? Function(AvailableDriver driver) fareEstimateBuilder;
   final ValueChanged<AvailableDriver> onBookDriver;
 
   const _DriverListSection({
@@ -1368,7 +1544,9 @@ class _DriverListSection extends StatelessWidget {
     required this.drivers,
     required this.bookingDriverId,
     required this.selectedPaymentMethod,
+    required this.bookingCooldownRemaining,
     required this.distanceLabelBuilder,
+    required this.fareEstimateBuilder,
     required this.onBookDriver,
   });
 
@@ -1385,8 +1563,10 @@ class _DriverListSection extends StatelessWidget {
           _AvailableDriverCard(
             driver: driver,
             distanceLabel: distanceLabelBuilder(driver),
+            fareEstimate: fareEstimateBuilder(driver),
             selectedPaymentMethod: selectedPaymentMethod,
             isBooking: bookingDriverId == driver.driverId,
+            bookingCooldownRemaining: bookingCooldownRemaining,
             onBook: () => onBookDriver(driver),
           ),
           if (driver != drivers.last) const SizedBox(height: 12),
@@ -1496,15 +1676,19 @@ class _SummaryValue extends StatelessWidget {
 class _AvailableDriverCard extends StatelessWidget {
   final AvailableDriver driver;
   final String distanceLabel;
+  final FareEstimate? fareEstimate;
   final PassengerPaymentMethod selectedPaymentMethod;
   final bool isBooking;
+  final Duration bookingCooldownRemaining;
   final VoidCallback onBook;
 
   const _AvailableDriverCard({
     required this.driver,
     required this.distanceLabel,
+    required this.fareEstimate,
     required this.selectedPaymentMethod,
     required this.isBooking,
+    required this.bookingCooldownRemaining,
     required this.onBook,
   });
 
@@ -1513,6 +1697,8 @@ class _AvailableDriverCard extends StatelessWidget {
     final forcesCash =
         selectedPaymentMethod.usesOnlineCheckout &&
         !driver.supportsOnlinePayments;
+    final isCoolingDown = bookingCooldownRemaining > Duration.zero;
+    final pickupSurcharge = fareEstimate?.driverPickupSurcharge ?? 0;
 
     return PassengerSurfaceCard(
       child: Row(
@@ -1625,6 +1811,18 @@ class _AvailableDriverCard extends StatelessWidget {
                             ? PassengerUi.blueSoft
                             : PassengerUi.warningSoft,
                       ),
+                    PassengerStatusChip(
+                      label: 'Fare ${fareEstimate?.amountLabel ?? 'pending'}',
+                      textColor: PassengerUi.accentBlue,
+                      backgroundColor: PassengerUi.blueSoft,
+                    ),
+                    if (pickupSurcharge > 0)
+                      PassengerStatusChip(
+                        label:
+                            '+${fareEstimate!.driverPickupSurchargeLabel} pickup',
+                        textColor: PassengerUi.highlightAmber,
+                        backgroundColor: PassengerUi.warningSoft,
+                      ),
                   ],
                 ),
               ],
@@ -1632,14 +1830,22 @@ class _AvailableDriverCard extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           ElevatedButton(
-            onPressed: isBooking ? null : onBook,
+            onPressed: isBooking || isCoolingDown ? null : onBook,
             child: isBooking
                 ? const SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Text(forcesCash ? 'Cash Only' : 'Book Now'),
+                : Text(
+                    isCoolingDown
+                        ? 'Wait ${BookingActionCooldownService.formatRemaining(bookingCooldownRemaining)}'
+                        : forcesCash
+                        ? 'Cash Only'
+                        : 'Book Now',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
           ),
         ],
       ),
@@ -1651,17 +1857,21 @@ class _NoDriversState extends StatelessWidget {
   final bool hasActiveDrivers;
   final bool isBooking;
   final PassengerPaymentMethod selectedPaymentMethod;
+  final Duration bookingCooldownRemaining;
   final VoidCallback onRequestAnyway;
 
   const _NoDriversState({
     required this.hasActiveDrivers,
     required this.isBooking,
     required this.selectedPaymentMethod,
+    required this.bookingCooldownRemaining,
     required this.onRequestAnyway,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isCoolingDown = bookingCooldownRemaining > Duration.zero;
+
     return PassengerSurfaceCard(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1677,10 +1887,12 @@ class _NoDriversState extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: isBooking ? null : onRequestAnyway,
+              onPressed: isBooking || isCoolingDown ? null : onRequestAnyway,
               icon: const Icon(Icons.radar_rounded),
               label: Text(
-                isBooking
+                isCoolingDown
+                    ? 'Wait ${BookingActionCooldownService.formatRemaining(bookingCooldownRemaining)}'
+                    : isBooking
                     ? 'Requesting...'
                     : selectedPaymentMethod.usesOnlineCheckout
                     ? 'Request Anyway - Cash'
@@ -1794,6 +2006,7 @@ class _SavedDestinationButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           destination.hasCustomEmoji
               ? Text(
@@ -1806,6 +2019,16 @@ class _SavedDestinationButton extends StatelessWidget {
             destination.label,
             style: MapTextStyles.value.copyWith(fontSize: 13),
             textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            destination.locationDisplayLabel,
+            style: MapTextStyles.body.copyWith(fontSize: 11),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

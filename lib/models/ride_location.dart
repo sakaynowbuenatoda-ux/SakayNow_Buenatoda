@@ -18,7 +18,28 @@ class RideLocation {
 
   bool get hasCoordinates => latitude != null && longitude != null;
 
+  String? get googlePinDisplayLabel {
+    final hasGooglePlaceId = placeId?.trim().isNotEmpty == true;
+    if (!hasGooglePlaceId) {
+      return null;
+    }
+
+    final trimmedName = name?.trim();
+    if (trimmedName != null &&
+        trimmedName.isNotEmpty &&
+        trimmedName != 'Pinned location') {
+      return trimmedName;
+    }
+
+    return placeId!.trim();
+  }
+
   String get displayLabel {
+    final googlePinLabel = googlePinDisplayLabel;
+    if (googlePinLabel != null) {
+      return googlePinLabel;
+    }
+
     final trimmedName = name?.trim();
     if (trimmedName != null &&
         trimmedName.isNotEmpty &&
@@ -27,6 +48,36 @@ class RideLocation {
     }
 
     return address;
+  }
+
+  String get publicDisplayLabel {
+    final googlePinLabel = googlePinDisplayLabel;
+    if (googlePinLabel != null) {
+      return googlePinLabel;
+    }
+
+    final trimmedName = name?.trim();
+    final trimmedAddress = address.trim();
+    if (_isPublicAddress(trimmedAddress, trimmedName)) {
+      return trimmedAddress;
+    }
+
+    return coordinateLabel ??
+        (trimmedAddress.isNotEmpty
+            ? trimmedAddress
+            : trimmedName?.isNotEmpty == true
+            ? trimmedName!
+            : 'Unknown location');
+  }
+
+  String? get coordinateLabel {
+    final lat = latitude;
+    final lng = longitude;
+    if (lat == null || lng == null) {
+      return null;
+    }
+
+    return '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
   }
 
   LatLng? get latLng {
@@ -108,5 +159,21 @@ class RideLocation {
     }
 
     return double.tryParse(value?.toString() ?? '');
+  }
+
+  bool _isPublicAddress(String address, String? locationName) {
+    if (address.isEmpty || address == 'Pinned location') {
+      return false;
+    }
+
+    if (hasCoordinates &&
+        placeId?.trim().isNotEmpty != true &&
+        locationName != null &&
+        locationName.isNotEmpty &&
+        address.toLowerCase() == locationName.toLowerCase()) {
+      return false;
+    }
+
+    return true;
   }
 }

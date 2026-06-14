@@ -1,12 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum ConversationType { ride, support }
+enum ConversationType { ride, support, adminDirect }
 
 extension ConversationTypeFirestore on ConversationType {
   String get firestoreValue {
     return switch (this) {
       ConversationType.ride => 'ride',
       ConversationType.support => 'support',
+      ConversationType.adminDirect => 'admin_direct',
     };
   }
 }
@@ -14,6 +15,7 @@ extension ConversationTypeFirestore on ConversationType {
 ConversationType conversationTypeFromString(Object? value) {
   return switch (value?.toString().trim().toLowerCase()) {
     'ride' => ConversationType.ride,
+    'admin_direct' => ConversationType.adminDirect,
     _ => ConversationType.support,
   };
 }
@@ -59,6 +61,7 @@ class ChatConversation {
 
   bool get isSupport => type == ConversationType.support;
   bool get isRide => type == ConversationType.ride;
+  bool get isAdminDirect => type == ConversationType.adminDirect;
   bool get hasMessages => lastMessageText.trim().isNotEmpty;
 
   factory ChatConversation.fromDocument(
@@ -127,6 +130,7 @@ class ChatConversation {
         .firstOrNull;
     final role = otherId == null ? null : participantRoles[otherId];
     return switch (role) {
+      'admin' => 'Admin',
       'driver' => 'Driver',
       'passenger' || 'regular' || 'student' => 'Passenger',
       _ => 'Ride',
@@ -135,7 +139,9 @@ class ChatConversation {
 
   String previewFor(String currentUserId) {
     if (!hasMessages) {
-      return isSupport ? 'No support messages yet.' : 'No ride messages yet.';
+      if (isSupport) return 'No support messages yet.';
+      if (isAdminDirect) return 'No admin messages yet.';
+      return 'No ride messages yet.';
     }
 
     return lastMessageSenderId == currentUserId

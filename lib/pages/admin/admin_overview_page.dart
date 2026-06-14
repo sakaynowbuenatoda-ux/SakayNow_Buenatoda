@@ -585,12 +585,12 @@ class _SystemHealthCard extends StatelessWidget {
     return _ModernOverviewCard(
       icon: Icons.monitor_heart_rounded,
       title: 'System Health',
-      subtitle: 'Realtime admin data streams are online',
+      subtitle: 'Live admin dashboard data is available',
       accentColor: AdminUi.secondary,
       child: Column(
         children: [
           _HealthRow(
-            label: 'Firestore users',
+            label: 'Account profiles',
             value: '${overview.totalUsers} profiles synced',
             color: AdminUi.successText,
           ),

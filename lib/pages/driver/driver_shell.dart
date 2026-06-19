@@ -134,7 +134,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
         _startInactivityTimer();
         return;
       case AppLifecycleState.detached:
-        unawaited(_setDriverUnavailable());
+        unawaited(_setDriverUnavailable(force: true));
         return;
     }
   }
@@ -347,7 +347,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   void _watchDriverAvailability() {
     unawaited(_availabilitySubscription?.cancel());
     _availabilitySubscription = _rideTrackingService
-        .watchDriverAvailability(widget.userId)
+        .watchDriverActiveStatus(widget.userId)
         .listen(
           (isAvailable) {
             if (!mounted) {
@@ -411,8 +411,20 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
           previousStatus != null &&
           previousStatus != RideStatus.cancelled &&
           !ride.wasCancelledBy(widget.userId)) {
+        unawaited(_releaseDriverFromCancelledRide());
         _showRideCancelledNotice(ride);
       }
+    }
+  }
+
+  Future<void> _releaseDriverFromCancelledRide() async {
+    try {
+      await _rideTrackingService.updateDriverAvailability(
+        driverId: widget.userId,
+        isAvailable: true,
+      );
+    } on Exception {
+      // The next successful driver location update will clear stale busy state.
     }
   }
 
@@ -491,11 +503,30 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     }
 
     _isChangingAvailability = true;
-    _cancelBackgroundInactivityTimer();
-    _cancelForegroundIdleTimer();
-    _setActiveState(value);
-
     try {
+      if (!value) {
+        final activeRide = await _rideTrackingService.findDriverActiveRide(
+          widget.userId,
+        );
+        if (activeRide != null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Finish your active booking before going offline.',
+                ),
+              ),
+            );
+          }
+          _setActiveState(true);
+          return;
+        }
+      }
+
+      _cancelBackgroundInactivityTimer();
+      _cancelForegroundIdleTimer();
+      _setActiveState(value);
+
       if (value) {
         final position = await _locationService.getCurrentPosition();
         await _rideTrackingService.updateDriverLocation(
@@ -598,9 +629,27 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     _foregroundIdleTimer = null;
   }
 
-  Future<void> _setDriverUnavailable() async {
+  Future<void> _setDriverUnavailable({bool force = false}) async {
     _cancelBackgroundInactivityTimer();
     _cancelForegroundIdleTimer();
+
+    if (!force) {
+      try {
+        final activeRide = await _rideTrackingService.findDriverActiveRide(
+          widget.userId,
+        );
+        if (activeRide != null) {
+          if (mounted) {
+            _setActiveState(true);
+          } else {
+            _isActiveNotifier.value = true;
+          }
+          return;
+        }
+      } on Exception {
+        // If the active ride check fails, continue with the normal offline path.
+      }
+    }
 
     if (mounted) {
       _setActiveState(false);

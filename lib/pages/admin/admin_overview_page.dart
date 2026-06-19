@@ -368,7 +368,7 @@ class _OverviewMetricPanel extends StatelessWidget {
                 child: AdminMetricCard(
                   label: 'Active drivers',
                   value: overview.activeDrivers.toString(),
-                  helper: 'Ready to accept bookings',
+                  helper: 'Online and trackable',
                   icon: Icons.local_taxi_rounded,
                   accentColor: AdminUi.secondary,
                   onTap: () => AdminNavigation.openActiveDrivers(

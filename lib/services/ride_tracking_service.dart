@@ -133,6 +133,63 @@ class RideTrackingService {
     return doc.id;
   }
 
+  Future<void> updateBookingPaymentMethod({
+    required String bookingId,
+    required String passengerId,
+    required PassengerPaymentMethod paymentMethod,
+  }) async {
+    final bookingRef = _bookings.doc(bookingId);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(bookingRef);
+      final data = snapshot.data() ?? <String, dynamic>{};
+      if (!snapshot.exists) {
+        throw StateError('Booking was not found.');
+      }
+
+      if (_readNullableString(data['passenger_id']) != passengerId) {
+        throw StateError('Only the passenger can change this payment method.');
+      }
+
+      final status = rideStatusFromString(data['status']);
+      if (status.isTerminal) {
+        throw StateError('Payment method can no longer be changed.');
+      }
+
+      final paymentStatus = (data['payment_status'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
+      if (_isPaymentSettled(paymentStatus)) {
+        throw StateError('Payment is already completed.');
+      }
+
+      final updates = _paymentMethodUpdateFields(paymentMethod);
+      final driverId = _readNullableString(data['driver_id']);
+      if (paymentMethod.usesOnlineCheckout && driverId != null) {
+        final driverSnapshot = await transaction.get(_users.doc(driverId));
+        final driverData = driverSnapshot.data() ?? <String, dynamic>{};
+        if (driverData['accepts_online_payments'] != true) {
+          throw StateError('This driver cannot accept cashless payments.');
+        }
+
+        updates.addAll(<String, dynamic>{
+          'driver_payout_status': 'awaiting_payment',
+          'driver_payout_account_id': driverData['default_payout_account_id'],
+          'driver_accepts_online_payments': true,
+        });
+      } else if (!paymentMethod.usesOnlineCheckout) {
+        updates.addAll(<String, dynamic>{
+          'driver_payout_status': null,
+          'driver_payout_account_id': null,
+          'driver_accepts_online_payments': null,
+        });
+      }
+
+      transaction.update(bookingRef, updates);
+    });
+  }
+
   Map<String, dynamic> _bookingFareFields({
     required FareEstimate fareEstimate,
     required FareSettings fareSettings,
@@ -162,6 +219,29 @@ class RideTrackingService {
         'fare_discount_code': fareEstimate.discountCode,
       if (fareEstimate.discountLabel != null)
         'fare_discount_label': fareEstimate.discountLabel,
+    };
+  }
+
+  Map<String, dynamic> _paymentMethodUpdateFields(
+    PassengerPaymentMethod paymentMethod,
+  ) {
+    final paymentMethodType =
+        paymentMethod.xenditPaymentMethodType ??
+        paymentMethod.type.firestoreValue;
+    return <String, dynamic>{
+      'payment_method': paymentMethod.type.firestoreValue,
+      'payment_method_label': paymentMethod.displayLabel,
+      'payment_method_id': paymentMethod.isCash ? null : paymentMethod.id,
+      'payment_method_type': paymentMethodType,
+      'payment_provider': paymentMethod.provider,
+      'payment_status': paymentMethod.usesOnlineCheckout
+          ? 'checkout_pending'
+          : 'cash_pending',
+      'xendit_invoice_id': null,
+      'xendit_checkout_url': null,
+      'checkout_url': null,
+      'xendit_invoice_status': null,
+      'updated_at': FieldValue.serverTimestamp(),
     };
   }
 
@@ -327,15 +407,7 @@ class RideTrackingService {
 
           for (final document in snapshot.docs) {
             final locationData = document.data();
-            if (!_hasCoordinates(locationData)) {
-              continue;
-            }
-
-            if (_isStaleDriverLocation(locationData)) {
-              continue;
-            }
-
-            if (_hasActiveBookingMarker(locationData)) {
+            if (!_isAvailableDriverLocation(locationData)) {
               continue;
             }
 
@@ -401,11 +473,14 @@ class RideTrackingService {
     return _readNullableString(data['active_booking_id']) != null;
   }
 
-  static bool _isAvailableDriverLocation(Map<String, dynamic> data) {
+  static bool _isActiveDriverLocation(Map<String, dynamic> data) {
     return data['is_available'] == true &&
         _hasCoordinates(data) &&
-        !_isStaleDriverLocation(data) &&
-        !_hasActiveBookingMarker(data);
+        !_isStaleDriverLocation(data);
+  }
+
+  static bool _isAvailableDriverLocation(Map<String, dynamic> data) {
+    return _isActiveDriverLocation(data) && !_hasActiveBookingMarker(data);
   }
 
   Stream<Ride?> watchRide(String bookingId) {
@@ -613,6 +688,16 @@ class RideTrackingService {
       }
 
       return _isAvailableDriverLocation(snapshot.data() ?? <String, dynamic>{});
+    });
+  }
+
+  Stream<bool> watchDriverActiveStatus(String driverId) {
+    return _driverLocations.doc(driverId).snapshots().map((snapshot) {
+      if (!snapshot.exists) {
+        return false;
+      }
+
+      return _isActiveDriverLocation(snapshot.data() ?? <String, dynamic>{});
     });
   }
 
@@ -1223,7 +1308,7 @@ class RideTrackingService {
       transaction.update(doc, bookingUpdates);
       transaction.set(driverLocationDoc, <String, dynamic>{
         'driver_id': driverId,
-        'is_available': false,
+        'is_available': true,
         'active_booking_id': bookingId,
         'updated_at': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -1305,8 +1390,15 @@ class RideTrackingService {
           .toString()
           .trim()
           .toLowerCase();
-      final isPaymentSettled =
-          paymentStatus == 'paid' || paymentStatus == 'cash_collected';
+      final isPaymentSettled = _isPaymentSettled(paymentStatus);
+      if (status == RideStatus.completed &&
+          paymentProvider != 'cash' &&
+          !isPaymentSettled) {
+        throw StateError(
+          'Complete checkout before marking this ride completed.',
+        );
+      }
+
       final updates = <String, dynamic>{
         'status': status.firestoreValue,
         'updated_at': FieldValue.serverTimestamp(),
@@ -1348,7 +1440,24 @@ class RideTrackingService {
       }
 
       transaction.update(bookingRef, updates);
+
+      final terminalDriverId = status.isTerminal
+          ? _readNullableString(data['driver_id'])
+          : null;
+      if (terminalDriverId != null && changedBy == terminalDriverId) {
+        transaction
+            .set(_driverLocations.doc(terminalDriverId), <String, dynamic>{
+              'driver_id': terminalDriverId,
+              'is_available': true,
+              'active_booking_id': null,
+              'updated_at': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+      }
     });
+  }
+
+  bool _isPaymentSettled(String paymentStatus) {
+    return paymentStatus == 'paid' || paymentStatus == 'cash_collected';
   }
 
   Future<void> updateDriverAvailability({
@@ -1359,11 +1468,7 @@ class RideTrackingService {
     if (isAvailable) {
       await _ensureVerifiedDriver(driverId);
       final activeRide = await findDriverActiveRide(driverId);
-      if (activeRide != null) {
-        throw StateError(
-          'Finish your active booking before going available again.',
-        );
-      }
+      activeBookingId = activeRide?.bookingId;
     }
 
     await _driverLocations.doc(driverId).set(<String, dynamic>{
@@ -1388,7 +1493,6 @@ class RideTrackingService {
       await _ensureVerifiedDriver(driverId);
       final activeRide = await findDriverActiveRide(driverId);
       if (activeRide != null) {
-        isAvailable = false;
         activeBookingId = activeRide.bookingId;
       }
     }

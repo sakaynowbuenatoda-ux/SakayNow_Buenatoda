@@ -129,9 +129,9 @@ class AdminMonitoringPage extends StatelessWidget {
                               SizedBox(
                                 width: cardWidth,
                                 child: AdminMetricCard(
-                                  label: 'Available drivers',
+                                  label: 'Online drivers',
                                   value: monitoring.availableDrivers.toString(),
-                                  helper: 'Currently ready',
+                                  helper: 'Active and trackable',
                                   icon: Icons.two_wheeler_rounded,
                                   accentColor: AdminUi.secondary,
                                   onTap: () =>
@@ -193,7 +193,7 @@ class AdminMonitoringPage extends StatelessWidget {
                         icon: Icons.health_and_safety_rounded,
                         accentColor: AdminUi.secondary,
                         description:
-                            '${monitoring.availableDrivers} active driver(s) are ready for ${monitoring.queuedTrips} queued request(s). Monitor this ratio during peak hours to avoid passenger wait times.',
+                            '${monitoring.availableDrivers} online driver(s) are trackable while ${monitoring.queuedTrips} request(s) are queued. Monitor this during peak hours to avoid passenger wait times.',
                       ),
                       SizedBox(height: 12),
                       AdminInfoPanel(

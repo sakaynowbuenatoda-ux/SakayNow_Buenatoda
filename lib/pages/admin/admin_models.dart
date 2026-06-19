@@ -258,6 +258,7 @@ class AdminDriverLocationRecord {
   final LatLng latLng;
   final double? heading;
   final DateTime? updatedAt;
+  final String? activeBookingId;
 
   const AdminDriverLocationRecord({
     required this.driverId,
@@ -266,6 +267,7 @@ class AdminDriverLocationRecord {
     required this.latLng,
     required this.heading,
     required this.updatedAt,
+    required this.activeBookingId,
   });
 
   factory AdminDriverLocationRecord.fromData({
@@ -292,8 +294,13 @@ class AdminDriverLocationRecord {
       latLng: LatLng(latitude, longitude),
       heading: _readDouble(locationData['heading']),
       updatedAt: AdminUserRecord._readDate(locationData['updated_at']),
+      activeBookingId: AdminUserRecord._readNullableString(
+        locationData['active_booking_id'],
+      ),
     );
   }
+
+  bool get hasActiveBooking => activeBookingId != null;
 
   static double? _readDouble(Object? value) {
     if (value is num) {

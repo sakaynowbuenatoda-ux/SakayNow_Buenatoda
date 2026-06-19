@@ -12,14 +12,14 @@ import '../../widgets/time_ago_text.dart';
 
 class DriverProfilePage extends StatefulWidget {
   final String driverId;
-  final String passengerId;
+  final String? passengerId;
   final String? bookingId;
   final bool openReviewOnLoad;
 
   const DriverProfilePage({
     super.key,
     required this.driverId,
-    required this.passengerId,
+    this.passengerId,
     this.bookingId,
     this.openReviewOnLoad = false,
   });
@@ -81,6 +81,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
           }
 
           _openInitialReviewIfNeeded(driver);
+          final showPassengerActions = _hasPassengerContext;
 
           return PassengerPageContainer(
             child: Column(
@@ -89,31 +90,33 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                 _DriverHero(driver: driver),
                 const SizedBox(height: 14),
                 _DriverStats(driver: driver),
-                const SizedBox(height: 14),
-                FutureBuilder<Ride?>(
-                  key: ValueKey(_reviewEligibilityRefresh),
-                  future: _pendingReviewRideFutureFor(driver),
-                  builder: (context, snapshot) {
-                    final isCheckingReview =
-                        snapshot.connectionState == ConnectionState.waiting;
-                    final pendingReviewRide = snapshot.data;
+                SizedBox(height: showPassengerActions ? 14 : 18),
+                if (showPassengerActions) ...<Widget>[
+                  FutureBuilder<Ride?>(
+                    key: ValueKey(_reviewEligibilityRefresh),
+                    future: _pendingReviewRideFutureFor(driver),
+                    builder: (context, snapshot) {
+                      final isCheckingReview =
+                          snapshot.connectionState == ConnectionState.waiting;
+                      final pendingReviewRide = snapshot.data;
 
-                    return _DriverActions(
-                      isSaving: _isSaving,
-                      isCheckingReview: isCheckingReview,
-                      canAddReview: pendingReviewRide != null,
-                      onMessage: () => _handleMessage(driver),
-                      onAddReview: pendingReviewRide == null
-                          ? null
-                          : () => _handleAddReview(
-                              driver,
-                              pendingReviewRide: pendingReviewRide,
-                            ),
-                      onReport: () => _handleReport(driver),
-                    );
-                  },
-                ),
-                const SizedBox(height: 18),
+                      return _DriverActions(
+                        isSaving: _isSaving,
+                        isCheckingReview: isCheckingReview,
+                        canAddReview: pendingReviewRide != null,
+                        onMessage: () => _handleMessage(driver),
+                        onAddReview: pendingReviewRide == null
+                            ? null
+                            : () => _handleAddReview(
+                                driver,
+                                pendingReviewRide: pendingReviewRide,
+                              ),
+                        onReport: () => _handleReport(driver),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                ],
                 _ReviewsPanel(
                   driverId: driver.driverId,
                   expanded: _reviewsExpanded,
@@ -129,14 +132,26 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
     );
   }
 
+  String? get _passengerId {
+    final passengerId = widget.passengerId?.trim();
+    return passengerId == null || passengerId.isEmpty ? null : passengerId;
+  }
+
+  bool get _hasPassengerContext => _passengerId != null;
+
   Future<Ride?> _pendingReviewRideFutureFor(DriverReviewProfile driver) {
+    final passengerId = _passengerId;
+    if (passengerId == null) {
+      return Future<Ride?>.value(null);
+    }
+
     final key =
-        '${driver.driverId}:${widget.passengerId}:${widget.bookingId ?? ''}:$_reviewEligibilityRefresh';
+        '${driver.driverId}:$passengerId:${widget.bookingId ?? ''}:$_reviewEligibilityRefresh';
     if (_pendingReviewFutureKey != key) {
       _pendingReviewFutureKey = key;
       _pendingReviewFuture = _rideTrackingService
           .findPendingPassengerDriverReviewRide(
-            passengerId: widget.passengerId,
+            passengerId: passengerId,
             driverId: driver.driverId,
             preferredBookingId: widget.bookingId,
           );
@@ -149,10 +164,16 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
     DriverReviewProfile driver, {
     Ride? pendingReviewRide,
   }) async {
+    final passengerId = _passengerId;
+    if (passengerId == null) {
+      _showSnackBar('Open this profile from a completed trip to add a review.');
+      return;
+    }
+
     final ride =
         pendingReviewRide ??
         await _rideTrackingService.findPendingPassengerDriverReviewRide(
-          passengerId: widget.passengerId,
+          passengerId: passengerId,
           driverId: driver.driverId,
           preferredBookingId: widget.bookingId,
         );
@@ -178,7 +199,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
     try {
       await _rideTrackingService.savePassengerDriverReview(
         bookingId: ride.bookingId,
-        passengerId: widget.passengerId,
+        passengerId: passengerId,
         driverId: driver.driverId,
         rating: draft.rating,
         comment: draft.comment,
@@ -200,8 +221,9 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
   }
 
   Future<void> _handleMessage(DriverReviewProfile driver) async {
+    final passengerId = _passengerId;
     final bookingId = widget.bookingId;
-    if (bookingId == null || bookingId.trim().isEmpty) {
+    if (passengerId == null || bookingId == null || bookingId.trim().isEmpty) {
       _showSnackBar('Open this profile from a trip to message the driver.');
       return;
     }
@@ -217,7 +239,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
         MaterialPageRoute(
           builder: (_) => ChatPage(
             conversationId: conversationId,
-            currentUserId: widget.passengerId,
+            currentUserId: passengerId,
             currentUserRole: 'passenger',
             title: driver.fullName,
             subtitle: 'Driver',
@@ -232,7 +254,9 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
   }
 
   void _openInitialReviewIfNeeded(DriverReviewProfile driver) {
-    if (!widget.openReviewOnLoad || _openedInitialReview) {
+    if (!_hasPassengerContext ||
+        !widget.openReviewOnLoad ||
+        _openedInitialReview) {
       return;
     }
 
@@ -245,8 +269,9 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
   }
 
   Future<void> _handleReport(DriverReviewProfile driver) async {
+    final passengerId = _passengerId;
     final bookingId = widget.bookingId;
-    if (bookingId == null || bookingId.trim().isEmpty) {
+    if (passengerId == null || bookingId == null || bookingId.trim().isEmpty) {
       _showSnackBar('Open this profile from a trip to report a driver.');
       return;
     }
@@ -260,7 +285,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
     try {
       await _rideTrackingService.reportDriver(
         bookingId: bookingId,
-        passengerId: widget.passengerId,
+        passengerId: passengerId,
         driverId: driver.driverId,
         reason: draft.reason,
         details: draft.details,

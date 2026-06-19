@@ -146,6 +146,123 @@ void main() {
       expect(data['checkout_url'], isNull);
     });
 
+    test('changes unpaid bookings from cash to Xendit checkout', () async {
+      const passengerId = 'passenger-1';
+      await firestore.collection('users').doc(passengerId).set(
+        <String, dynamic>{
+          'user_id': passengerId,
+          'role': 'passenger',
+          'is_verified': true,
+        },
+      );
+
+      final bookingId = await service.createBooking(
+        passengerId: passengerId,
+        pickupLocation: const RideLocation(address: 'Pickup'),
+        dropoffLocation: const RideLocation(address: 'Dropoff'),
+        route: const RouteResult(
+          encodedPolyline: '',
+          polylinePoints: <LatLng>[],
+          distanceMeters: 1200,
+          durationSeconds: 360,
+          distanceText: '1.2 km',
+          durationText: '6 mins',
+        ),
+      );
+
+      await service.updateBookingPaymentMethod(
+        bookingId: bookingId,
+        passengerId: passengerId,
+        paymentMethod: const PassengerPaymentMethod(
+          id: 'card-1',
+          userId: passengerId,
+          type: PassengerPaymentMethodType.card,
+          label: 'Bank Card',
+          accountName: 'Ana Reyes',
+          accountReference: 'Xendit checkout',
+          isDefault: false,
+          createdAt: null,
+          updatedAt: null,
+        ),
+      );
+
+      final booking =
+          (await firestore.collection('bookings').doc(bookingId).get()).data()!;
+
+      expect(booking['payment_method'], 'card');
+      expect(booking['payment_method_label'], 'Bank Card');
+      expect(booking['payment_method_id'], 'card-1');
+      expect(booking['payment_method_type'], 'CREDIT_CARD');
+      expect(booking['payment_provider'], 'xendit');
+      expect(booking['payment_status'], 'checkout_pending');
+      expect(booking['xendit_invoice_id'], isNull);
+      expect(booking['checkout_url'], isNull);
+    });
+
+    test('changes unpaid Xendit bookings back to cash', () async {
+      const passengerId = 'passenger-1';
+      await firestore.collection('users').doc(passengerId).set(
+        <String, dynamic>{
+          'user_id': passengerId,
+          'role': 'passenger',
+          'is_verified': true,
+        },
+      );
+
+      final bookingId = await service.createBooking(
+        passengerId: passengerId,
+        pickupLocation: const RideLocation(address: 'Pickup'),
+        dropoffLocation: const RideLocation(address: 'Dropoff'),
+        route: const RouteResult(
+          encodedPolyline: '',
+          polylinePoints: <LatLng>[],
+          distanceMeters: 1200,
+          durationSeconds: 360,
+          distanceText: '1.2 km',
+          durationText: '6 mins',
+        ),
+        paymentMethod: const PassengerPaymentMethod(
+          id: 'gcash-1',
+          userId: passengerId,
+          type: PassengerPaymentMethodType.gcash,
+          label: 'GCash',
+          accountName: 'Ana Reyes',
+          accountReference: 'Xendit checkout',
+          isDefault: false,
+          createdAt: null,
+          updatedAt: null,
+        ),
+      );
+      await firestore
+          .collection('bookings')
+          .doc(bookingId)
+          .update(<String, dynamic>{
+            'xendit_invoice_id': 'invoice-1',
+            'xendit_checkout_url': 'https://checkout.test/invoice-1',
+            'checkout_url': 'https://checkout.test/invoice-1',
+            'xendit_invoice_status': 'PENDING',
+          });
+
+      await service.updateBookingPaymentMethod(
+        bookingId: bookingId,
+        passengerId: passengerId,
+        paymentMethod: PassengerPaymentMethod.cash(userId: passengerId),
+      );
+
+      final booking =
+          (await firestore.collection('bookings').doc(bookingId).get()).data()!;
+
+      expect(booking['payment_method'], 'cash');
+      expect(booking['payment_method_label'], 'Cash');
+      expect(booking['payment_method_id'], isNull);
+      expect(booking['payment_method_type'], 'cash');
+      expect(booking['payment_provider'], 'cash');
+      expect(booking['payment_status'], 'cash_pending');
+      expect(booking['xendit_invoice_id'], isNull);
+      expect(booking['xendit_checkout_url'], isNull);
+      expect(booking['checkout_url'], isNull);
+    });
+
     test(
       'adds preferred driver pickup surcharge when creating booking',
       () async {
@@ -210,7 +327,7 @@ void main() {
     );
 
     test(
-      'accepting a booking assigns the driver and removes availability',
+      'accepting a booking keeps the driver active but marks them busy',
       () async {
         const passengerId = 'passenger-1';
         const driverId = 'driver-1';
@@ -274,7 +391,7 @@ void main() {
         expect(booking['driver_id'], driverId);
         expect(booking['status'], RideStatus.accepted.firestoreValue);
         expect(booking['driver_location'], isA<Map>());
-        expect(location['is_available'], false);
+        expect(location['is_available'], true);
         expect(location['active_booking_id'], bookingRef.id);
       },
     );
@@ -347,6 +464,58 @@ void main() {
       },
     );
 
+    test('completing a ride clears the driver busy marker', () async {
+      const passengerId = 'passenger-1';
+      const driverId = 'driver-1';
+      const bookingId = 'booking-1';
+
+      await _seedVerifiedDriver(firestore, driverId);
+      await firestore
+          .collection('driver_locations')
+          .doc(driverId)
+          .set(<String, dynamic>{
+            'driver_id': driverId,
+            'latitude': 10.083,
+            'longitude': 124.178,
+            'geopoint': const GeoPoint(10.083, 124.178),
+            'is_available': true,
+            'active_booking_id': bookingId,
+            'updated_at': Timestamp.now(),
+          });
+      await firestore
+          .collection('bookings')
+          .doc(bookingId)
+          .set(<String, dynamic>{
+            'booking_id': bookingId,
+            'passenger_id': passengerId,
+            'driver_id': driverId,
+            'status': RideStatus.inProgress.firestoreValue,
+            'pickup_location': const RideLocation(
+              address: 'Pickup',
+            ).toFirestore(),
+            'dropoff_location': const RideLocation(
+              address: 'Dropoff',
+            ).toFirestore(),
+            'payment_provider': 'cash',
+            'payment_status': 'cash_pending',
+            'created_at': Timestamp.now(),
+            'updated_at': Timestamp.now(),
+          });
+
+      await service.updateRideStatus(
+        bookingId: bookingId,
+        status: RideStatus.completed,
+        changedBy: driverId,
+      );
+
+      final location =
+          (await firestore.collection('driver_locations').doc(driverId).get())
+              .data()!;
+
+      expect(location['is_available'], true);
+      expect(location['active_booking_id'], isNull);
+    });
+
     test('completed cash bookings are marked cash collected', () async {
       const passengerId = 'passenger-1';
       await firestore.collection('users').doc(passengerId).set(
@@ -384,6 +553,110 @@ void main() {
       expect(booking['payment_status'], 'cash_collected');
       expect(booking['payment_confirmed_by'], 'driver-1');
       expect(booking['payment_cancelled_by'], isNull);
+    });
+
+    test('cashless bookings cannot complete before checkout is paid', () async {
+      const passengerId = 'passenger-1';
+      await firestore.collection('users').doc(passengerId).set(
+        <String, dynamic>{
+          'user_id': passengerId,
+          'role': 'passenger',
+          'is_verified': true,
+        },
+      );
+
+      final bookingId = await service.createBooking(
+        passengerId: passengerId,
+        pickupLocation: const RideLocation(address: 'Pickup'),
+        dropoffLocation: const RideLocation(address: 'Dropoff'),
+        route: const RouteResult(
+          encodedPolyline: '',
+          polylinePoints: <LatLng>[],
+          distanceMeters: 1200,
+          durationSeconds: 360,
+          distanceText: '1.2 km',
+          durationText: '6 mins',
+        ),
+        paymentMethod: const PassengerPaymentMethod(
+          id: 'card-1',
+          userId: passengerId,
+          type: PassengerPaymentMethodType.card,
+          label: 'Bank Card',
+          accountName: 'Ana Reyes',
+          accountReference: 'Xendit checkout',
+          isDefault: false,
+          createdAt: null,
+          updatedAt: null,
+        ),
+      );
+
+      await expectLater(
+        service.updateRideStatus(
+          bookingId: bookingId,
+          status: RideStatus.completed,
+          changedBy: 'driver-1',
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      final booking =
+          (await firestore.collection('bookings').doc(bookingId).get()).data()!;
+
+      expect(booking['status'], RideStatus.searching.firestoreValue);
+      expect(booking['payment_status'], 'checkout_pending');
+      expect(booking['payment_confirmed_by'], isNull);
+    });
+
+    test('paid cashless bookings can complete', () async {
+      const passengerId = 'passenger-1';
+      await firestore.collection('users').doc(passengerId).set(
+        <String, dynamic>{
+          'user_id': passengerId,
+          'role': 'passenger',
+          'is_verified': true,
+        },
+      );
+
+      final bookingId = await service.createBooking(
+        passengerId: passengerId,
+        pickupLocation: const RideLocation(address: 'Pickup'),
+        dropoffLocation: const RideLocation(address: 'Dropoff'),
+        route: const RouteResult(
+          encodedPolyline: '',
+          polylinePoints: <LatLng>[],
+          distanceMeters: 1200,
+          durationSeconds: 360,
+          distanceText: '1.2 km',
+          durationText: '6 mins',
+        ),
+        paymentMethod: const PassengerPaymentMethod(
+          id: 'gcash-1',
+          userId: passengerId,
+          type: PassengerPaymentMethodType.gcash,
+          label: 'GCash',
+          accountName: 'Ana Reyes',
+          accountReference: 'Xendit checkout',
+          isDefault: false,
+          createdAt: null,
+          updatedAt: null,
+        ),
+      );
+      await firestore.collection('bookings').doc(bookingId).update(
+        <String, dynamic>{'payment_status': 'paid'},
+      );
+
+      await service.updateRideStatus(
+        bookingId: bookingId,
+        status: RideStatus.completed,
+        changedBy: 'driver-1',
+      );
+
+      final booking =
+          (await firestore.collection('bookings').doc(bookingId).get()).data()!;
+
+      expect(booking['status'], RideStatus.completed.firestoreValue);
+      expect(booking['payment_status'], 'paid');
+      expect(booking['payment_confirmed_by'], isNull);
     });
 
     test('cancelled cash bookings are not marked cash collected', () async {
@@ -424,6 +697,61 @@ void main() {
       expect(booking['payment_cancelled_by'], passengerId);
       expect(booking['payment_confirmed_by'], isNull);
     });
+
+    test(
+      'driver availability cleanup clears busy marker after cancellation',
+      () async {
+        const passengerId = 'passenger-1';
+        const driverId = 'driver-1';
+        const bookingId = 'booking-1';
+
+        await _seedVerifiedDriver(firestore, driverId);
+        await firestore
+            .collection('driver_locations')
+            .doc(driverId)
+            .set(<String, dynamic>{
+              'driver_id': driverId,
+              'latitude': 10.083,
+              'longitude': 124.178,
+              'geopoint': const GeoPoint(10.083, 124.178),
+              'is_available': true,
+              'active_booking_id': bookingId,
+              'updated_at': Timestamp.now(),
+            });
+        await firestore
+            .collection('bookings')
+            .doc(bookingId)
+            .set(<String, dynamic>{
+              'booking_id': bookingId,
+              'passenger_id': passengerId,
+              'driver_id': driverId,
+              'status': RideStatus.cancelled.firestoreValue,
+              'cancelled_by': passengerId,
+              'pickup_location': const RideLocation(
+                address: 'Pickup',
+              ).toFirestore(),
+              'dropoff_location': const RideLocation(
+                address: 'Dropoff',
+              ).toFirestore(),
+              'payment_provider': 'cash',
+              'payment_status': 'cash_cancelled',
+              'created_at': Timestamp.now(),
+              'updated_at': Timestamp.now(),
+            });
+
+        await service.updateDriverAvailability(
+          driverId: driverId,
+          isAvailable: true,
+        );
+
+        final location =
+            (await firestore.collection('driver_locations').doc(driverId).get())
+                .data()!;
+
+        expect(location['is_available'], true);
+        expect(location['active_booking_id'], isNull);
+      },
+    );
 
     test('unverified drivers cannot go available', () async {
       const driverId = 'driver-1';
@@ -498,6 +826,79 @@ void main() {
         expect(drivers.single.isVerified, isTrue);
       },
     );
+
+    test('hides busy active drivers from passenger discovery', () async {
+      const driverId = 'driver-1';
+      await firestore.collection('users').doc(driverId).set(<String, dynamic>{
+        'user_id': driverId,
+        'first_name': 'Ben',
+        'last_name': 'Santos',
+        'role': 'driver',
+        'is_verified': true,
+        'is_active': true,
+        'is_banned': false,
+      });
+      await firestore
+          .collection('driver_locations')
+          .doc(driverId)
+          .set(<String, dynamic>{
+            'driver_id': driverId,
+            'latitude': 10.083,
+            'longitude': 124.178,
+            'geopoint': const GeoPoint(10.083, 124.178),
+            'is_available': true,
+            'active_booking_id': 'booking-1',
+            'updated_at': Timestamp.now(),
+          });
+
+      final drivers = await service.watchAvailableDrivers().first;
+      final activeStatus = await service
+          .watchDriverActiveStatus(driverId)
+          .first;
+      final requestAvailability = await service
+          .watchDriverAvailability(driverId)
+          .first;
+
+      expect(drivers, isEmpty);
+      expect(activeStatus, isTrue);
+      expect(requestAvailability, isFalse);
+    });
+
+    test('busy active drivers cannot accept another booking', () async {
+      const passengerId = 'passenger-1';
+      const driverId = 'driver-1';
+      const bookingId = 'booking-1';
+
+      await _seedVerifiedDriver(firestore, driverId);
+      await firestore
+          .collection('driver_locations')
+          .doc(driverId)
+          .set(<String, dynamic>{
+            'driver_id': driverId,
+            'latitude': 10.083,
+            'longitude': 124.178,
+            'geopoint': const GeoPoint(10.083, 124.178),
+            'is_available': true,
+            'active_booking_id': 'active-booking',
+            'updated_at': Timestamp.now(),
+          });
+      await _seedOpenBooking(
+        firestore,
+        bookingId: bookingId,
+        passengerId: passengerId,
+      );
+
+      await expectLater(
+        service.acceptBooking(bookingId: bookingId, driverId: driverId),
+        throwsA(isA<StateError>()),
+      );
+
+      final booking =
+          (await firestore.collection('bookings').doc(bookingId).get()).data()!;
+
+      expect(booking['driver_id'], isNull);
+      expect(booking['status'], RideStatus.searching.firestoreValue);
+    });
 
     test(
       'open booking stream rechecks requests when driver goes available',

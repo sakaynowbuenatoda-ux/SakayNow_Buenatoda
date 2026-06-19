@@ -376,6 +376,61 @@ service cloud.firestore {
         && hasNoRatingAggregateChanges();
     }
 
+    function driverPayoutSyncAllowedKeys() {
+      return [
+        'accepts_online_payments',
+        'online_payment_methods',
+        'default_payout_account_id',
+        'updated_at'
+      ];
+    }
+
+    function hasValidOnlinePaymentMethods(paymentMethods) {
+      return paymentMethods is list
+        && paymentMethods.size() <= 3
+        && paymentMethods.hasOnly(['gcash', 'maya', 'bank']);
+    }
+
+    function hasValidDefaultPayoutAccountId(userData) {
+      return !userData.keys().hasAny(['default_payout_account_id'])
+        || userData.default_payout_account_id == null
+        || userData.default_payout_account_id is string;
+    }
+
+    function isValidDriverPayoutSyncUpdate(userId) {
+      return isSelf(userId)
+        && isDriverRole(resource.data)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly(driverPayoutSyncAllowedKeys())
+        && request.resource.data.accepts_online_payments is bool
+        && hasValidOnlinePaymentMethods(
+          request.resource.data.online_payment_methods
+        )
+        && hasValidDefaultPayoutAccountId(request.resource.data)
+        && request.resource.data.updated_at == request.time;
+    }
+
+    function payoutAccountOwnerId(accountData) {
+      return accountData.get('driver_id', accountData.get('user_id', ''));
+    }
+
+    function isOwnedDriverPayoutAccount(accountData, userId) {
+      return payoutAccountOwnerId(accountData) == userId;
+    }
+
+    function isValidPayoutDefaultToggle(userId) {
+      return isSelf(userId)
+        && isDriverRole(signedInUser())
+        && isOwnedDriverPayoutAccount(resource.data, userId)
+        && isOwnedDriverPayoutAccount(request.resource.data, userId)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly(['is_default', 'updated_at'])
+        && request.resource.data.is_default is bool
+        && request.resource.data.updated_at == request.time;
+    }
+
     function reviewAllowedKeys() {
       return [
         'review_id',
@@ -644,6 +699,8 @@ service cloud.firestore {
       allow update: if !isAdminRole(resource.data)
         && isValidQuickDestinationsUpdate(userId);
       allow update: if !isAdminRole(resource.data)
+        && isValidDriverPayoutSyncUpdate(userId);
+      allow update: if !isAdminRole(resource.data)
         && isSelf(userId)
         && request.resource.data.user_id == resource.data.user_id
         && request.resource.data.email == resource.data.email
@@ -694,9 +751,10 @@ service cloud.firestore {
           && request.resource.data.account_name is string
           && request.resource.data.account_reference is string
           && request.resource.data.bank_name is string;
+        allow update: if isValidPayoutDefaultToggle(userId);
         allow update: if isSelf(userId)
           && isDriverRole(signedInUser())
-          && resource.data.driver_id == userId
+          && isOwnedDriverPayoutAccount(resource.data, userId)
           && request.resource.data.driver_id == userId
           && request.resource.data.user_id == userId
           && request.resource.data.type in ['gcash', 'maya', 'bank']

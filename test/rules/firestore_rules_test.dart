@@ -98,6 +98,36 @@ void main() {
       expect(rules, contains('&& isValidQuickDestinationsUpdate(userId);'));
     });
 
+    test('allow drivers to sync payout account metadata narrowly', () {
+      expect(rules, contains('function isValidDriverPayoutSyncUpdate(userId)'));
+      expect(rules, contains('function driverPayoutSyncAllowedKeys()'));
+      expect(rules, contains("'accepts_online_payments'"));
+      expect(rules, contains("'online_payment_methods'"));
+      expect(rules, contains("'default_payout_account_id'"));
+      expect(rules, contains('.hasOnly(driverPayoutSyncAllowedKeys())'));
+      expect(
+        rules,
+        contains('request.resource.data.accepts_online_payments is bool'),
+      );
+      expect(
+        rules,
+        contains("paymentMethods.hasOnly(['gcash', 'maya', 'bank'])"),
+      );
+      expect(rules, contains('&& isValidDriverPayoutSyncUpdate(userId);'));
+    });
+
+    test('allow driver-owned payout account default toggles', () {
+      expect(rules, contains('match /payout_accounts/{accountId}'));
+      expect(rules, contains('function isValidPayoutDefaultToggle(userId)'));
+      expect(rules, contains('function isOwnedDriverPayoutAccount'));
+      expect(rules, contains(".hasOnly(['is_default', 'updated_at'])"));
+      expect(rules, contains('request.resource.data.is_default is bool'));
+      expect(
+        rules,
+        contains('allow update: if isValidPayoutDefaultToggle(userId);'),
+      );
+    });
+
     test('tolerate legacy user records in driver gates', () {
       expect(rules, contains("function userRole(userData)"));
       expect(rules, contains("userData.get('role', '')"));

@@ -56,7 +56,7 @@ class AdminService {
 
           for (final document in snapshot.docs) {
             final locationData = document.data();
-            if (!_isLiveAvailableDriverLocation(locationData)) {
+            if (!_isLiveActiveDriverLocation(locationData)) {
               continue;
             }
 
@@ -98,7 +98,7 @@ class AdminService {
 
           for (final document in snapshot.docs) {
             final locationData = document.data();
-            if (!_isLiveAvailableDriverLocation(locationData)) {
+            if (!_isLiveActiveDriverLocation(locationData)) {
               continue;
             }
 
@@ -391,10 +391,9 @@ class AdminService {
     });
   }
 
-  static bool _isLiveAvailableDriverLocation(Map<String, dynamic> data) {
+  static bool _isLiveActiveDriverLocation(Map<String, dynamic> data) {
     return data['is_available'] == true &&
         _hasCoordinates(data) &&
-        !_hasActiveBookingMarker(data) &&
         !_isStaleLocation(data);
   }
 
@@ -413,11 +412,6 @@ class AdminService {
   static bool _hasCoordinates(Map<String, dynamic> data) {
     return data['geopoint'] is GeoPoint ||
         (data['latitude'] != null && data['longitude'] != null);
-  }
-
-  static bool _hasActiveBookingMarker(Map<String, dynamic> data) {
-    final activeBookingId = data['active_booking_id']?.toString().trim() ?? '';
-    return activeBookingId.isNotEmpty && activeBookingId != 'null';
   }
 
   static bool _isStaleLocation(Map<String, dynamic> data) {

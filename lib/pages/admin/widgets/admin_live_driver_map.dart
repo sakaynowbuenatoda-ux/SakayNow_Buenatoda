@@ -77,7 +77,7 @@ class _AdminLiveDriverMapContent extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       hasDrivers
-                          ? '${drivers.length} active driver${drivers.length == 1 ? '' : 's'} currently visible'
+                          ? '${drivers.length} online driver${drivers.length == 1 ? '' : 's'} currently visible'
                           : 'Buenavista, Bohol is ready for active driver locations',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -139,9 +139,15 @@ class _AdminLiveDriverMapContent extends StatelessWidget {
         position: driver.latLng,
         infoWindow: InfoWindow(
           title: driver.fullName,
-          snippet: 'Active driver',
+          snippet: driver.hasActiveBooking
+              ? 'On active ride'
+              : 'Ready for requests',
         ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        icon: BitmapDescriptor.defaultMarkerWithHue(
+          driver.hasActiveBooking
+              ? BitmapDescriptor.hueOrange
+              : BitmapDescriptor.hueGreen,
+        ),
         flat: driver.heading != null,
         rotation: driver.heading ?? 0,
       );
@@ -157,8 +163,12 @@ class _AdminLiveDriverMapContent extends StatelessWidget {
             markerId: MarkerId('admin_driver_${driver.driverId}'),
             name: driver.fullName,
             imageUrl: driver.profileImageUrl,
-            detail: 'Active driver',
-            accentColor: AdminUi.secondary,
+            detail: driver.hasActiveBooking
+                ? 'On active ride'
+                : 'Ready for requests',
+            accentColor: driver.hasActiveBooking
+                ? AdminUi.highlightAmber
+                : AdminUi.secondary,
           ),
         )
         .toList(growable: false);

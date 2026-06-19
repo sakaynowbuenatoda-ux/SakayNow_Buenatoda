@@ -842,7 +842,7 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
       case AdminRecordListType.registeredUsers:
         return 'Passenger and driver accounts';
       case AdminRecordListType.activeDrivers:
-        return 'Currently available for bookings';
+        return 'Currently online or on active rides';
       case AdminRecordListType.studentAccounts:
         return 'Passenger accounts marked as students';
       case AdminRecordListType.completedTrips:

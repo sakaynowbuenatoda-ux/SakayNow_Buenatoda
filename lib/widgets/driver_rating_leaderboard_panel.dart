@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
 import '../services/ride_tracking_service.dart';
+import '../pages/profile/driver_profile.dart';
 import 'firebase_storage_image.dart';
 import 'passenger_widgets/passenger_ui.dart';
 
@@ -117,12 +118,21 @@ class DriverRatingLeaderboardPanel extends StatelessWidget {
                   fallbackRank: entry.key + 1,
                   isHighlighted: entry.value.driverId == highlightDriverId,
                   showWeightedScore: showWeightedScore,
+                  onTap: () => _openDriverProfile(context, entry.value),
                 ),
               ),
             ),
           ],
         );
       },
+    );
+  }
+
+  void _openDriverProfile(BuildContext context, DriverReviewProfile driver) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DriverProfilePage(driverId: driver.driverId),
+      ),
     );
   }
 }
@@ -208,12 +218,14 @@ class _DriverLeaderboardTile extends StatelessWidget {
   final int fallbackRank;
   final bool isHighlighted;
   final bool showWeightedScore;
+  final VoidCallback onTap;
 
   const _DriverLeaderboardTile({
     required this.driver,
     required this.fallbackRank,
     required this.isHighlighted,
     required this.showWeightedScore,
+    required this.onTap,
   });
 
   @override
@@ -222,79 +234,86 @@ class _DriverLeaderboardTile extends StatelessWidget {
     final accent = _rankColor(rank);
     final compact = PassengerUi.isCompactWidth(context);
 
-    return PassengerSurfaceCard(
-      padding: EdgeInsets.all(compact ? 12 : 14),
-      child: Row(
-        children: <Widget>[
-          _RankBadge(
-            rank: rank,
-            fallbackLabel: driver.displayBadge,
-            color: accent,
-            isHighlighted: isHighlighted,
-          ),
-          SizedBox(width: compact ? 10 : 12),
-          _DriverAvatar(driver: driver, color: accent),
-          SizedBox(width: compact ? 10 : 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: PassengerUi.cardRadius,
+        onTap: onTap,
+        child: PassengerSurfaceCard(
+          padding: EdgeInsets.all(compact ? 12 : 14),
+          child: Row(
+            children: <Widget>[
+              _RankBadge(
+                rank: rank,
+                fallbackLabel: driver.displayBadge,
+                color: accent,
+                isHighlighted: isHighlighted,
+              ),
+              SizedBox(width: compact ? 10 : 12),
+              _DriverAvatar(driver: driver, color: accent),
+              SizedBox(width: compact ? 10 : 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        driver.fullName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: PassengerUi.cardTitle.copyWith(
-                          fontSize: compact ? 14.5 : 15.5,
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            driver.fullName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: PassengerUi.cardTitle.copyWith(
+                              fontSize: compact ? 14.5 : 15.5,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (isHighlighted) ...<Widget>[
+                          const SizedBox(width: 8),
+                          PassengerStatusChip(
+                            label: 'You',
+                            textColor: PassengerUi.successText,
+                            backgroundColor: PassengerUi.successBackground,
+                          ),
+                        ],
+                      ],
                     ),
-                    if (isHighlighted) ...<Widget>[
-                      const SizedBox(width: 8),
-                      PassengerStatusChip(
-                        label: 'You',
-                        textColor: PassengerUi.successText,
-                        backgroundColor: PassengerUi.successBackground,
-                      ),
-                    ],
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: <Widget>[
+                        _MetricPill(
+                          icon: Icons.star_rounded,
+                          label: driver.ratingLabel,
+                          color: PassengerUi.highlightAmber,
+                        ),
+                        _MetricPill(
+                          icon: Icons.rate_review_rounded,
+                          label: driver.reviewCountLabel,
+                          color: PassengerUi.accentBlue,
+                        ),
+                        if (showWeightedScore)
+                          _MetricPill(
+                            icon: Icons.trending_up_rounded,
+                            label: 'Rank Score ${driver.weightedRatingLabel}',
+                            color: PassengerUi.secondary,
+                          ),
+                        if (driver.displayBadge.isNotEmpty && rank > 20)
+                          _MetricPill(
+                            icon: Icons.military_tech_rounded,
+                            label: driver.displayBadge,
+                            color: PassengerUi.highlightAmber,
+                          ),
+                      ],
+                    ),
                   ],
                 ),
-                const SizedBox(height: 7),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: <Widget>[
-                    _MetricPill(
-                      icon: Icons.star_rounded,
-                      label: driver.ratingLabel,
-                      color: PassengerUi.highlightAmber,
-                    ),
-                    _MetricPill(
-                      icon: Icons.rate_review_rounded,
-                      label: driver.reviewCountLabel,
-                      color: PassengerUi.accentBlue,
-                    ),
-                    if (showWeightedScore)
-                      _MetricPill(
-                        icon: Icons.trending_up_rounded,
-                        label: 'Rank Score ${driver.weightedRatingLabel}',
-                        color: PassengerUi.secondary,
-                      ),
-                    if (driver.displayBadge.isNotEmpty && rank > 20)
-                      _MetricPill(
-                        icon: Icons.military_tech_rounded,
-                        label: driver.displayBadge,
-                        color: PassengerUi.highlightAmber,
-                      ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

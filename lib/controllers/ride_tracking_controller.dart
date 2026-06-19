@@ -297,7 +297,7 @@ class RideTrackingController extends ChangeNotifier {
         driverId: userId,
         position: position,
         activeBookingId: activeBookingId,
-        isAvailable: activeBookingId == null,
+        isAvailable: true,
       );
       _refreshEtaIfNeeded();
     } on Exception catch (error) {

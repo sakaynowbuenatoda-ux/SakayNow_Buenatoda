@@ -4,13 +4,16 @@ import 'package:flutter/material.dart';
 
 import '../../controllers/ride_tracking_controller.dart';
 import '../../core/preferences/app_preferences_controller.dart';
+import '../../models/passenger_payment_method.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../pages/messages/ride_chat_navigation.dart';
 import '../../pages/profile/passenger_profile.dart';
 import '../../services/booking_action_cooldown_service.dart';
+import '../../services/payment_method_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../services/xendit_checkout_service.dart';
+import '../../utils/user_facing_error_message.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/maps/map_type_toggle.dart';
 import '../../widgets/maps/sakay_google_map.dart';
@@ -38,6 +41,7 @@ class RideMonitoringPage extends StatefulWidget {
 class _RideMonitoringPageState extends State<RideMonitoringPage> {
   late final RideTrackingController _controller;
   final RideTrackingService _rideTrackingService = RideTrackingService();
+  final PaymentMethodService _paymentMethodService = PaymentMethodService();
   final XenditCheckoutService _xenditCheckoutService = XenditCheckoutService();
   static const Duration _terminalStatusDialogDuration = Duration(seconds: 10);
 
@@ -47,6 +51,7 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
   Timer? _terminalStatusTimer;
   final Set<String> _promptedReviewBookingIds = <String>{};
   bool _isOpeningCheckout = false;
+  bool _isChangingPaymentMethod = false;
 
   @override
   void initState() {
@@ -270,12 +275,7 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
                     usePublicLocationLabels: _controller.isDriver,
                   ),
                   const SizedBox(height: 16),
-                  _RidePaymentCard(
-                    ride: ride,
-                    canOpenCheckout: _controller.isPassenger,
-                    isOpeningCheckout: _isOpeningCheckout,
-                    onOpenCheckout: () => _openXenditCheckout(ride),
-                  ),
+                  _buildRidePaymentCard(ride),
                   if (_controller.errorMessage != null) ...<Widget>[
                     const SizedBox(height: 16),
                     PassengerSurfaceCard(
@@ -296,6 +296,45 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
         },
       ),
     );
+  }
+
+  Widget _buildRidePaymentCard(Ride ride) {
+    if (!_controller.isPassenger) {
+      return _RidePaymentCard(
+        ride: ride,
+        canOpenCheckout: false,
+        canChangePayment: false,
+        isOpeningCheckout: _isOpeningCheckout,
+        isChangingPayment: _isChangingPaymentMethod,
+        onOpenCheckout: () => _openXenditCheckout(ride),
+        onChangePayment: null,
+      );
+    }
+
+    return StreamBuilder<List<PassengerPaymentMethod>>(
+      stream: _paymentMethodService.watchPaymentMethods(widget.userId),
+      builder: (context, snapshot) {
+        final methods =
+            snapshot.data ??
+            <PassengerPaymentMethod>[
+              PassengerPaymentMethod.cash(userId: widget.userId),
+            ];
+
+        return _RidePaymentCard(
+          ride: ride,
+          canOpenCheckout: true,
+          canChangePayment: _canChangePaymentMethod(ride),
+          isOpeningCheckout: _isOpeningCheckout,
+          isChangingPayment: _isChangingPaymentMethod,
+          onOpenCheckout: () => _openXenditCheckout(ride),
+          onChangePayment: () => _showPaymentMethodPicker(ride, methods),
+        );
+      },
+    );
+  }
+
+  bool _canChangePaymentMethod(Ride ride) {
+    return !ride.status.isTerminal && !ride.isPaymentPaid;
   }
 
   String _statusSubtitle(Ride ride) {
@@ -326,11 +365,120 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
     };
   }
 
+  Future<void> _showPaymentMethodPicker(
+    Ride ride,
+    List<PassengerPaymentMethod> methods,
+  ) async {
+    final selected = await showModalBottomSheet<PassengerPaymentMethod>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _RidePaymentMethodPickerSheet(
+        methods: methods,
+        selectedMethodId: _currentPaymentMethodId(ride),
+      ),
+    );
+
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    final currentMethodId = _currentPaymentMethodId(ride);
+    if (selected.id == currentMethodId) {
+      return;
+    }
+
+    await _changePaymentMethod(ride, selected);
+  }
+
+  String _currentPaymentMethodId(Ride ride) {
+    final paymentMethodId = ride.paymentMethodId?.trim();
+    if (paymentMethodId != null && paymentMethodId.isNotEmpty) {
+      return paymentMethodId;
+    }
+
+    final paymentMethod = ride.paymentMethod.trim().toLowerCase();
+    return paymentMethod == 'cash'
+        ? PassengerPaymentMethod.cashMethodId
+        : paymentMethod;
+  }
+
+  Future<void> _changePaymentMethod(
+    Ride ride,
+    PassengerPaymentMethod paymentMethod,
+  ) async {
+    setState(() {
+      _isChangingPaymentMethod = true;
+      _isOpeningCheckout = paymentMethod.usesOnlineCheckout;
+    });
+
+    try {
+      await _rideTrackingService.updateBookingPaymentMethod(
+        bookingId: ride.bookingId,
+        passengerId: widget.userId,
+        paymentMethod: paymentMethod,
+      );
+
+      if (paymentMethod.usesOnlineCheckout) {
+        final paymentMethodType = paymentMethod.xenditPaymentMethodType;
+        if (paymentMethodType == null) {
+          throw Exception('Xendit payment method is not ready yet.');
+        }
+
+        final session = await _xenditCheckoutService
+            .createCheckoutSessionForPaymentType(
+              bookingId: ride.bookingId,
+              paymentMethodType: paymentMethodType,
+              paymentMethodId: paymentMethod.id,
+            );
+        await _xenditCheckoutService.openCheckoutUrl(session.checkoutUrl);
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            paymentMethod.usesOnlineCheckout
+                ? 'Payment method updated. Complete checkout to finish payment.'
+                : 'Payment method updated.',
+          ),
+        ),
+      );
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback:
+                  'Payment method could not be changed. Please try again.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isChangingPaymentMethod = false;
+          _isOpeningCheckout = false;
+        });
+      }
+    }
+  }
+
   Future<void> _openXenditCheckout(Ride ride) async {
     setState(() => _isOpeningCheckout = true);
     try {
       var checkoutUrl = ride.checkoutUrl?.trim();
-      if (checkoutUrl == null || checkoutUrl.isEmpty) {
+      if (checkoutUrl == null ||
+          checkoutUrl.isEmpty ||
+          ride.paymentStatus == 'checkout_failed') {
         final paymentMethodType = ride.xenditPaymentMethodType;
         if (paymentMethodType == null || paymentMethodType.trim().isEmpty) {
           throw Exception('Xendit payment method is not ready yet.');
@@ -352,7 +500,15 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to open checkout: $error')),
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback:
+                  'Online checkout could not open. Please try again or pay with cash.',
+            ),
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -470,14 +626,20 @@ class _RideRouteCard extends StatelessWidget {
 class _RidePaymentCard extends StatelessWidget {
   final Ride ride;
   final bool canOpenCheckout;
+  final bool canChangePayment;
   final bool isOpeningCheckout;
+  final bool isChangingPayment;
   final VoidCallback onOpenCheckout;
+  final VoidCallback? onChangePayment;
 
   const _RidePaymentCard({
     required this.ride,
     required this.canOpenCheckout,
+    required this.canChangePayment,
     required this.isOpeningCheckout,
+    required this.isChangingPayment,
     required this.onOpenCheckout,
+    required this.onChangePayment,
   });
 
   @override
@@ -509,7 +671,10 @@ class _RidePaymentCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: <Widget>[
               PassengerStatusChip(
                 label: ride.paymentStatusLabel,
@@ -520,10 +685,25 @@ class _RidePaymentCard extends StatelessWidget {
                     ? PassengerUi.successBackground
                     : PassengerUi.warningSoft,
               ),
-              if (showCheckoutButton) ...<Widget>[
-                const Spacer(),
+              if (canChangePayment)
                 TextButton.icon(
-                  onPressed: isOpeningCheckout ? null : onOpenCheckout,
+                  onPressed: isChangingPayment || isOpeningCheckout
+                      ? null
+                      : onChangePayment,
+                  icon: isChangingPayment
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.swap_horiz_rounded, size: 18),
+                  label: const Text('Change'),
+                ),
+              if (showCheckoutButton) ...<Widget>[
+                TextButton.icon(
+                  onPressed: isOpeningCheckout || isChangingPayment
+                      ? null
+                      : onOpenCheckout,
                   icon: isOpeningCheckout
                       ? const SizedBox(
                           width: 16,
@@ -575,6 +755,65 @@ class _RidePaymentMetric extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _RidePaymentMethodPickerSheet extends StatelessWidget {
+  final List<PassengerPaymentMethod> methods;
+  final String selectedMethodId;
+
+  const _RidePaymentMethodPickerSheet({
+    required this.methods,
+    required this.selectedMethodId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+        decoration: BoxDecoration(
+          color: PassengerUi.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: PassengerUi.border),
+          boxShadow: PassengerUi.cardShadow,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('Choose Payment', style: MapTextStyles.title),
+            const SizedBox(height: 12),
+            for (final method in methods)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: method.type.accentColor.withValues(
+                    alpha: 0.12,
+                  ),
+                  child: Icon(method.type.icon, color: method.type.accentColor),
+                ),
+                title: Text(method.displayLabel, style: MapTextStyles.value),
+                subtitle: Text(
+                  method.accountLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MapTextStyles.body.copyWith(fontSize: 12),
+                ),
+                trailing: method.id == selectedMethodId
+                    ? Icon(
+                        Icons.check_circle_rounded,
+                        color: PassengerUi.successText,
+                      )
+                    : null,
+                onTap: () => Navigator.of(context).pop(method),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -759,13 +998,21 @@ class _RideActions extends StatelessWidget {
     if (controller.isDriver) {
       final nextStatus = _nextDriverStatus(ride.status);
       if (nextStatus != null) {
+        final isAwaitingCashlessPayment =
+            nextStatus == RideStatus.completed &&
+            ride.usesOnlineCheckout &&
+            !ride.isPaymentPaid;
         actions.add(
           ElevatedButton.icon(
-            onPressed: controller.isUpdatingStatus
+            onPressed: controller.isUpdatingStatus || isAwaitingCashlessPayment
                 ? null
                 : () => controller.updateStatus(nextStatus),
             icon: const Icon(Icons.check_circle_rounded),
-            label: Text(_driverActionLabel(nextStatus)),
+            label: Text(
+              isAwaitingCashlessPayment
+                  ? 'Awaiting Payment'
+                  : _driverActionLabel(nextStatus),
+            ),
           ),
         );
       }

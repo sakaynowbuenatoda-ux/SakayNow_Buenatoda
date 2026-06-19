@@ -124,10 +124,15 @@ class PassengerTripCard extends StatelessWidget {
     final compact = PassengerUi.isCompactWidth(context);
     final ride = trip.ride;
     final driver = trip.driver;
-    final passengerRating = ride.passengerDriverReviewRating;
-    final hasReviewComment =
+    final passengerHasReviewedDriver = ride.hasPassengerDriverReview;
+    final passengerHasReviewComment =
         ride.passengerDriverReviewComment?.trim().isNotEmpty == true;
-    final canReview = ride.canPassengerReviewDriver;
+    final canPassengerReviewDriver = ride.canPassengerReviewDriver;
+    final passengerReviewLabel = _passengerReviewLabel(
+      hasReview: passengerHasReviewedDriver,
+      hasComment: passengerHasReviewComment,
+      canReview: canPassengerReviewDriver,
+    );
     final canPreviewRoute =
         ride.pickupLocation.latLng != null &&
         ride.dropoffLocation.latLng != null;
@@ -141,7 +146,7 @@ class PassengerTripCard extends StatelessWidget {
             driverId: driver.driverId,
             passengerId: passengerId,
             bookingId: ride.bookingId,
-            openReviewOnLoad: canReview,
+            openReviewOnLoad: canPassengerReviewDriver,
           ),
         ),
       ),
@@ -226,9 +231,7 @@ class PassengerTripCard extends StatelessWidget {
                     pickupLocation: ride.pickupLocation,
                     dropoffLocation: ride.dropoffLocation,
                   ),
-                  const SizedBox(width: 6),
                 ],
-                Icon(Icons.chevron_right_rounded, color: PassengerUi.body),
               ],
             ),
             const SizedBox(height: 12),
@@ -247,16 +250,10 @@ class PassengerTripCard extends StatelessWidget {
                       : driver.averageRating.toStringAsFixed(1),
                 ),
                 _RatingPill(
-                  icon: passengerRating == null && canReview
+                  icon: !passengerHasReviewedDriver && canPassengerReviewDriver
                       ? Icons.rate_review_outlined
                       : Icons.rate_review_rounded,
-                  label: passengerRating == null
-                      ? canReview
-                            ? 'Tap to review'
-                            : 'No comment'
-                      : hasReviewComment
-                      ? 'Commented'
-                      : 'No comment',
+                  label: passengerReviewLabel,
                 ),
               ],
             ),
@@ -264,6 +261,18 @@ class PassengerTripCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _passengerReviewLabel({
+    required bool hasReview,
+    required bool hasComment,
+    required bool canReview,
+  }) {
+    if (hasReview) {
+      return hasComment ? 'Commented' : 'No comment';
+    }
+
+    return canReview ? 'Tap to review' : 'No comment';
   }
 }
 

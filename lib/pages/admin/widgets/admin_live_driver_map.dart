@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -9,13 +11,26 @@ import '../admin_models.dart';
 import '../admin_service.dart';
 import 'admin_shared.dart';
 
-class AdminLiveDriverMap extends StatelessWidget {
+class AdminLiveDriverMap extends StatefulWidget {
   const AdminLiveDriverMap({super.key});
+
+  @override
+  State<AdminLiveDriverMap> createState() => _AdminLiveDriverMapState();
+}
+
+class _AdminLiveDriverMapState extends State<AdminLiveDriverMap> {
+  late final Stream<List<AdminDriverLocationRecord>> _driverLocationsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _driverLocationsStream = AdminService.watchActiveDriverLocations();
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<AdminDriverLocationRecord>>(
-      stream: AdminService.watchActiveDriverLocations(),
+      stream: _driverLocationsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return AdminErrorCard(
@@ -35,18 +50,44 @@ class AdminLiveDriverMap extends StatelessWidget {
   }
 }
 
-class _AdminLiveDriverMapContent extends StatelessWidget {
+class _AdminLiveDriverMapContent extends StatefulWidget {
   final List<AdminDriverLocationRecord> drivers;
 
   const _AdminLiveDriverMapContent({required this.drivers});
 
   @override
+  State<_AdminLiveDriverMapContent> createState() =>
+      _AdminLiveDriverMapContentState();
+}
+
+class _AdminLiveDriverMapContentState
+    extends State<_AdminLiveDriverMapContent> {
+  bool _hasFitLiveDrivers = false;
+  bool _fitStateUpdateScheduled = false;
+
+  @override
+  void didUpdateWidget(covariant _AdminLiveDriverMapContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.drivers.isEmpty && oldWidget.drivers.isNotEmpty) {
+      _hasFitLiveDrivers = false;
+      _fitStateUpdateScheduled = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final drivers = widget.drivers;
     final hasDrivers = drivers.isNotEmpty;
     final mapHeight = _mapHeightFor(MediaQuery.sizeOf(context).width);
     final initialTarget = hasDrivers
         ? drivers.first.latLng
         : MapConfig.buenavistaMunicipalHall;
+    final shouldAutoFitLiveDrivers = hasDrivers && !_hasFitLiveDrivers;
+
+    if (shouldAutoFitLiveDrivers) {
+      _markLiveDriversFitAfterFrame();
+    }
 
     return AdminSurfaceCard(
       padding: const EdgeInsets.all(14),
@@ -110,6 +151,7 @@ class _AdminLiveDriverMapContent extends StatelessWidget {
                           mapType:
                               AppPreferencesController.instance.googleMapType,
                           zoomControlsEnabled: true,
+                          autoMoveCameraOnUpdate: shouldAutoFitLiveDrivers,
                           preferInitialCameraTarget: !hasDrivers,
                         );
                       },
@@ -130,6 +172,24 @@ class _AdminLiveDriverMapContent extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _markLiveDriversFitAfterFrame() {
+    if (_fitStateUpdateScheduled) {
+      return;
+    }
+
+    _fitStateUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _hasFitLiveDrivers = true;
+        _fitStateUpdateScheduled = false;
+      });
+    });
   }
 
   Set<Marker> _driverMarkers(List<AdminDriverLocationRecord> drivers) {

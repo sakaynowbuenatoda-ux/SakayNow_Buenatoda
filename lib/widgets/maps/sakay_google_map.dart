@@ -57,6 +57,7 @@ class SakayGoogleMap extends StatefulWidget {
   final bool myLocationEnabled;
   final bool zoomControlsEnabled;
   final bool autoMoveCamera;
+  final bool autoMoveCameraOnUpdate;
   final bool preferInitialCameraTarget;
   final MapType mapType;
   final ValueChanged<LatLng>? onTap;
@@ -73,6 +74,7 @@ class SakayGoogleMap extends StatefulWidget {
     this.myLocationEnabled = false,
     this.zoomControlsEnabled = false,
     this.autoMoveCamera = true,
+    this.autoMoveCameraOnUpdate = true,
     this.preferInitialCameraTarget = false,
     this.mapType = MapType.normal,
     this.onTap,
@@ -93,9 +95,21 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
   static const double _profilePinEdgePadding = 8;
 
   GoogleMapController? _controller;
+  Future<void>? _webSdkLoadFuture;
   MarkerId? _selectedProfilePinId;
   ScreenCoordinate? _selectedProfilePinCoordinate;
   bool _isDisposed = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (kIsWeb) {
+      _webSdkLoadFuture = ensureGoogleMapsWebSdkLoaded(
+        AppEnvironment.googleMapsWebApiKey,
+      );
+    }
+  }
 
   @override
   void didUpdateWidget(covariant SakayGoogleMap oldWidget) {
@@ -103,7 +117,7 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
 
     _syncSelectedProfilePin();
 
-    if (!widget.autoMoveCamera) {
+    if (!widget.autoMoveCamera || !widget.autoMoveCameraOnUpdate) {
       return;
     }
 
@@ -113,8 +127,11 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
       oldWidget.initialCameraTarget,
     );
     final mapTypeChanged = widget.mapType != oldWidget.mapType;
+    final updateModeChanged =
+        widget.autoMoveCameraOnUpdate != oldWidget.autoMoveCameraOnUpdate;
 
-    if (boundsChanged ||
+    if (updateModeChanged ||
+        boundsChanged ||
         mapTypeChanged ||
         (widget.bounds == null && targetChanged) ||
         (widget.preferInitialCameraTarget && targetChanged)) {
@@ -132,9 +149,7 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
   Widget build(BuildContext context) {
     if (kIsWeb) {
       return FutureBuilder<void>(
-        future: ensureGoogleMapsWebSdkLoaded(
-          AppEnvironment.googleMapsWebApiKey,
-        ),
+        future: _webSdkLoadFuture,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return _MapLoadError(message: _mapErrorMessage(snapshot.error));

@@ -408,7 +408,6 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
   ) async {
     setState(() {
       _isChangingPaymentMethod = true;
-      _isOpeningCheckout = paymentMethod.usesOnlineCheckout;
     });
 
     try {
@@ -418,21 +417,6 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
         paymentMethod: paymentMethod,
       );
 
-      if (paymentMethod.usesOnlineCheckout) {
-        final paymentMethodType = paymentMethod.xenditPaymentMethodType;
-        if (paymentMethodType == null) {
-          throw Exception('Xendit payment method is not ready yet.');
-        }
-
-        final session = await _xenditCheckoutService
-            .createCheckoutSessionForPaymentType(
-              bookingId: ride.bookingId,
-              paymentMethodType: paymentMethodType,
-              paymentMethodId: paymentMethod.id,
-            );
-        await _xenditCheckoutService.openCheckoutUrl(session.checkoutUrl);
-      }
-
       if (!mounted) {
         return;
       }
@@ -441,7 +425,7 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
         SnackBar(
           content: Text(
             paymentMethod.usesOnlineCheckout
-                ? 'Payment method updated. Complete checkout to finish payment.'
+                ? 'Payment method updated. Tap Pay now to open checkout.'
                 : 'Payment method updated.',
           ),
         ),
@@ -466,13 +450,26 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
       if (mounted) {
         setState(() {
           _isChangingPaymentMethod = false;
-          _isOpeningCheckout = false;
         });
       }
     }
   }
 
   Future<void> _openXenditCheckout(Ride ride) async {
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Open Xendit Checkout?',
+      message: 'You will be redirected to the current payment gateway.',
+      confirmLabel: 'OK',
+      cancelLabel: 'Cancel',
+      icon: Icons.account_balance_wallet_rounded,
+      confirmColor: PassengerUi.accentBlue,
+    );
+
+    if (!confirmed || !mounted) {
+      return;
+    }
+
     setState(() => _isOpeningCheckout = true);
     try {
       var checkoutUrl = ride.checkoutUrl?.trim();
@@ -711,7 +708,7 @@ class _RidePaymentCard extends StatelessWidget {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.open_in_new_rounded, size: 18),
-                  label: const Text('Checkout'),
+                  label: Text(isOpeningCheckout ? 'Opening...' : 'Pay now'),
                 ),
               ],
             ],

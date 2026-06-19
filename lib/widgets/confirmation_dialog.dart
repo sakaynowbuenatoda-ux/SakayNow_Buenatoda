@@ -7,6 +7,7 @@ Future<bool> showConfirmationDialog(
   required String title,
   required String message,
   required String confirmLabel,
+  String cancelLabel = 'Keep',
   IconData icon = Icons.help_outline_rounded,
   Color? confirmColor,
 }) async {
@@ -39,7 +40,7 @@ Future<bool> showConfirmationDialog(
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('Keep', style: TextStyle(color: PassengerUi.body)),
+            child: Text(cancelLabel, style: TextStyle(color: PassengerUi.body)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),

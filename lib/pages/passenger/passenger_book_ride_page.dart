@@ -18,7 +18,6 @@ import '../../services/geofencing_service.dart';
 import '../../services/booking_action_cooldown_service.dart';
 import '../../services/payment_method_service.dart';
 import '../../services/ride_tracking_service.dart';
-import '../../services/xendit_checkout_service.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/action_cooldown_notice.dart';
 import '../../widgets/firebase_storage_image.dart';
@@ -961,7 +960,6 @@ class _DriverSelectionPanel extends StatefulWidget {
 
 class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
   final GeofencingService _geofencingService = const GeofencingService();
-  final XenditCheckoutService _xenditCheckoutService = XenditCheckoutService();
   final BookingActionCooldownService _bookingCooldownService =
       BookingActionCooldownService.instance;
   bool _isExpanded = false;
@@ -1371,32 +1369,6 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
     }
 
     if (bookingId != null) {
-      if (paymentMethod.usesOnlineCheckout) {
-        try {
-          final session = await _xenditCheckoutService.createCheckoutSession(
-            bookingId: bookingId,
-            paymentMethod: paymentMethod,
-          );
-          await _xenditCheckoutService.openCheckoutUrl(session.checkoutUrl);
-        } on Exception catch (error) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  userFacingErrorMessage(
-                    error,
-                    fallback:
-                        'Online checkout could not open. Please try again or pay with cash.',
-                  ),
-                ),
-              ),
-            );
-          }
-        }
-      }
-      if (!mounted) {
-        return;
-      }
       Navigator.of(context).pop(bookingId);
       return;
     }

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../models/driver_document_status.dart';
+
 enum UserRole { admin, driver, passenger }
 
 enum PassengerType { regular, student, seniorCitizen }
@@ -37,6 +39,7 @@ class AppUser {
   final String? orCrUrl;
   final String? tricycleFrontUrl;
   final String? tricycleBackUrl;
+  final DriverDocumentStatus driverDocumentStatus;
 
   AppUser({
     required this.userId,
@@ -63,6 +66,7 @@ class AppUser {
     required this.orCrUrl,
     required this.tricycleFrontUrl,
     required this.tricycleBackUrl,
+    this.driverDocumentStatus = const DriverDocumentStatus(),
   });
 
   factory AppUser.fromMap(Map<String, dynamic> data, String fallbackUserId) {
@@ -127,6 +131,7 @@ class AppUser {
       orCrUrl: _normalizeOptional(data['or_cr_url']),
       tricycleFrontUrl: _normalizeOptional(data['tricycle_front_url']),
       tricycleBackUrl: _normalizeOptional(data['tricycle_back_url']),
+      driverDocumentStatus: DriverDocumentStatus.fromMap(data),
     );
   }
 
@@ -156,6 +161,14 @@ class AppUser {
   }
 
   String? get profileImageUrl => profilePictureUrl ?? selfieUrl;
+
+  bool get canReceiveDriverBookings =>
+      userRole == UserRole.driver &&
+      isVerified &&
+      !isBanned &&
+      !isDeactivated &&
+      !isDeleted &&
+      driverDocumentStatus.isEligibleAt(DateTime.now());
 
   UserRole get userRole {
     switch (role) {

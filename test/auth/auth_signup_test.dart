@@ -103,5 +103,24 @@ void main() {
       expect(user.userRole, UserRole.driver);
       expect(user.accessState(), AccountAccessState.active);
     });
+
+    test('expired driver documents disable booking eligibility', () {
+      final user = AppUser.fromMap(<String, dynamic>{
+        'first_name': 'Rica',
+        'last_name': 'Santos',
+        'email': 'rica@example.com',
+        'role': 'driver',
+        'is_verified': true,
+        'is_active': false,
+        'is_banned': false,
+        'account_status': 'active',
+        'document_status': 'expired',
+        'drivers_license_expiry': DateTime(2025, 1, 1),
+        'or_cr_expiry': DateTime(2028, 1, 1),
+      }, 'driver-expired');
+
+      expect(user.isVerified, isTrue);
+      expect(user.canReceiveDriverBookings, isFalse);
+    });
   });
 }

@@ -17,6 +17,7 @@ import '../../utils/user_facing_error_message.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/maps/map_type_toggle.dart';
 import '../../widgets/maps/sakay_google_map.dart';
+import '../../widgets/driver_vehicle_details_sheet.dart';
 import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/passenger_widgets/ride_status_strip.dart';
@@ -270,6 +271,11 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
                   const SizedBox(height: 16),
                   _RideEtaCard(ride: ride),
                   const SizedBox(height: 16),
+                  if (_controller.isPassenger && ride.hasDriver && ride.driverId != null)
+                    _DriverVehicleSection(
+                      rideTrackingService: _rideTrackingService,
+                      driverId: ride.driverId!,
+                    ),
                   _RideRouteCard(
                     ride: ride,
                     usePublicLocationLabels: _controller.isDriver,
@@ -1163,5 +1169,41 @@ class _RideActions extends StatelessWidget {
       RideStatus.completed => 'Complete',
       _ => 'Update',
     };
+  }
+}
+
+class _DriverVehicleSection extends StatelessWidget {
+  final RideTrackingService rideTrackingService;
+  final String driverId;
+
+  const _DriverVehicleSection({
+    required this.rideTrackingService,
+    required this.driverId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DriverReviewProfile>(
+      stream: rideTrackingService.watchDriverProfile(driverId),
+      builder: (context, snapshot) {
+        final driver = snapshot.data;
+        if (driver == null) {
+          return const SizedBox.shrink();
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            DriverVehicleInfoCard(
+              vehicleType: driver.vehicleType,
+              tricycleColor: driver.tricycleColor,
+              plateNumber: driver.plateNumber,
+              tricycleFrontUrl: driver.tricycleFrontUrl,
+              tricycleBackUrl: driver.tricycleBackUrl,
+            ),
+            const SizedBox(height: 16),
+          ],
+        );
+      },
+    );
   }
 }

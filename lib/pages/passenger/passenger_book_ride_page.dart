@@ -20,6 +20,7 @@ import '../../services/payment_method_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/action_cooldown_notice.dart';
+import '../../widgets/driver_vehicle_details_sheet.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/maps/location_pin_picker_sheet.dart';
 import '../../widgets/maps/place_search_field.dart';
@@ -1795,7 +1796,48 @@ class _AvailableDriverCard extends StatelessWidget {
                         textColor: PassengerUi.highlightAmber,
                         backgroundColor: PassengerUi.warningSoft,
                       ),
+                    if (driver.hasVehicleInfo)
+                      PassengerStatusChip(
+                        label: driver.vehicleSummary,
+                        textColor: PassengerUi.title,
+                        backgroundColor: PassengerUi.mutedSurface,
+                      ),
                   ],
+                ),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () => showDriverVehicleDetailsSheet(
+                    context: context,
+                    driverName: driver.fullName,
+                    profileImageUrl: driver.profileImageUrl,
+                    isVerified: driver.isVerified,
+                    rating: driver.rating,
+                    reviewCount: driver.reviewCount,
+                    vehicleType: driver.vehicleType,
+                    tricycleColor: driver.tricycleColor,
+                    plateNumber: driver.plateNumber,
+                    tricycleFrontUrl: driver.tricycleFrontUrl,
+                    tricycleBackUrl: driver.tricycleBackUrl,
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(Icons.info_outline_rounded, size: 14, color: PassengerUi.accentBlue),
+                        const SizedBox(width: 4),
+                        Text(
+                          'View Vehicle Details & Photos',
+                          style: MapTextStyles.body.copyWith(
+                            fontSize: 12,
+                            color: PassengerUi.accentBlue,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),

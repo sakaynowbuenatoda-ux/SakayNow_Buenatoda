@@ -107,7 +107,26 @@ service cloud.firestore {
       return signedIn()
         && isDriverRole(signedInUser())
         && isVerifiedUser(signedInUser())
+        && hasCurrentDriverDocuments(signedInUser())
         && isUsableAccount(signedInUser());
+    }
+
+    function hasCurrentDriverDocuments(userData) {
+      return userData.get('document_status', 'valid') != 'expired'
+        && (
+          !userData.keys().hasAny(['drivers_license_expiry'])
+          || (
+            userData.drivers_license_expiry is timestamp
+            && userData.drivers_license_expiry > request.time
+          )
+        )
+        && (
+          !userData.keys().hasAny(['or_cr_expiry'])
+          || (
+            userData.or_cr_expiry is timestamp
+            && userData.or_cr_expiry > request.time
+          )
+        );
     }
 
     function isPublicVerifiedDriverProfile(userData) {
@@ -344,6 +363,7 @@ service cloud.firestore {
           || (
             isVerifiedUser(resource.data)
             && isUsableAccount(resource.data)
+            && hasCurrentDriverDocuments(resource.data)
           )
         )
         && hasNoRatingAggregateChanges();
@@ -412,6 +432,100 @@ service cloud.firestore {
         )
         && hasValidDefaultPayoutAccountId(request.resource.data)
         && request.resource.data.updated_at == request.time;
+    }
+
+    function driverRenewalSubmissionFields() {
+      return [
+        'renewal_status',
+        'renewal_document_type',
+        'renewal_document_url',
+        'renewal_document_path',
+        'renewal_expiry',
+        'renewal_submitted_at',
+        'updated_at'
+      ];
+    }
+
+    function driverDocumentAdminFields() {
+      return [
+        'drivers_license_url',
+        'drivers_license_expiry',
+        'or_cr_url',
+        'or_cr_expiry',
+        'document_status',
+        'document_status_updated_at',
+        'renewal_status',
+        'renewal_document_type',
+        'renewal_document_url',
+        'renewal_document_path',
+        'renewal_expiry',
+        'renewal_submitted_at',
+        'renewal_reviewed_at',
+        'renewal_reviewed_by',
+        'renewal_rejection_reason'
+      ];
+    }
+
+    function hasNoProtectedDriverDocumentChanges() {
+      return !request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasAny(driverDocumentAdminFields());
+    }
+
+    function isValidDriverRenewalSubmission(userId) {
+      return isSelf(userId)
+        && isDriverRole(resource.data)
+        && resource.data.get('renewal_status', 'none') != 'pending_renewal'
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly(driverRenewalSubmissionFields())
+        && request.resource.data.renewal_status == 'pending_renewal'
+        && request.resource.data.renewal_document_type in [
+          'drivers_license',
+          'or_cr'
+        ]
+        && request.resource.data.renewal_document_url is string
+        && request.resource.data.renewal_document_url.size() > 0
+        && request.resource.data.renewal_document_url.size() <= 2048
+        && request.resource.data.renewal_document_path is string
+        && request.resource.data.renewal_document_path.matches(
+          'users/' + userId + '/renewals/[^/]+'
+        )
+        && request.resource.data.renewal_expiry is timestamp
+        && request.resource.data.renewal_expiry > request.time
+        && request.resource.data.renewal_submitted_at == request.time
+        && request.resource.data.updated_at == request.time
+        && hasNoRatingAggregateChanges();
+    }
+
+    function isValidInitialDriverDocumentUpload(userId) {
+      return isSelf(userId)
+        && isDriverRole(resource.data)
+        && !isVerifiedUser(resource.data)
+        && !resource.data.keys().hasAny([
+          'drivers_license_url',
+          'or_cr_url'
+        ])
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'nbi_clearance_url',
+            'drivers_license_url',
+            'selfie_url',
+            'or_cr_url',
+            'tricycle_front_url',
+            'tricycle_back_url',
+            'document_upload_status',
+            'document_upload_error'
+          ])
+        && request.resource.data.nbi_clearance_url is string
+        && request.resource.data.drivers_license_url is string
+        && request.resource.data.selfie_url is string
+        && request.resource.data.or_cr_url is string
+        && request.resource.data.tricycle_front_url is string
+        && request.resource.data.tricycle_back_url is string
+        && request.resource.data.document_upload_status == 'uploaded'
+        && hasNoRatingAggregateChanges();
     }
 
     function payoutAccountOwnerId(accountData) {
@@ -540,6 +654,10 @@ service cloud.firestore {
           'vehicle_type',
           'tricycle_color',
           'plate_number',
+          'drivers_license_expiry',
+          'or_cr_expiry',
+          'document_status',
+          'renewal_status',
           'age',
           'gender',
           'is_verified',
@@ -577,6 +695,12 @@ service cloud.firestore {
             && request.resource.data.tricycle_color.size() > 0
             && request.resource.data.plate_number is string
             && request.resource.data.plate_number.size() > 0
+            && request.resource.data.drivers_license_expiry is timestamp
+            && request.resource.data.drivers_license_expiry > request.time
+            && request.resource.data.or_cr_expiry is timestamp
+            && request.resource.data.or_cr_expiry > request.time
+            && request.resource.data.document_status == 'valid'
+            && request.resource.data.renewal_status == 'none'
           )
         )
         && (
@@ -718,6 +842,10 @@ service cloud.firestore {
       allow update: if !isAdminRole(resource.data)
         && isValidDriverPayoutSyncUpdate(userId);
       allow update: if !isAdminRole(resource.data)
+        && isValidDriverRenewalSubmission(userId);
+      allow update: if !isAdminRole(resource.data)
+        && isValidInitialDriverDocumentUpload(userId);
+      allow update: if !isAdminRole(resource.data)
         && isSelf(userId)
         && request.resource.data.user_id == resource.data.user_id
         && request.resource.data.email == resource.data.email
@@ -730,6 +858,10 @@ service cloud.firestore {
         && !request.resource.data.diff(resource.data)
           .affectedKeys()
           .hasAny(['email_verified', 'email_verified_at'])
+        && (
+          !isDriverRole(resource.data)
+          || hasNoProtectedDriverDocumentChanges()
+        )
         && hasNoRatingAggregateChanges()
         && (
           !hasProfilePictureChanges()

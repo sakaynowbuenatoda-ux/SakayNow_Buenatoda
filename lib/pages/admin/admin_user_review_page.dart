@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/driver_document_status.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/time_ago_text.dart';
@@ -131,6 +132,15 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                           label: 'Plate / Franchise No.',
                           value: user.plateNumber ?? 'Not provided',
                         ),
+                        _InfoTimeRow(
+                          label: 'Driver\'s License Expiry',
+                          value: user.driverDocumentStatus.driversLicenseExpiry,
+                        ),
+                        _InfoTimeRow(
+                          label: 'OR/CR Expiry',
+                          value: user.driverDocumentStatus.orCrExpiry,
+                          isLast: true,
+                        ),
                       ],
                     ),
                   ),
@@ -156,6 +166,28 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                       imageUrl: document.url,
                     ),
                   ),
+                if (user.isPendingRenewal) ...[
+                  SizedBox(height: 18),
+                  _RenewalReviewPanel(
+                    user: user,
+                    isProcessing: _isProcessing,
+                    onApprove: () => _confirmAndRunAction(
+                      title: 'Approve Renewal?',
+                      message:
+                          'This replaces the current ${user.driverDocumentStatus.renewalDocumentType?.label ?? 'driver document'} and applies its new expiry date.',
+                      confirmLabel: 'Approve Renewal',
+                      icon: Icons.verified_rounded,
+                      confirmColor: AdminUi.successText,
+                      action: () => AdminService.approveDriverRenewal(
+                        userId: user.userId,
+                        adminId: widget.adminId,
+                      ),
+                      successMessage:
+                          '${user.fullName}\'s document renewal was approved.',
+                    ),
+                    onReject: () => _promptAndRejectRenewal(user),
+                  ),
+                ],
                 SizedBox(height: 18),
                 _ActionPanel(
                   user: user,
@@ -249,6 +281,13 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
             url: user.tricycleBackUrl!,
             icon: Icons.local_taxi_rounded,
           ),
+        if (user.driverDocumentStatus.renewalDocumentUrl != null)
+          _ReviewDocument(
+            label:
+                'Renewal: ${user.driverDocumentStatus.renewalDocumentType?.label ?? 'Driver Document'}',
+            url: user.driverDocumentStatus.renewalDocumentUrl!,
+            icon: Icons.autorenew_rounded,
+          ),
       ];
     }
 
@@ -263,7 +302,9 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
         _ReviewDocument(
           label: user.isStudentPassenger
               ? 'Student ID'
-              : (user.isSeniorCitizenPassenger ? 'Senior Citizen ID' : 'ID Image'),
+              : (user.isSeniorCitizenPassenger
+                    ? 'Senior Citizen ID'
+                    : 'ID Image'),
           url: user.idImageUrl!,
           icon: Icons.badge_outlined,
         ),
@@ -332,6 +373,50 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
     }
 
     await _runAction(action: action, successMessage: successMessage);
+  }
+
+  Future<void> _promptAndRejectRenewal(AdminUserRecord user) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reject Renewal?'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 240,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Reason for the driver',
+            hintText: 'Explain what must be corrected.',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.of(dialogContext).pop(value);
+            },
+            child: const Text('Reject Renewal'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (reason == null || !mounted) return;
+    await _runAction(
+      action: () => AdminService.rejectDriverRenewal(
+        userId: user.userId,
+        adminId: widget.adminId,
+        reason: reason,
+      ),
+      successMessage: '${user.fullName}\'s renewal was rejected.',
+    );
   }
 
   Future<void> _showImagePreview(
@@ -489,6 +574,90 @@ class _ReviewAvatar extends StatelessWidget {
     }
 
     return parts.map((part) => part[0].toUpperCase()).join();
+  }
+}
+
+class _RenewalReviewPanel extends StatelessWidget {
+  final AdminUserRecord user;
+  final bool isProcessing;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  const _RenewalReviewPanel({
+    required this.user,
+    required this.isProcessing,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final status = user.driverDocumentStatus;
+    return AdminSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(Icons.autorenew_rounded, color: AdminUi.accentBlue),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Pending Renewal Review', style: AdminUi.cardTitle),
+              ),
+              AdminStatusChip(
+                label: 'Pending renewal',
+                textColor: AdminUi.accentBlue,
+                backgroundColor: AdminUi.blueSoft,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '${status.renewalDocumentType?.label ?? 'Driver document'} replacement expires ${status.renewalExpiry == null ? 'on an unrecorded date' : _adminDate(status.renewalExpiry!)}.',
+            style: AdminUi.bodyText,
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              AdminActionButton(
+                label: 'Approve Renewal',
+                icon: Icons.verified_rounded,
+                backgroundColor: AdminUi.successBackground,
+                foregroundColor: AdminUi.successText,
+                onPressed: isProcessing ? null : onApprove,
+              ),
+              AdminActionButton(
+                label: 'Reject Renewal',
+                icon: Icons.cancel_outlined,
+                backgroundColor: AdminUi.dangerSoft,
+                foregroundColor: AdminUi.primary,
+                onPressed: isProcessing ? null : onReject,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _adminDate(DateTime value) {
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[value.month - 1]} ${value.day}, ${value.year}';
   }
 }
 

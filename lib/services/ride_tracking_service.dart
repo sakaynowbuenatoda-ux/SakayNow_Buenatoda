@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../models/distance_matrix_result.dart';
 import '../models/driver_rating.dart';
+import '../models/driver_document_status.dart';
 import '../models/fare_estimate.dart';
 import '../models/fare_settings.dart';
 import '../models/passenger_payment_method.dart';
@@ -1193,6 +1194,7 @@ class RideTrackingService {
           driverSnapshot.exists &&
           _isDriverRole(driverData) &&
           _isVerifiedFlag(driverData) &&
+          _hasCurrentDriverDocuments(driverData) &&
           !_isBannedFlag(driverData);
 
       if (!isVerifiedDriver) {
@@ -1547,6 +1549,7 @@ class RideTrackingService {
         snapshot.exists &&
         _isDriverRole(data) &&
         _isVerifiedFlag(data) &&
+        _hasCurrentDriverDocuments(data) &&
         !_isBannedFlag(data);
 
     if (!isVerifiedDriver) {
@@ -1603,6 +1606,10 @@ class RideTrackingService {
 
   static bool _isBannedFlag(Map<String, dynamic> data) {
     return (data['is_banned'] ?? data['isBanned'] ?? false) == true;
+  }
+
+  static bool _hasCurrentDriverDocuments(Map<String, dynamic> data) {
+    return DriverDocumentStatus.fromMap(data).isEligibleAt(DateTime.now());
   }
 
   static double _readDouble(Object? value) {
@@ -1882,6 +1889,11 @@ class DriverReviewProfile {
   final double weightedRating;
   final int? ratingRank;
   final String ratingBadge;
+  final String? vehicleType;
+  final String? tricycleColor;
+  final String? plateNumber;
+  final String? tricycleFrontUrl;
+  final String? tricycleBackUrl;
 
   const DriverReviewProfile({
     required this.driverId,
@@ -1895,6 +1907,11 @@ class DriverReviewProfile {
     required this.weightedRating,
     required this.ratingRank,
     required this.ratingBadge,
+    this.vehicleType,
+    this.tricycleColor,
+    this.plateNumber,
+    this.tricycleFrontUrl,
+    this.tricycleBackUrl,
   });
 
   factory DriverReviewProfile.fromData({
@@ -1949,8 +1966,43 @@ class DriverReviewProfile {
             data['driver_rating_badge'],
           ) ??
           computedBadge,
+      vehicleType: RideTrackingService._readNullableString(
+        data['vehicle_type'],
+      ),
+      tricycleColor: RideTrackingService._readNullableString(
+        data['tricycle_color'],
+      ),
+      plateNumber: RideTrackingService._readNullableString(
+        data['plate_number'],
+      ),
+      tricycleFrontUrl: RideTrackingService._readNullableString(
+        data['tricycle_front_url'],
+      ),
+      tricycleBackUrl: RideTrackingService._readNullableString(
+        data['tricycle_back_url'],
+      ),
     );
   }
+
+  String get vehicleSummary {
+    final parts = <String>[
+      if (vehicleType != null && vehicleType!.trim().isNotEmpty)
+        vehicleType!.trim(),
+      if (tricycleColor != null && tricycleColor!.trim().isNotEmpty)
+        tricycleColor!.trim(),
+      if (plateNumber != null && plateNumber!.trim().isNotEmpty)
+        plateNumber!.trim(),
+    ];
+    if (parts.isEmpty) return 'Tricycle details unassigned';
+    return parts.join(' • ');
+  }
+
+  bool get hasVehicleInfo =>
+      (vehicleType != null && vehicleType!.trim().isNotEmpty) ||
+      (tricycleColor != null && tricycleColor!.trim().isNotEmpty) ||
+      (plateNumber != null && plateNumber!.trim().isNotEmpty) ||
+      (tricycleFrontUrl != null && tricycleFrontUrl!.trim().isNotEmpty) ||
+      (tricycleBackUrl != null && tricycleBackUrl!.trim().isNotEmpty);
 
   String get ratingLabel =>
       reviewCount == 0 ? 'No ratings yet' : averageRating.toStringAsFixed(1);
@@ -2101,10 +2153,10 @@ class PassengerReviewProfile {
   }
 
   String get roleLabel => switch (passengerType) {
-        'student' => 'Student',
-        'senior_citizen' => 'Senior Citizen',
-        _ => 'Regular',
-      };
+    'student' => 'Student',
+    'senior_citizen' => 'Senior Citizen',
+    _ => 'Regular',
+  };
 
   String get ratingLabel =>
       reviewCount == 0 ? 'No ratings yet' : averageRating.toStringAsFixed(1);
@@ -2122,6 +2174,11 @@ class AvailableDriver {
   final int? ratingRank;
   final String ratingBadge;
   final RideDriverLocation location;
+  final String? vehicleType;
+  final String? tricycleColor;
+  final String? plateNumber;
+  final String? tricycleFrontUrl;
+  final String? tricycleBackUrl;
 
   const AvailableDriver({
     required this.driverId,
@@ -2135,6 +2192,11 @@ class AvailableDriver {
     required this.ratingRank,
     required this.ratingBadge,
     required this.location,
+    this.vehicleType,
+    this.tricycleColor,
+    this.plateNumber,
+    this.tricycleFrontUrl,
+    this.tricycleBackUrl,
   });
 
   factory AvailableDriver.fromData({
@@ -2191,10 +2253,48 @@ class AvailableDriver {
       weightedRating: weightedRating,
       ratingRank: ratingRank,
       ratingBadge:
-          _readNullableString(userData['driver_rating_badge']) ?? computedBadge,
+          RideTrackingService._readNullableString(
+            userData['driver_rating_badge'],
+          ) ??
+          computedBadge,
       location: location,
+      vehicleType: RideTrackingService._readNullableString(
+        userData['vehicle_type'],
+      ),
+      tricycleColor: RideTrackingService._readNullableString(
+        userData['tricycle_color'],
+      ),
+      plateNumber: RideTrackingService._readNullableString(
+        userData['plate_number'],
+      ),
+      tricycleFrontUrl: RideTrackingService._readNullableString(
+        userData['tricycle_front_url'],
+      ),
+      tricycleBackUrl: RideTrackingService._readNullableString(
+        userData['tricycle_back_url'],
+      ),
     );
   }
+
+  String get vehicleSummary {
+    final parts = <String>[
+      if (vehicleType != null && vehicleType!.trim().isNotEmpty)
+        vehicleType!.trim(),
+      if (tricycleColor != null && tricycleColor!.trim().isNotEmpty)
+        tricycleColor!.trim(),
+      if (plateNumber != null && plateNumber!.trim().isNotEmpty)
+        plateNumber!.trim(),
+    ];
+    if (parts.isEmpty) return 'Tricycle details unassigned';
+    return parts.join(' • ');
+  }
+
+  bool get hasVehicleInfo =>
+      (vehicleType != null && vehicleType!.trim().isNotEmpty) ||
+      (tricycleColor != null && tricycleColor!.trim().isNotEmpty) ||
+      (plateNumber != null && plateNumber!.trim().isNotEmpty) ||
+      (tricycleFrontUrl != null && tricycleFrontUrl!.trim().isNotEmpty) ||
+      (tricycleBackUrl != null && tricycleBackUrl!.trim().isNotEmpty);
 
   String get ratingLabel =>
       reviewCount == 0 ? 'No ratings' : rating.toStringAsFixed(1);

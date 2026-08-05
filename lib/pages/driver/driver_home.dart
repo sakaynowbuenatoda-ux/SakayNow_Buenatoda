@@ -33,6 +33,7 @@ class DriverHomePage extends StatelessWidget {
   final String firstName;
   final bool isActive;
   final bool isVerified;
+  final bool canReceiveBookings;
   final VoidCallback onOpenQueue;
   final VoidCallback onOpenHistory;
 
@@ -42,6 +43,7 @@ class DriverHomePage extends StatelessWidget {
     required this.firstName,
     required this.isActive,
     required this.isVerified,
+    this.canReceiveBookings = false,
     required this.onOpenQueue,
     required this.onOpenHistory,
   });
@@ -78,7 +80,7 @@ class DriverHomePage extends StatelessWidget {
           SizedBox(height: 12),
           _LiveIncomingRequestsPreview(
             driverId: userId,
-            isVerified: isVerified,
+            isVerified: canReceiveBookings,
             isActive: isActive,
           ),
           SizedBox(height: 20),

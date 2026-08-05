@@ -25,7 +25,12 @@ void main() {
     test('keep signup document uploads owner-scoped and size-limited', () {
       expect(rules, contains('match /users/{userId}/{fileName}'));
       expect(rules, contains('allow read: if isSelf(userId) || isAdmin()'));
-      expect(rules, contains("|| (signedIn() && fileName == 'selfie.jpg')"));
+      expect(
+        rules,
+        contains(
+          "|| (signedIn() && fileName in ['selfie.jpg', 'tricycle_front.jpg', 'tricycle_back.jpg'])",
+        ),
+      );
       expect(rules, contains('allow write: if isSelf(userId)'));
       expect(rules, contains('request.resource.size < 10 * 1024 * 1024'));
     });
@@ -34,6 +39,14 @@ void main() {
       expect(rules, contains('function isAdmin()'));
       expect(rules, contains('firestore.get('));
       expect(rules, contains(".data.role == 'admin'"));
+    });
+
+    test('keep renewal uploads private to the driver and admins', () {
+      expect(rules, contains('match /users/{userId}/renewals/{fileName}'));
+      expect(rules, contains('allow read: if isSelf(userId) || isAdmin();'));
+      expect(rules, contains('allow create, update: if isSelf(userId)'));
+      expect(rules, contains('&& isImage()'));
+      expect(rules, contains('request.resource.size < 10 * 1024 * 1024'));
     });
   });
 }

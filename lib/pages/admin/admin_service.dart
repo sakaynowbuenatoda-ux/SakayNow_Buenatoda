@@ -344,6 +344,103 @@ class AdminService {
     });
   }
 
+  static Future<void> approveDriverRenewal({
+    required String userId,
+    required String adminId,
+  }) async {
+    final userRef = _firestore.collection('users').doc(userId);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(userRef);
+      final data = snapshot.data() ?? <String, dynamic>{};
+      if (!snapshot.exists || data['role'] != 'driver') {
+        throw StateError('Driver account not found.');
+      }
+      if (data['renewal_status'] != 'pending_renewal') {
+        throw StateError('This renewal is no longer pending.');
+      }
+
+      final documentType = data['renewal_document_type']?.toString();
+      final documentUrl = data['renewal_document_url']?.toString().trim() ?? '';
+      final renewalExpiry = data['renewal_expiry'];
+      if (!const <String>['drivers_license', 'or_cr'].contains(documentType) ||
+          documentUrl.isEmpty ||
+          renewalExpiry is! Timestamp) {
+        throw StateError('The renewal submission is incomplete.');
+      }
+
+      final now = DateTime.now();
+      if (!renewalExpiry.toDate().isAfter(now)) {
+        throw StateError('The replacement document is already expired.');
+      }
+
+      final licenseExpiry = documentType == 'drivers_license'
+          ? renewalExpiry.toDate()
+          : _dateFromValue(data['drivers_license_expiry']);
+      final orCrExpiry = documentType == 'or_cr'
+          ? renewalExpiry.toDate()
+          : _dateFromValue(data['or_cr_expiry']);
+      final status = _documentStatusForDates(
+        licenseExpiry: licenseExpiry,
+        orCrExpiry: orCrExpiry,
+        now: now,
+      );
+
+      transaction.update(userRef, <String, dynamic>{
+        documentType == 'drivers_license' ? 'drivers_license_url' : 'or_cr_url':
+            documentUrl,
+        documentType == 'drivers_license'
+                ? 'drivers_license_expiry'
+                : 'or_cr_expiry':
+            renewalExpiry,
+        'renewal_status': 'approved',
+        'renewal_reviewed_by': adminId,
+        'renewal_reviewed_at': FieldValue.serverTimestamp(),
+        'renewal_rejection_reason': FieldValue.delete(),
+        'document_status': status,
+        'document_status_updated_at': FieldValue.serverTimestamp(),
+        if (status == 'expired') 'is_active': false,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  static Future<void> rejectDriverRenewal({
+    required String userId,
+    required String adminId,
+    required String reason,
+  }) async {
+    final normalizedReason = reason.trim();
+    if (normalizedReason.isEmpty) {
+      throw ArgumentError('A rejection reason is required.');
+    }
+    await _firestore.collection('users').doc(userId).update({
+      'renewal_status': 'rejected',
+      'renewal_reviewed_by': adminId,
+      'renewal_reviewed_at': FieldValue.serverTimestamp(),
+      'renewal_rejection_reason': normalizedReason,
+      'updated_at': FieldValue.serverTimestamp(),
+    });
+  }
+
+  static DateTime? _dateFromValue(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
+  }
+
+  static String _documentStatusForDates({
+    required DateTime? licenseExpiry,
+    required DateTime? orCrExpiry,
+    required DateTime now,
+  }) {
+    final dates = <DateTime>[?licenseExpiry, ?orCrExpiry];
+    if (dates.any((date) => !date.isAfter(now))) return 'expired';
+    if (dates.any((date) => !date.isAfter(now.add(const Duration(days: 30))))) {
+      return 'expiring_soon';
+    }
+    return 'valid';
+  }
+
   static Future<void> restrictUser({
     required String userId,
     required String adminId,

@@ -47,6 +47,8 @@ class _DriverSignUpState extends State<DriverSignUp> {
   RegistrationImageSelection? _orCrFile;
   RegistrationImageSelection? _tricycleFrontFile;
   RegistrationImageSelection? _tricycleBackFile;
+  DateTime? _licenseExpiry;
+  DateTime? _orCrExpiry;
 
   @override
   void dispose() {
@@ -83,6 +85,40 @@ class _DriverSignUpState extends State<DriverSignUp> {
     final selection = await _pickRegistrationImage(ImageSource.gallery);
     if (!mounted || selection == null) return;
     setState(() => _orCrFile = selection);
+  }
+
+  Future<void> _pickLicenseExpiry() async {
+    final selected = await _pickExpiryDate(
+      initialDate: _licenseExpiry,
+      helpText: 'Select Driver\'s License expiry',
+    );
+    if (selected != null && mounted) {
+      setState(() => _licenseExpiry = selected);
+    }
+  }
+
+  Future<void> _pickOrCrExpiry() async {
+    final selected = await _pickExpiryDate(
+      initialDate: _orCrExpiry,
+      helpText: 'Select OR/CR expiry',
+    );
+    if (selected != null && mounted) {
+      setState(() => _orCrExpiry = selected);
+    }
+  }
+
+  Future<DateTime?> _pickExpiryDate({
+    required DateTime? initialDate,
+    required String helpText,
+  }) {
+    final now = DateTime.now();
+    return showDatePicker(
+      context: context,
+      initialDate: initialDate ?? now.add(const Duration(days: 365)),
+      firstDate: now.add(const Duration(days: 1)),
+      lastDate: DateTime(now.year + 10, 12, 31),
+      helpText: helpText,
+    );
   }
 
   Future<void> _pickTricycleFront() async {
@@ -184,6 +220,7 @@ class _DriverSignUpState extends State<DriverSignUp> {
         _tricycleColorController.text.trim().isEmpty ||
         _plateNumberController.text.trim().isEmpty ||
         _orCrFile == null ||
+        _orCrExpiry == null ||
         _tricycleFrontFile == null ||
         _tricycleBackFile == null) {
       setState(() => _currentStep = 1);
@@ -193,9 +230,11 @@ class _DriverSignUpState extends State<DriverSignUp> {
       return;
     }
 
-    if (_nbiFile == null || _licenseFile == null) {
+    if (_nbiFile == null || _licenseFile == null || _licenseExpiry == null) {
       setState(() => _currentStep = 2);
-      _showMessage('Please upload NBI clearance and driver\'s license.');
+      _showMessage(
+        'Please upload NBI clearance and driver\'s license, then enter the license expiry date.',
+      );
       return;
     }
 
@@ -226,6 +265,8 @@ class _DriverSignUpState extends State<DriverSignUp> {
         vehicleType: _vehicleType!,
         tricycleColor: _tricycleColorController.text.trim(),
         plateNumber: _plateNumberController.text.trim(),
+        driversLicenseExpiry: _licenseExpiry!,
+        orCrExpiry: _orCrExpiry!,
         nbiFile: _nbiFile!,
         licenseFile: _licenseFile!,
         selfieFile: _selfieFile!,
@@ -439,6 +480,56 @@ class _DriverSignUpState extends State<DriverSignUp> {
     );
   }
 
+  Widget _expiryDateTile({
+    required String label,
+    required DateTime? value,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: InputDecorator(
+        decoration: _inputDecoration(label: label, icon: Icons.event_outlined)
+            .copyWith(
+              errorText: _showValidationErrors && value == null
+                  ? 'Expiry date is required'
+                  : null,
+            ),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                value == null ? 'Choose date' : _formatDate(value),
+                style: TextStyle(
+                  color: value == null ? AuthUi.body : AuthUi.title,
+                ),
+              ),
+            ),
+            Icon(Icons.calendar_month_outlined, color: AuthUi.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime value) {
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[value.month - 1]} ${value.day}, ${value.year}';
+  }
+
   Widget _buildStepIndicator() {
     final steps = [
       ('1', 'Basic Info'),
@@ -567,10 +658,11 @@ class _DriverSignUpState extends State<DriverSignUp> {
                           return;
                         }
                         if (_orCrFile == null ||
+                            _orCrExpiry == null ||
                             _tricycleFrontFile == null ||
                             _tricycleBackFile == null) {
                           _showMessage(
-                            'Please upload OR/CR document and front & back tricycle photos.',
+                            'Please add the OR/CR document and expiry date, plus front & back tricycle photos.',
                           );
                           return;
                         }
@@ -776,10 +868,17 @@ class _DriverSignUpState extends State<DriverSignUp> {
             SizedBox(height: 18),
             _uploadTile(
               title: 'OR/CR Document',
-              subtitle: 'Upload Official Receipt / Certificate of Registration.',
+              subtitle:
+                  'Upload Official Receipt / Certificate of Registration.',
               icon: Icons.article_outlined,
               onTap: _pickOrCr,
               file: _orCrFile,
+            ),
+            SizedBox(height: 14),
+            _expiryDateTile(
+              label: 'OR/CR Expiry Date',
+              value: _orCrExpiry,
+              onTap: _pickOrCrExpiry,
             ),
             SizedBox(height: 14),
             _uploadTile(
@@ -824,6 +923,12 @@ class _DriverSignUpState extends State<DriverSignUp> {
             icon: Icons.credit_card_outlined,
             onTap: _pickLicense,
             file: _licenseFile,
+          ),
+          SizedBox(height: 14),
+          _expiryDateTile(
+            label: 'Driver\'s License Expiry Date',
+            value: _licenseExpiry,
+            onTap: _pickLicenseExpiry,
           ),
           SizedBox(height: 18),
           Container(

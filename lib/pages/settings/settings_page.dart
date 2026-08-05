@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/preferences/app_preferences_controller.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
+import '../driver/driver_info_hub_page.dart';
 import '../driver/driver_payout_accounts_page.dart';
 import '../passenger/passenger_payment_methods_page.dart';
 import '../profile/profile_details.dart';
@@ -84,6 +85,22 @@ class _SettingsPageState extends State<SettingsPage> {
         _emailVerifiedOverride ?? authUser?.emailVerified == true;
 
     final accountItems = <SettingsTileData>[
+      if (isDriver)
+        SettingsTileData(
+          title: 'Driver Info & Renewal',
+          subtitle:
+              'Review your requirements, vehicle, payout reference, and document renewal status.',
+          icon: Icons.badge_outlined,
+          accentColor: PassengerUi.primary,
+          isEnabled: canOpenProfile,
+          onTap: canOpenProfile
+              ? () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => DriverInfoHubPage(driverId: currentUserId),
+                  ),
+                )
+              : null,
+        ),
       SettingsTileData(
         title: 'Profile Information',
         subtitle: 'Review your personal account details.',
@@ -126,7 +143,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ? () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => PassengerDocumentVerificationPage(
-                      userId: currentUserId!,
+                      userId: currentUserId,
                     ),
                   ),
                 )

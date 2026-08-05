@@ -140,6 +140,7 @@ class SessionService {
           userId: user.userId,
           firstName: user.firstName,
           isVerified: user.isVerified,
+          canReceiveBookings: user.canReceiveDriverBookings,
           profileImageUrl: user.profileImageUrl,
         );
       case UserRole.passenger:

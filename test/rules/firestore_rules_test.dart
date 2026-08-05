@@ -34,6 +34,18 @@ void main() {
       expect(rules, contains("request.resource.data.vehicle_type is string"));
       expect(rules, contains("request.resource.data.tricycle_color is string"));
       expect(rules, contains("request.resource.data.plate_number is string"));
+      expect(
+        rules,
+        contains('request.resource.data.drivers_license_expiry is timestamp'),
+      );
+      expect(
+        rules,
+        contains('request.resource.data.or_cr_expiry is timestamp'),
+      );
+      expect(
+        rules,
+        contains("request.resource.data.document_status == 'valid'"),
+      );
     });
 
     test('allow only narrow self availability updates for drivers', () {
@@ -46,7 +58,42 @@ void main() {
       expect(rules, contains('request.resource.data.is_active is bool'));
       expect(rules, contains('isVerifiedUser(resource.data)'));
       expect(rules, contains('isUsableAccount(resource.data)'));
+      expect(rules, contains('hasCurrentDriverDocuments(resource.data)'));
       expect(rules, contains('&& isValidDriverAvailabilityUpdate(userId);'));
+    });
+
+    test('allow only narrow owner renewal submissions', () {
+      expect(
+        rules,
+        contains('function isValidDriverRenewalSubmission(userId)'),
+      );
+      expect(rules, contains('function driverRenewalSubmissionFields()'));
+      expect(rules, contains("'renewal_document_type'"));
+      expect(rules, contains("'renewal_document_url'"));
+      expect(rules, contains("'renewal_document_path'"));
+      expect(rules, contains("'renewal_expiry'"));
+      expect(rules, contains("'renewal_submitted_at'"));
+      expect(
+        rules,
+        contains("request.resource.data.renewal_status == 'pending_renewal'"),
+      );
+      expect(rules, contains('.hasOnly(driverRenewalSubmissionFields())'));
+      expect(rules, contains('&& isValidDriverRenewalSubmission(userId);'));
+    });
+
+    test('keep renewal decisions and approved documents admin-controlled', () {
+      expect(rules, contains('function driverDocumentAdminFields()'));
+      expect(rules, contains('function hasNoProtectedDriverDocumentChanges()'));
+      expect(rules, contains("'renewal_reviewed_at'"));
+      expect(rules, contains("'renewal_reviewed_by'"));
+      expect(rules, contains("'renewal_rejection_reason'"));
+      expect(rules, contains('|| hasNoProtectedDriverDocumentChanges()'));
+      expect(
+        rules,
+        contains(
+          'allow update, delete: if isAdmin() && !isAdminRole(resource.data);',
+        ),
+      );
     });
 
     test('allow verified auth users to sync email verification status', () {
@@ -157,6 +204,7 @@ void main() {
       expect(rules, contains('request.resource.data.driver_id == driverId'));
       expect(rules, contains('request.resource.data.is_available != true'));
       expect(rules, contains('|| isVerifiedDriver()'));
+      expect(rules, contains('&& hasCurrentDriverDocuments(signedInUser())'));
     });
 
     test('allow top driver leaderboard queries through canonical fields', () {

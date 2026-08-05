@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../models/driver_document_status.dart';
 import '../../models/ride_location.dart';
 import 'widgets/admin_ui.dart';
 
@@ -37,6 +38,7 @@ class AdminUserRecord {
   final String? orCrUrl;
   final String? tricycleFrontUrl;
   final String? tricycleBackUrl;
+  final DriverDocumentStatus driverDocumentStatus;
   final double averageRating;
   final int reviewCount;
 
@@ -72,6 +74,7 @@ class AdminUserRecord {
     required this.orCrUrl,
     required this.tricycleFrontUrl,
     required this.tricycleBackUrl,
+    this.driverDocumentStatus = const DriverDocumentStatus(),
     required this.averageRating,
     required this.reviewCount,
   });
@@ -132,6 +135,7 @@ class AdminUserRecord {
       orCrUrl: _readNullableString(data['or_cr_url']),
       tricycleFrontUrl: _readNullableString(data['tricycle_front_url']),
       tricycleBackUrl: _readNullableString(data['tricycle_back_url']),
+      driverDocumentStatus: DriverDocumentStatus.fromMap(data),
       averageRating: _readDouble(
         data['driver_average_rating'] ??
             data['passenger_average_rating'] ??
@@ -182,13 +186,21 @@ class AdminUserRecord {
     if (isSeniorCitizenPassenger) return 'Senior Citizen';
     return 'Regular';
   }
+
   bool get isEligibleDriverAccount =>
-      isDriver && isVerified && !isBanned && !isDeactivated && !isDeleted;
+      isDriver &&
+      isVerified &&
+      !isBanned &&
+      !isDeactivated &&
+      !isDeleted &&
+      driverDocumentStatus.isEligibleAt(DateTime.now());
   bool get canReceiveBookings => isEligibleDriverAccount && isActive;
 
   bool get isPendingVerification =>
       !isAdmin && !isBanned && !isDeactivated && !isDeleted && !isVerified;
-  bool get needsApproval => isPendingVerification;
+  bool get isPendingRenewal =>
+      isDriver && driverDocumentStatus.hasPendingRenewal;
+  bool get needsApproval => isPendingVerification || isPendingRenewal;
   bool get canRestoreDeactivated =>
       isDeactivated &&
       !isDeleted &&
@@ -210,7 +222,10 @@ class AdminUserRecord {
       hasDriverDocuments &&
       _hasValue(vehicleType) &&
       _hasValue(tricycleColor) &&
-      _hasValue(plateNumber);
+      _hasValue(plateNumber) &&
+      driverDocumentStatus.driversLicenseExpiry != null &&
+      driverDocumentStatus.orCrExpiry != null &&
+      driverDocumentStatus.isEligibleAt(DateTime.now());
 
   bool get canBeApproved =>
       isPendingVerification && (!isDriver || isDriverVerificationComplete);
@@ -229,6 +244,13 @@ class AdminUserRecord {
     if (isBanned) return 'Restricted';
     if (isDeactivated) return 'Deactivated';
     if (isAdmin) return 'Developer managed';
+    if (isPendingRenewal) return 'Pending renewal';
+    if (isDriver && !driverDocumentStatus.isEligibleAt(DateTime.now())) {
+      return 'Documents expired';
+    }
+    if (isDriver && driverDocumentStatus.wasRenewalRejected) {
+      return 'Renewal rejected';
+    }
     if (isPendingVerification) return 'Pending verification';
     if (isVerified && isActive) return 'Verified';
     if (isVerified) return 'Verified';

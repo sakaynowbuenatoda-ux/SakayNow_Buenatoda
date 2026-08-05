@@ -54,6 +54,7 @@ const risingDriverAverage = 4.7;
 const deactivationRestoreWindowDays = 60;
 const transactionRetentionYears = 5;
 const scheduledCleanupLimit = 250;
+const driverDocumentExpiryWarningDays = 30;
 
 type TokenTarget = {
   token: string;
@@ -1017,6 +1018,89 @@ export const notifyAccountStatusChanged = onDocumentUpdated(
   },
 );
 
+export const notifyDriverRenewalSubmitted = onDocumentUpdated(
+  {
+    region: "asia-southeast1",
+    document: "users/{userId}",
+  },
+  async (event) => {
+    const change = event.data;
+    if (!change) {
+      return;
+    }
+
+    const before = change.before.data();
+    const after = change.after.data();
+    if (
+      normalizedUserRole(after) !== "driver" ||
+      readOptionalString(before.renewal_status) === "pending_renewal" ||
+      readOptionalString(after.renewal_status) !== "pending_renewal"
+    ) {
+      return;
+    }
+
+    const userId = event.params.userId;
+    const documentType = readOptionalString(after.renewal_document_type) ??
+      "driver_document";
+    await notifyAdmins({
+      type: "driver_renewal_submitted",
+      title: "Driver renewal submitted",
+      body: `${fullName(after)} submitted a ${driverDocumentLabel(
+        documentType,
+      )} renewal for review.`,
+      channel: "system",
+      sourceId: `driver_renewal_${userId}_${event.id}`,
+      data: {
+        user_id: userId,
+        role: "driver",
+        document_type: documentType,
+      },
+      sendPush: true,
+    });
+  },
+);
+
+export const notifyDriverRenewalDecision = onDocumentUpdated(
+  {
+    region: "asia-southeast1",
+    document: "users/{userId}",
+  },
+  async (event) => {
+    const change = event.data;
+    if (!change) return;
+    const before = change.before.data();
+    const after = change.after.data();
+    const decision = readOptionalString(after.renewal_status);
+    if (
+      normalizedUserRole(after) !== "driver" ||
+      readOptionalString(before.renewal_status) !== "pending_renewal" ||
+      (decision !== "approved" && decision !== "rejected")
+    ) {
+      return;
+    }
+
+    const approved = decision === "approved";
+    const reason = readOptionalString(after.renewal_rejection_reason);
+    await createAppNotification({
+      userId: event.params.userId,
+      role: "driver",
+      type: approved ? "driver_renewal_approved" : "driver_renewal_rejected",
+      title: approved ? "Document renewal approved" : "Document renewal rejected",
+      body: approved ?
+        "Your replacement document was approved. Check your renewal status before going active." :
+        `Your replacement document needs changes.${reason ? ` ${reason}` : ""}`,
+      channel: "account",
+      sourceId: `driver_renewal_decision_${event.params.userId}_${event.id}`,
+      data: {
+        user_id: event.params.userId,
+        role: "driver",
+        renewal_status: decision,
+      },
+      sendPush: true,
+    });
+  },
+);
+
 export const logAdminUserAction = onDocumentUpdated(
   {
     region: "asia-southeast1",
@@ -1240,6 +1324,84 @@ export const purgeExpiredTransactionRecords = onSchedule(
       now,
       retentionField: "retention_expires_at",
     });
+  },
+);
+
+export const refreshDriverDocumentStatuses = onSchedule(
+  {
+    region: "asia-southeast1",
+    schedule: "every day 01:00",
+    timeZone: "Asia/Manila",
+  },
+  async () => {
+    const now = Timestamp.now();
+    const snapshot = await firestore
+      .collection("users")
+      .where("role", "==", "driver")
+      .limit(scheduledCleanupLimit)
+      .get();
+
+    await Promise.all(snapshot.docs.map(async (doc) => {
+      const driver = doc.data();
+      const status = driverDocumentExpiryState(driver, now);
+      if (!status) {
+        // Legacy drivers without expiry fields remain eligible until dates are
+        // added through a reviewed renewal or migration.
+        return;
+      }
+
+      const currentStatus = readOptionalString(driver.document_status);
+      const shouldForceOffline = status === "expired" &&
+        readOptionalBool(driver.is_active, false);
+      if (currentStatus !== status || shouldForceOffline) {
+        await doc.ref.set(
+          {
+            document_status: status,
+            document_status_updated_at: FieldValue.serverTimestamp(),
+            ...(status === "expired" ? {is_active: false} : {}),
+            updated_at: FieldValue.serverTimestamp(),
+          },
+          {merge: true},
+        );
+      }
+
+      if (status === "expired") {
+        await firestore.collection("driver_locations").doc(doc.id).set(
+          {
+            driver_id: doc.id,
+            is_available: false,
+            updated_at: FieldValue.serverTimestamp(),
+          },
+          {merge: true},
+        );
+      }
+
+      if (currentStatus !== status && status !== "valid") {
+        const expiry = earliestDriverDocumentExpiry(driver);
+        const type = status === "expired" ?
+          "driver_documents_expired" :
+          "driver_documents_expiring";
+        await createAppNotification({
+          userId: doc.id,
+          role: "driver",
+          type,
+          title: status === "expired" ?
+            "Driver document expired" :
+            "Driver document expiring soon",
+          body: status === "expired" ?
+            "You are offline until an admin approves a valid replacement document." :
+            "Your Driver's License or OR/CR expires within 30 days. Submit a renewal in the Driver Info Hub.",
+          channel: "account",
+          sourceId: `driver_document_${status}_${doc.id}_${expiry?.seconds ?? 0}`,
+          data: {
+            user_id: doc.id,
+            role: "driver",
+            document_status: status,
+          },
+          sendPush: true,
+        });
+      }
+    }));
   },
 );
 
@@ -1875,6 +2037,7 @@ async function isEligibleDriver(driverId: string) {
   return driverSnapshot.exists &&
     normalizedUserRole(driver) === "driver" &&
     isVerifiedAccount(driver) &&
+    hasCurrentDriverDocuments(driver, Timestamp.now()) &&
     !isBannedAccount(driver);
 }
 
@@ -2416,6 +2579,52 @@ function timestampAfterYears(value: Timestamp, years: number) {
   const date = value.toDate();
   date.setFullYear(date.getFullYear() + years);
   return Timestamp.fromDate(date);
+}
+
+function driverDocumentExpiryState(
+  driver: Record<string, unknown>,
+  now: Timestamp,
+): "valid" | "expiring_soon" | "expired" | undefined {
+  const expiries = driverDocumentExpiries(driver);
+  if (expiries.length === 0) {
+    return undefined;
+  }
+  if (expiries.some((expiry) => expiry.toMillis() <= now.toMillis())) {
+    return "expired";
+  }
+
+  const warningAt = timestampAfterDays(now, driverDocumentExpiryWarningDays);
+  if (expiries.some((expiry) => expiry.toMillis() <= warningAt.toMillis())) {
+    return "expiring_soon";
+  }
+  return "valid";
+}
+
+function hasCurrentDriverDocuments(
+  driver: Record<string, unknown>,
+  now: Timestamp,
+) {
+  if (readOptionalString(driver.document_status) === "expired") {
+    return false;
+  }
+  return driverDocumentExpiries(driver)
+    .every((expiry) => expiry.toMillis() > now.toMillis());
+}
+
+function driverDocumentExpiries(driver: Record<string, unknown>) {
+  return [
+    timestampFromUnknown(driver.drivers_license_expiry),
+    timestampFromUnknown(driver.or_cr_expiry),
+  ].filter((expiry): expiry is Timestamp => expiry !== undefined);
+}
+
+function earliestDriverDocumentExpiry(driver: Record<string, unknown>) {
+  return driverDocumentExpiries(driver)
+    .sort((left, right) => left.toMillis() - right.toMillis())[0];
+}
+
+function driverDocumentLabel(documentType: string) {
+  return documentType === "drivers_license" ? "Driver's License" : "OR/CR";
 }
 
 function retentionExpiresFromNow() {

@@ -29,6 +29,7 @@ class DriverShell extends StatefulWidget {
   final String userId;
   final String firstName;
   final bool isVerified;
+  final bool canReceiveBookings;
   final String? profileImageUrl;
 
   const DriverShell({
@@ -36,6 +37,7 @@ class DriverShell extends StatefulWidget {
     required this.userId,
     required this.firstName,
     required this.isVerified,
+    this.canReceiveBookings = false,
     this.profileImageUrl,
   });
 
@@ -96,7 +98,8 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
       _watchUnreadNotifications();
       _watchQueueRequestCount();
       _watchRideCancellations();
-    } else if (oldWidget.isVerified != widget.isVerified) {
+    } else if (oldWidget.isVerified != widget.isVerified ||
+        oldWidget.canReceiveBookings != widget.canReceiveBookings) {
       _watchQueueRequestCount();
     }
   }
@@ -185,6 +188,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
             firstName: widget.firstName,
             isActive: isActive,
             isVerified: widget.isVerified,
+            canReceiveBookings: widget.canReceiveBookings,
             onOpenQueue: () => setState(() => _currentIndex = 1),
             onOpenHistory: () => _selectTab(_historyIndex),
           );
@@ -195,7 +199,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
         builder: (context, isActive, _) {
           return DriverQueuePage(
             driverId: widget.userId,
-            isVerified: widget.isVerified,
+            isVerified: widget.canReceiveBookings,
             isActive: isActive,
           );
         },
@@ -305,7 +309,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   void _watchQueueRequestCount() {
     unawaited(_queueRequestSubscription?.cancel());
 
-    if (!widget.isVerified) {
+    if (!widget.canReceiveBookings) {
       if (mounted && _queueRequestCount != 0) {
         setState(() => _queueRequestCount = 0);
       } else {
@@ -493,10 +497,12 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
       return;
     }
 
-    if (value && !widget.isVerified) {
+    if (value && !widget.canReceiveBookings) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Admin verification is required before going active.'),
+          content: Text(
+            'Current Driver\'s License and OR/CR approval is required before going active.',
+          ),
         ),
       );
       return;

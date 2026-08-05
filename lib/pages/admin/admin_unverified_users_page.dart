@@ -87,7 +87,11 @@ class _AdminUnverifiedUsersPageState extends State<AdminUnverifiedUsersPage> {
             }
 
             final filteredUsers = snapshot.data!
-                .where((user) => user.isPendingVerification)
+                .where(
+                  (user) =>
+                      user.isPendingVerification ||
+                      (_showDrivers && user.isPendingRenewal),
+                )
                 .where(
                   (user) => _showDrivers ? user.isDriver : user.isPassenger,
                 )

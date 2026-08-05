@@ -31,7 +31,7 @@ class AdminAccountManagementPage extends StatelessWidget {
               .where((user) => user.isPassengerOrDriver)
               .length;
           final pendingUsers = users
-              .where((user) => user.isPendingVerification)
+              .where((user) => user.needsApproval)
               .toList(growable: false);
           final restrictedUsers = users
               .where((user) => !user.isAdmin && user.isBanned)
@@ -52,7 +52,7 @@ class AdminAccountManagementPage extends StatelessWidget {
               const AdminSectionIntro(
                 title: 'Account Management',
                 subtitle:
-                    'Review pending verification, restore deactivated users within 60 days, and follow up on restricted accounts.',
+                    'Review pending verification and driver renewals, restore deactivated users within 60 days, and follow up on restricted accounts.',
               ),
               SizedBox(height: 16),
               _AccountTopGrid(

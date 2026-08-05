@@ -67,6 +67,8 @@ class RegistrationService {
     required String vehicleType,
     required String tricycleColor,
     required String plateNumber,
+    required DateTime driversLicenseExpiry,
+    required DateTime orCrExpiry,
     required RegistrationImageSelection nbiFile,
     required RegistrationImageSelection licenseFile,
     required RegistrationImageSelection selfieFile,
@@ -86,6 +88,12 @@ class RegistrationService {
       'vehicle_type': vehicleType.trim(),
       'tricycle_color': tricycleColor.trim(),
       'plate_number': plateNumber.trim(),
+      'drivers_license_expiry': Timestamp.fromDate(
+        _endOfDay(driversLicenseExpiry),
+      ),
+      'or_cr_expiry': Timestamp.fromDate(_endOfDay(orCrExpiry)),
+      'document_status': 'valid',
+      'renewal_status': 'none',
       'is_verified': false,
       'is_active': false,
       'is_banned': false,
@@ -245,6 +253,10 @@ class RegistrationService {
     } catch (_) {
       // Account creation should still succeed if the verification email fails.
     }
+  }
+
+  static DateTime _endOfDay(DateTime value) {
+    return DateTime(value.year, value.month, value.day, 23, 59, 59, 999);
   }
 
   static Future<void> _deleteUploadedRefs(List<Reference> uploadedRefs) async {

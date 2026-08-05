@@ -22,12 +22,15 @@ class DriverSignUp extends StatefulWidget {
 
 class _DriverSignUpState extends State<DriverSignUp> {
   final _formKey = GlobalKey<FormState>();
+  final _vehicleFormKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _ageController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _tricycleColorController = TextEditingController();
+  final _plateNumberController = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
 
@@ -37,9 +40,13 @@ class _DriverSignUpState extends State<DriverSignUp> {
   bool _showValidationErrors = false;
 
   String? _gender;
+  String? _vehicleType = 'Traditional Tricycle';
   RegistrationImageSelection? _nbiFile;
   RegistrationImageSelection? _licenseFile;
   RegistrationImageSelection? _selfieFile;
+  RegistrationImageSelection? _orCrFile;
+  RegistrationImageSelection? _tricycleFrontFile;
+  RegistrationImageSelection? _tricycleBackFile;
 
   @override
   void dispose() {
@@ -49,6 +56,8 @@ class _DriverSignUpState extends State<DriverSignUp> {
     _ageController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _tricycleColorController.dispose();
+    _plateNumberController.dispose();
     super.dispose();
   }
 
@@ -68,6 +77,24 @@ class _DriverSignUpState extends State<DriverSignUp> {
     final selection = await _pickRegistrationImage(ImageSource.camera);
     if (!mounted || selection == null) return;
     setState(() => _selfieFile = selection);
+  }
+
+  Future<void> _pickOrCr() async {
+    final selection = await _pickRegistrationImage(ImageSource.gallery);
+    if (!mounted || selection == null) return;
+    setState(() => _orCrFile = selection);
+  }
+
+  Future<void> _pickTricycleFront() async {
+    final selection = await _pickRegistrationImage(ImageSource.gallery);
+    if (!mounted || selection == null) return;
+    setState(() => _tricycleFrontFile = selection);
+  }
+
+  Future<void> _pickTricycleBack() async {
+    final selection = await _pickRegistrationImage(ImageSource.gallery);
+    if (!mounted || selection == null) return;
+    setState(() => _tricycleBackFile = selection);
   }
 
   Future<RegistrationImageSelection?> _pickRegistrationImage(
@@ -153,8 +180,21 @@ class _DriverSignUpState extends State<DriverSignUp> {
       return;
     }
 
-    if (_nbiFile == null || _licenseFile == null) {
+    if (_vehicleType == null ||
+        _tricycleColorController.text.trim().isEmpty ||
+        _plateNumberController.text.trim().isEmpty ||
+        _orCrFile == null ||
+        _tricycleFrontFile == null ||
+        _tricycleBackFile == null) {
       setState(() => _currentStep = 1);
+      _showMessage(
+        'Please review and complete all required vehicle information and photos.',
+      );
+      return;
+    }
+
+    if (_nbiFile == null || _licenseFile == null) {
+      setState(() => _currentStep = 2);
       _showMessage('Please upload NBI clearance and driver\'s license.');
       return;
     }
@@ -183,9 +223,15 @@ class _DriverSignUpState extends State<DriverSignUp> {
         lastName: _lastNameController.text.trim(),
         age: _ageController.text.trim(),
         gender: _gender,
+        vehicleType: _vehicleType!,
+        tricycleColor: _tricycleColorController.text.trim(),
+        plateNumber: _plateNumberController.text.trim(),
         nbiFile: _nbiFile!,
         licenseFile: _licenseFile!,
         selfieFile: _selfieFile!,
+        orCrFile: _orCrFile!,
+        tricycleFrontFile: _tricycleFrontFile!,
+        tricycleBackFile: _tricycleBackFile!,
       );
 
       if (!mounted) return;
@@ -394,7 +440,11 @@ class _DriverSignUpState extends State<DriverSignUp> {
   }
 
   Widget _buildStepIndicator() {
-    final steps = [('1', 'Basic Info'), ('2', 'Credentials'), ('3', 'Selfie')];
+    final steps = [
+      ('1', 'Basic Info'),
+      ('2', 'Vehicle Details'),
+      ('3', 'Driver IDs'),
+    ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -501,6 +551,27 @@ class _DriverSignUpState extends State<DriverSignUp> {
                       if (_currentStep == 0) {
                         setState(() => _showValidationErrors = true);
                         if (!_validateBasicInfo()) {
+                          return;
+                        }
+                      } else if (_currentStep == 1) {
+                        setState(() => _showValidationErrors = true);
+                        final formValid =
+                            _vehicleFormKey.currentState?.validate() ?? false;
+                        if (!formValid ||
+                            _vehicleType == null ||
+                            _tricycleColorController.text.trim().isEmpty ||
+                            _plateNumberController.text.trim().isEmpty) {
+                          _showMessage(
+                            'Please complete all required vehicle text fields.',
+                          );
+                          return;
+                        }
+                        if (_orCrFile == null ||
+                            _tricycleFrontFile == null ||
+                            _tricycleBackFile == null) {
+                          _showMessage(
+                            'Please upload OR/CR document and front & back tricycle photos.',
+                          );
                           return;
                         }
                       }
@@ -642,11 +713,102 @@ class _DriverSignUpState extends State<DriverSignUp> {
     );
   }
 
-  Widget _buildCredentialsStep() {
+  Widget _buildVehicleStep() {
     return _sectionCard(
-      title: 'Upload Credentials',
-      subtitle: 'Submit clear images of your required driver documents.',
+      title: 'Vehicle Information & Photos',
+      subtitle: 'Enter your tricycle details and attach required photos.',
+      child: Form(
+        key: _vehicleFormKey,
+        autovalidateMode: _showValidationErrors
+            ? AutovalidateMode.always
+            : AutovalidateMode.disabled,
+        child: Column(
+          children: [
+            DropdownButtonFormField<String>(
+              value: _vehicleType,
+              decoration: _inputDecoration(
+                label: 'Vehicle Type',
+                icon: Icons.electric_rickshaw_rounded,
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: 'Traditional Tricycle',
+                  child: Text('Traditional Tricycle'),
+                ),
+                DropdownMenuItem(
+                  value: 'E-Tricycle (Bao-bao)',
+                  child: Text('E-Tricycle (Bao-bao)'),
+                ),
+                DropdownMenuItem(
+                  value: 'Motorela / Custom',
+                  child: Text('Motorela / Custom'),
+                ),
+              ],
+              onChanged: (value) => setState(() => _vehicleType = value),
+              validator: (val) =>
+                  val == null ? 'Vehicle type is required' : null,
+            ),
+            SizedBox(height: 14),
+            _buildResponsiveFieldRow(
+              first: TextFormField(
+                controller: _tricycleColorController,
+                textInputAction: TextInputAction.next,
+                decoration: _inputDecoration(
+                  label: 'Tricycle Color',
+                  icon: Icons.color_lens_outlined,
+                ),
+                validator: (val) => val == null || val.trim().isEmpty
+                    ? 'Color is required'
+                    : null,
+              ),
+              second: TextFormField(
+                controller: _plateNumberController,
+                textInputAction: TextInputAction.done,
+                decoration: _inputDecoration(
+                  label: 'Plate / Franchise No.',
+                  icon: Icons.confirmation_number_outlined,
+                ),
+                validator: (val) => val == null || val.trim().isEmpty
+                    ? 'Plate/Franchise No. required'
+                    : null,
+              ),
+            ),
+            SizedBox(height: 18),
+            _uploadTile(
+              title: 'OR/CR Document',
+              subtitle: 'Upload Official Receipt / Certificate of Registration.',
+              icon: Icons.article_outlined,
+              onTap: _pickOrCr,
+              file: _orCrFile,
+            ),
+            SizedBox(height: 14),
+            _uploadTile(
+              title: 'Front Tricycle Photo',
+              subtitle: 'Clear front view showing vehicle plate or body.',
+              icon: Icons.directions_car_filled_outlined,
+              onTap: _pickTricycleFront,
+              file: _tricycleFrontFile,
+            ),
+            SizedBox(height: 14),
+            _uploadTile(
+              title: 'Back Tricycle Photo',
+              subtitle: 'Clear back or side view of your tricycle.',
+              icon: Icons.local_taxi_rounded,
+              onTap: _pickTricycleBack,
+              file: _tricycleBackFile,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDriverIdAndSelfieStep() {
+    return _sectionCard(
+      title: 'Driver Credentials & Selfie',
+      subtitle: 'Upload your valid driver documents and capture a live selfie.',
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _uploadTile(
             title: 'NBI Clearance',
@@ -663,18 +825,7 @@ class _DriverSignUpState extends State<DriverSignUp> {
             onTap: _pickLicense,
             file: _licenseFile,
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSelfieStep() {
-    return _sectionCard(
-      title: 'Selfie Verification',
-      subtitle: 'Take a live selfie using your camera for identity checking.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+          SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -811,8 +962,8 @@ class _DriverSignUpState extends State<DriverSignUp> {
                 child: Column(
                   children: [
                     if (_currentStep == 0) _buildBasicInfoStep(),
-                    if (_currentStep == 1) _buildCredentialsStep(),
-                    if (_currentStep == 2) _buildSelfieStep(),
+                    if (_currentStep == 1) _buildVehicleStep(),
+                    if (_currentStep == 2) _buildDriverIdAndSelfieStep(),
                   ],
                 ),
               ),

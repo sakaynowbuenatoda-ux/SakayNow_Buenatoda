@@ -13,6 +13,7 @@ import 'developers.dart';
 import 'email_verification_page.dart';
 import 'help_and_support.dart';
 import 'notification_settings_page.dart';
+import 'passenger_document_verification_page.dart';
 import 'privacy_policy.dart';
 import 'privacy_security_page.dart';
 import 'terms_and_conditions.dart';
@@ -73,7 +74,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final isPassenger =
         normalizedRole == 'passenger' ||
         normalizedRole == 'regular' ||
-        normalizedRole == 'student';
+        normalizedRole == 'student' ||
+        normalizedRole == 'senior_citizen';
     final authUser = FirebaseAuth.instance.currentUser;
     final currentUserId = widget.userId ?? authUser?.uid;
     final canOpenProfile = currentUserId != null && currentUserId.isNotEmpty;
@@ -111,6 +113,25 @@ class _SettingsPageState extends State<SettingsPage> {
             ? () => _openEmailVerificationPage(context)
             : null,
       ),
+      if (isPassenger)
+        SettingsTileData(
+          title: 'Document & ID Verification',
+          subtitle:
+              'Optionally upload your Student or Senior Citizen ID and photo for verification and fare discounts.',
+          icon: Icons.badge_outlined,
+          accentColor: PassengerUi.primary,
+          isEnabled: canOpenProfile,
+          statusLabel: !isAdmin && widget.isVerified ? 'Verified' : 'Optional',
+          onTap: canOpenProfile
+              ? () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PassengerDocumentVerificationPage(
+                      userId: currentUserId!,
+                    ),
+                  ),
+                )
+              : null,
+        ),
       SettingsTileData(
         title: 'Change Password',
         subtitle: 'Manage login credentials and password recovery options.',

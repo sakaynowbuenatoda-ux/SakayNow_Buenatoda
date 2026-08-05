@@ -29,6 +29,25 @@ void main() {
       },
     );
 
+    test('normalizes senior_citizen passenger type and labels correctly', () {
+      final user = AppUser.fromMap(<String, dynamic>{
+        'user_id': 'user-senior',
+        'first_name': 'Pedro',
+        'last_name': 'Gomez',
+        'email': 'pedro@example.com',
+        'role': 'passenger',
+        'passenger_type': 'senior_citizen',
+        'isVerified': true,
+        'isActive': true,
+        'isBanned': false,
+      }, 'fallback-id');
+
+      expect(user.role, 'passenger');
+      expect(user.passengerType, 'senior_citizen');
+      expect(user.normalizedPassengerType, PassengerType.seniorCitizen);
+      expect(user.roleLabel, 'Senior Citizen Passenger');
+    });
+
     test('allows approved users to continue even if email is not verified', () {
       final user = AppUser.fromMap(<String, dynamic>{
         'user_id': 'driver-1',

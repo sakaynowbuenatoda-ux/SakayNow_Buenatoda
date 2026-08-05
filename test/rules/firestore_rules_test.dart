@@ -17,6 +17,12 @@ void main() {
         rules,
         contains("request.resource.data.role in ['passenger', 'driver']"),
       );
+      expect(
+        rules,
+        contains(
+          "request.resource.data.passenger_type in ['regular', 'student', 'senior_citizen']",
+        ),
+      );
       expect(rules, contains('request.resource.data.is_verified == false'));
       expect(rules, contains('request.resource.data.is_active == false'));
       expect(rules, contains('request.resource.data.is_banned == false'));
@@ -25,6 +31,9 @@ void main() {
         rules,
         contains("request.resource.data.account_status == 'active'"),
       );
+      expect(rules, contains("request.resource.data.vehicle_type is string"));
+      expect(rules, contains("request.resource.data.tricycle_color is string"));
+      expect(rules, contains("request.resource.data.plate_number is string"));
     });
 
     test('allow only narrow self availability updates for drivers', () {

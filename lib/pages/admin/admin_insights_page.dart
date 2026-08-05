@@ -366,16 +366,20 @@ class _PassengerFrequency {
   final String label;
   final int regular;
   final int student;
+  final int senior;
   final int previousRegular;
   final int previousStudent;
+  final int previousSenior;
   final String previousLabel;
 
   const _PassengerFrequency({
     required this.label,
     required this.regular,
     required this.student,
+    required this.senior,
     required this.previousRegular,
     required this.previousStudent,
+    required this.previousSenior,
     required this.previousLabel,
   });
 
@@ -386,30 +390,37 @@ class _PassengerFrequency {
     required Map<String, AdminUserRecord> usersById,
     required String previousLabel,
   }) {
-    int countStudents(List<AdminBookingRecord> source) {
+    int countByCondition(
+      List<AdminBookingRecord> source,
+      bool Function(AdminUserRecord?) predicate,
+    ) {
       return source
           .where(
             (booking) =>
-                usersById[booking.passengerId]?.isStudentPassenger == true,
+                predicate(usersById[booking.passengerId]),
           )
           .length;
     }
 
-    final students = countStudents(bookings);
-    final previousStudents = countStudents(previousBookings);
+    final students = countByCondition(bookings, (u) => u?.isStudentPassenger == true);
+    final previousStudents = countByCondition(previousBookings, (u) => u?.isStudentPassenger == true);
+    final seniors = countByCondition(bookings, (u) => u?.isSeniorCitizenPassenger == true);
+    final previousSeniors = countByCondition(previousBookings, (u) => u?.isSeniorCitizenPassenger == true);
 
     return _PassengerFrequency(
       label: label,
-      regular: bookings.length - students,
+      regular: bookings.length - students - seniors,
       student: students,
-      previousRegular: previousBookings.length - previousStudents,
+      senior: seniors,
+      previousRegular: previousBookings.length - previousStudents - previousSeniors,
       previousStudent: previousStudents,
+      previousSenior: previousSeniors,
       previousLabel: previousLabel,
     );
   }
 
-  int get total => regular + student;
-  int get previousTotal => previousRegular + previousStudent;
+  int get total => regular + student + senior;
+  int get previousTotal => previousRegular + previousStudent + previousSenior;
   int get difference => total - previousTotal;
 }
 
@@ -584,8 +595,8 @@ class _PassengerFrequencyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _InsightsSurfacePanel(
-      icon: Icons.school_rounded,
-      title: 'Regular vs Student Frequency',
+      icon: Icons.groups_rounded,
+      title: 'Passenger Type Frequency',
       subtitle: 'Passenger type usage across active periods.',
       accentColor: AdminUi.secondary,
       child: Column(
@@ -779,6 +790,7 @@ class _PassengerSplitBar extends StatelessWidget {
     final total = data.total == 0 ? 1 : data.total;
     final regularFlex = data.regular == 0 ? 1 : data.regular;
     final studentFlex = data.student == 0 ? 1 : data.student;
+    final seniorFlex = data.senior == 0 ? 1 : data.senior;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -797,29 +809,36 @@ class _PassengerSplitBar extends StatelessWidget {
                   flex: studentFlex,
                   child: ColoredBox(color: AdminUi.secondary),
                 ),
+                Expanded(
+                  flex: seniorFlex,
+                  child: ColoredBox(color: AdminUi.highlightAmber),
+                ),
               ],
             ),
           ),
         ),
         SizedBox(height: 10),
-        Row(
+        Wrap(
+          spacing: 16,
+          runSpacing: 8,
           children: [
-            Expanded(
-              child: _LegendLabel(
-                color: AdminUi.accentBlue,
-                label: 'Regular',
-                value:
-                    '${data.regular} (${((data.regular / total) * 100).round()}%)',
-              ),
+            _LegendLabel(
+              color: AdminUi.accentBlue,
+              label: 'Regular',
+              value:
+                  '${data.regular} (${((data.regular / total) * 100).round()}%)',
             ),
-            SizedBox(width: 12),
-            Expanded(
-              child: _LegendLabel(
-                color: AdminUi.secondary,
-                label: 'Student',
-                value:
-                    '${data.student} (${((data.student / total) * 100).round()}%)',
-              ),
+            _LegendLabel(
+              color: AdminUi.secondary,
+              label: 'Student',
+              value:
+                  '${data.student} (${((data.student / total) * 100).round()}%)',
+            ),
+            _LegendLabel(
+              color: AdminUi.highlightAmber,
+              label: 'Senior Citizen',
+              value:
+                  '${data.senior} (${((data.senior / total) * 100).round()}%)',
             ),
           ],
         ),
@@ -915,7 +934,7 @@ class _PassengerPeriodRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return _InsightRowShell(
       label: data.label,
-      value: '${data.regular} regular / ${data.student} student',
+      value: '${data.regular} regular / ${data.student} student / ${data.senior} senior',
       trailing: _ComparisonChip(
         difference: data.difference,
         previousLabel: data.previousLabel,

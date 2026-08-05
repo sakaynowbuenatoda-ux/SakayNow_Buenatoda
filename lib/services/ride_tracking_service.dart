@@ -1836,13 +1836,19 @@ class PassengerFareProfile {
         .toLowerCase();
     final passengerType = rawPassengerType.isNotEmpty
         ? rawPassengerType
-        : rawRole == 'student'
-        ? 'student'
-        : 'regular';
+        : switch (rawRole) {
+            'student' => 'student',
+            'senior_citizen' => 'senior_citizen',
+            _ => 'regular',
+          };
 
     return PassengerFareProfile(
       userId: userId,
-      passengerType: passengerType == 'student' ? 'student' : 'regular',
+      passengerType: switch (passengerType) {
+        'student' => 'student',
+        'senior_citizen' => 'senior_citizen',
+        _ => 'regular',
+      },
       isVerified:
           (data['is_verified'] ??
               data['isVerified'] ??
@@ -1853,6 +1859,7 @@ class PassengerFareProfile {
   }
 
   bool get isStudent => passengerType == 'student';
+  bool get isSeniorCitizen => passengerType == 'senior_citizen';
   bool get isVerifiedStudent => isStudent && isVerified;
 }
 
@@ -2052,9 +2059,11 @@ class PassengerReviewProfile {
         .toLowerCase();
     final resolvedType = passengerType.isNotEmpty
         ? passengerType
-        : rawRole == 'student'
-        ? 'student'
-        : 'regular';
+        : switch (rawRole) {
+            'student' => 'student',
+            'senior_citizen' => 'senior_citizen',
+            _ => 'regular',
+          };
     final reviewCount =
         RideTrackingService._readInt(
           data['passenger_review_count'] ?? data['review_count'],
@@ -2075,7 +2084,11 @@ class PassengerReviewProfile {
       fullName: '$firstName $lastName'.trim().isEmpty
           ? 'Passenger'
           : '$firstName $lastName'.trim(),
-      passengerType: resolvedType == 'student' ? 'student' : 'regular',
+      passengerType: switch (resolvedType) {
+        'student' => 'student',
+        'senior_citizen' => 'senior_citizen',
+        _ => 'regular',
+      },
       isVerified: RideTrackingService._isVerifiedFlag(data),
       profileImageUrl: RideTrackingService._profileImageUrlFromData(data),
       averageRating: averageRating > 0
@@ -2087,7 +2100,11 @@ class PassengerReviewProfile {
     );
   }
 
-  String get roleLabel => passengerType == 'student' ? 'Student' : 'Regular';
+  String get roleLabel => switch (passengerType) {
+        'student' => 'Student',
+        'senior_citizen' => 'Senior Citizen',
+        _ => 'Regular',
+      };
 
   String get ratingLabel =>
       reviewCount == 0 ? 'No ratings yet' : averageRating.toStringAsFixed(1);

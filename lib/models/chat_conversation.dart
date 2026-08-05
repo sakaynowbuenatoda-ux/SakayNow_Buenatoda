@@ -132,7 +132,7 @@ class ChatConversation {
     return switch (role) {
       'admin' => 'Admin',
       'driver' => 'Driver',
-      'passenger' || 'regular' || 'student' => 'Passenger',
+      'passenger' || 'regular' || 'student' || 'senior_citizen' => 'Passenger',
       _ => 'Ride',
     };
   }

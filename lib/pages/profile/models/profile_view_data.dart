@@ -19,6 +19,12 @@ class ProfileViewData {
   final String? selfieUrl;
   final String? nbiClearanceUrl;
   final String? driversLicenseUrl;
+  final String? vehicleType;
+  final String? tricycleColor;
+  final String? plateNumber;
+  final String? orCrUrl;
+  final String? tricycleFrontUrl;
+  final String? tricycleBackUrl;
   final Timestamp? createdAt;
   final double averageRating;
   final int reviewCount;
@@ -43,6 +49,12 @@ class ProfileViewData {
     required this.selfieUrl,
     required this.nbiClearanceUrl,
     required this.driversLicenseUrl,
+    required this.vehicleType,
+    required this.tricycleColor,
+    required this.plateNumber,
+    required this.orCrUrl,
+    required this.tricycleFrontUrl,
+    required this.tricycleBackUrl,
     required this.createdAt,
     required this.averageRating,
     required this.reviewCount,
@@ -57,7 +69,7 @@ class ProfileViewData {
   ) {
     final rawRole = (data['role'] ?? 'user').toString().trim().toLowerCase();
     final normalizedRole = switch (rawRole) {
-      'regular' || 'student' => 'passenger',
+      'regular' || 'student' || 'senior_citizen' => 'passenger',
       _ => rawRole,
     };
 
@@ -70,6 +82,7 @@ class ProfileViewData {
         ? (data['passenger_type'] ?? '').toString().trim().toLowerCase()
         : switch (rawRole) {
             'student' => 'student',
+            'senior_citizen' => 'senior_citizen',
             _ => 'regular',
           };
 
@@ -134,6 +147,12 @@ class ProfileViewData {
       selfieUrl: _normalizeOptional(data['selfie_url']),
       nbiClearanceUrl: _normalizeOptional(data['nbi_clearance_url']),
       driversLicenseUrl: _normalizeOptional(data['drivers_license_url']),
+      vehicleType: _normalizeOptional(data['vehicle_type']),
+      tricycleColor: _normalizeOptional(data['tricycle_color']),
+      plateNumber: _normalizeOptional(data['plate_number']),
+      orCrUrl: _normalizeOptional(data['or_cr_url']),
+      tricycleFrontUrl: _normalizeOptional(data['tricycle_front_url']),
+      tricycleBackUrl: _normalizeOptional(data['tricycle_back_url']),
       createdAt: data['created_at'] as Timestamp?,
       averageRating: averageRating,
       reviewCount: reviewCount,
@@ -224,6 +243,9 @@ class ProfileViewData {
       case 'passenger':
         if (passengerType == 'student') {
           return 'Student Passenger';
+        }
+        if (passengerType == 'senior_citizen') {
+          return 'Senior Citizen Passenger';
         }
         return 'Passenger';
       case 'admin':

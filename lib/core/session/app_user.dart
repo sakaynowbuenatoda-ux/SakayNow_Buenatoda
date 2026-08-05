@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum UserRole { admin, driver, passenger }
 
-enum PassengerType { regular, student }
+enum PassengerType { regular, student, seniorCitizen }
 
 enum AccountAccessState {
   active,
@@ -31,6 +31,12 @@ class AppUser {
   final DateTime? accountAnonymizedAt;
   final String? profilePictureUrl;
   final String? selfieUrl;
+  final String? vehicleType;
+  final String? tricycleColor;
+  final String? plateNumber;
+  final String? orCrUrl;
+  final String? tricycleFrontUrl;
+  final String? tricycleBackUrl;
 
   AppUser({
     required this.userId,
@@ -51,12 +57,18 @@ class AppUser {
     required this.accountAnonymizedAt,
     required this.profilePictureUrl,
     required this.selfieUrl,
+    required this.vehicleType,
+    required this.tricycleColor,
+    required this.plateNumber,
+    required this.orCrUrl,
+    required this.tricycleFrontUrl,
+    required this.tricycleBackUrl,
   });
 
   factory AppUser.fromMap(Map<String, dynamic> data, String fallbackUserId) {
     final rawRole = (data['role'] ?? '').toString().trim().toLowerCase();
     final normalizedRole = switch (rawRole) {
-      'regular' || 'student' => 'passenger',
+      'regular' || 'student' || 'senior_citizen' => 'passenger',
       _ => rawRole,
     };
 
@@ -69,6 +81,7 @@ class AppUser {
         ? (data['passenger_type'] ?? '').toString().trim().toLowerCase()
         : switch (rawRole) {
             'student' => 'student',
+            'senior_citizen' => 'senior_citizen',
             _ => 'regular',
           };
 
@@ -108,6 +121,12 @@ class AppUser {
         data['profile_picture_url'] ?? data['profile_image_url'],
       ),
       selfieUrl: _normalizeOptional(data['selfie_url']),
+      vehicleType: _normalizeOptional(data['vehicle_type']),
+      tricycleColor: _normalizeOptional(data['tricycle_color']),
+      plateNumber: _normalizeOptional(data['plate_number']),
+      orCrUrl: _normalizeOptional(data['or_cr_url']),
+      tricycleFrontUrl: _normalizeOptional(data['tricycle_front_url']),
+      tricycleBackUrl: _normalizeOptional(data['tricycle_back_url']),
     );
   }
 
@@ -155,6 +174,8 @@ class AppUser {
     switch (passengerType) {
       case 'student':
         return PassengerType.student;
+      case 'senior_citizen':
+        return PassengerType.seniorCitizen;
       case 'regular':
       default:
         return PassengerType.regular;
@@ -168,9 +189,14 @@ class AppUser {
       case UserRole.driver:
         return 'Driver';
       case UserRole.passenger:
-        return normalizedPassengerType == PassengerType.student
-            ? 'Student Passenger'
-            : 'Passenger';
+        switch (normalizedPassengerType) {
+          case PassengerType.student:
+            return 'Student Passenger';
+          case PassengerType.seniorCitizen:
+            return 'Senior Citizen Passenger';
+          case PassengerType.regular:
+            return 'Passenger';
+        }
     }
   }
 

@@ -405,7 +405,7 @@ class _ChatPageState extends State<ChatPage> {
     return switch (role?.trim().toLowerCase()) {
       'driver' => 'Driver',
       'admin' => 'Admin',
-      'passenger' || 'regular' || 'student' => 'Passenger',
+      'passenger' || 'regular' || 'student' || 'senior_citizen' => 'Passenger',
       _ => null,
     };
   }

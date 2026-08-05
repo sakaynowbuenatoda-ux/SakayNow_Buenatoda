@@ -49,9 +49,11 @@ class BookingMapController extends ChangeNotifier {
       final normalizedPassengerType = passengerType?.trim().toLowerCase();
       passengerFareProfile = PassengerFareProfile(
         userId: passengerId,
-        passengerType: normalizedPassengerType == 'student'
-            ? 'student'
-            : 'regular',
+        passengerType: switch (normalizedPassengerType) {
+          'student' => 'student',
+          'senior_citizen' => 'senior_citizen',
+          _ => 'regular',
+        },
         isVerified: isPassengerVerified == true,
       );
     }
@@ -107,6 +109,10 @@ class BookingMapController extends ChangeNotifier {
 
     if (profile?.isStudent == true && profile?.isVerified != true) {
       return 'Student discount unlocks after account verification.';
+    }
+
+    if (profile?.isSeniorCitizen == true && profile?.isVerified != true) {
+      return 'Senior Citizen discount unlocks after account verification.';
     }
 
     if (fareSettingsError != null) {

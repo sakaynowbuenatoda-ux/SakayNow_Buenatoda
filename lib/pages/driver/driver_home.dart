@@ -21,6 +21,7 @@ import '../../widgets/maps/ride_location_preview_dialog.dart';
 import '../../widgets/maps/sakay_google_map.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/reviews/review_dialogs.dart';
+import '../../widgets/reports/report_user_sheet.dart';
 import '../../widgets/time_ago_text.dart';
 import '../driver_ratings/driver_leaderboard_page.dart';
 import '../profile/passenger_profile.dart';
@@ -233,6 +234,31 @@ class DriverActiveRideShortcut extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 10),
+                    OutlinedButton.icon(
+                      onPressed: () => _reportDriverHomePassenger(
+                        context: context,
+                        rideTrackingService: rideTrackingService,
+                        bookingId: ride.bookingId,
+                        driverId: driverId,
+                        passengerId: ride.passengerId,
+                        passengerName: 'Passenger',
+                      ),
+                      icon: Icon(
+                        Icons.report_gmailerrorred_rounded,
+                        size: 16,
+                        color: PassengerUi.primary,
+                      ),
+                      label: Text(
+                        'Report',
+                        style: TextStyle(color: PassengerUi.primary),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: PassengerUi.primary.withOpacity(0.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     ElevatedButton.icon(
                       onPressed: () => _openRideMonitoring(context, ride),
                       icon: const Icon(Icons.near_me_rounded, size: 18),
@@ -1158,7 +1184,34 @@ class DriverRecentTripCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
+              InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => _reportDriverHomePassenger(
+                  context: context,
+                  rideTrackingService: rideTrackingService,
+                  bookingId: ride.bookingId,
+                  driverId: driverId,
+                  passengerId: passenger.userId,
+                  passengerName: passenger.fullName,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: PassengerUi.dangerSoft,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: PassengerUi.primary.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.report_gmailerrorred_rounded,
+                    size: 18,
+                    color: PassengerUi.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               InkWell(
                 borderRadius: BorderRadius.circular(999),
                 onTap: canReviewPassenger
@@ -1447,5 +1500,58 @@ class _MiniVerifiedBadge extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+Future<void> _reportDriverHomePassenger({
+  required BuildContext context,
+  required RideTrackingService rideTrackingService,
+  required String bookingId,
+  required String driverId,
+  required String passengerId,
+  required String passengerName,
+}) async {
+  if (passengerId.trim().isEmpty || bookingId.trim().isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Passenger details unavailable for reporting.'),
+      ),
+    );
+    return;
+  }
+  final draft = await showUserReportSheet(
+    context,
+    title: 'Report $passengerName',
+    reasons: const <String>[
+      'Safety concern',
+      'No-show or unreachable',
+      'Incorrect pickup details',
+      'Unprofessional behavior',
+      'Payment concern',
+      'Other',
+    ],
+  );
+  if (draft == null) {
+    return;
+  }
+  try {
+    await rideTrackingService.reportPassenger(
+      bookingId: bookingId,
+      driverId: driverId,
+      passengerId: passengerId,
+      reason: draft.reason,
+      details: draft.details,
+    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Report submitted for admin review.')),
+      );
+    }
+  } catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to submit report: $error')),
+      );
+    }
   }
 }

@@ -271,17 +271,23 @@ class _PassengerSafetyCard extends StatelessWidget {
             runSpacing: 8,
             children: <Widget>[
               PassengerStatusChip(
-                label: isVerified ? 'Verified account' : 'Pending verification',
+                label: isVerified ? 'Verified account' : 'Optional verification',
                 textColor: isVerified
                     ? PassengerUi.successText
-                    : PassengerUi.primary,
+                    : PassengerUi.highlightAmber,
                 backgroundColor: isVerified
                     ? PassengerUi.successBackground
-                    : PassengerUi.dangerSoft,
+                    : PassengerUi.warningSoft,
               ),
               if (_isStudent)
                 PassengerStatusChip(
                   label: '15% student discount',
+                  textColor: PassengerUi.successText,
+                  backgroundColor: PassengerUi.successBackground,
+                ),
+              if (_isSeniorCitizen)
+                PassengerStatusChip(
+                  label: '20% senior citizen discount',
                   textColor: PassengerUi.successText,
                   backgroundColor: PassengerUi.successBackground,
                 ),
@@ -295,21 +301,26 @@ class _PassengerSafetyCard extends StatelessWidget {
   }
 
   bool get _isStudent => passengerType.trim().toLowerCase() == 'student';
+  bool get _isSeniorCitizen => passengerType.trim().toLowerCase() == 'senior_citizen';
 
   String get _verificationMessage {
-    if (isVerified && _isStudent) {
-      return 'Your student discount is active, profile tools are unlocked, and your account is ready for normal passenger features.';
+    if (isVerified && (_isStudent || _isSeniorCitizen)) {
+      return 'Your fare discount is active and your verified badge is displayed on rides.';
     }
 
     if (isVerified) {
-      return 'Your account is verified, profile editing is available, and trip history stays ready for support and reporting.';
+      return 'Your account is verified and your verified badge is displayed on rides.';
     }
 
     if (_isStudent) {
-      return 'Your student discount and profile editing stay locked until an admin verifies your account and reviews your submitted documents.';
+      return 'Your account is ready for booking rides right away. Once an admin verifies your student ID in Settings, your student discount will activate.';
     }
 
-    return 'You can already use the app, but profile editing stays locked until an admin verifies your account.';
+    if (_isSeniorCitizen) {
+      return 'Your account is ready for booking rides right away. Once an admin verifies your ID in Settings, your senior citizen discount will activate.';
+    }
+
+    return 'Your account is active and ready for booking rides immediately. You can optionally upload ID documents in Settings.';
   }
 }
 

@@ -98,9 +98,7 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                       if (user.isPassenger)
                         _InfoRow(
                           label: 'Passenger Type',
-                          value: user.isStudentPassenger
-                              ? 'Student'
-                              : 'Regular',
+                          value: user.passengerTypeLabel,
                         ),
                       _InfoRow(label: 'First Name', value: user.firstName),
                       _InfoRow(label: 'Last Name', value: user.lastName),
@@ -114,6 +112,29 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                     ],
                   ),
                 ),
+                if (user.isDriver) ...[
+                  SizedBox(height: 18),
+                  Text('Vehicle Information', style: AdminUi.sectionTitle),
+                  SizedBox(height: 12),
+                  AdminSurfaceCard(
+                    child: Column(
+                      children: [
+                        _InfoRow(
+                          label: 'Vehicle Type',
+                          value: user.vehicleType ?? 'Not provided',
+                        ),
+                        _InfoRow(
+                          label: 'Tricycle Color',
+                          value: user.tricycleColor ?? 'Not provided',
+                        ),
+                        _InfoRow(
+                          label: 'Plate / Franchise No.',
+                          value: user.plateNumber ?? 'Not provided',
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 SizedBox(height: 18),
                 Text('Uploaded Credentials', style: AdminUi.sectionTitle),
                 SizedBox(height: 6),
@@ -140,7 +161,7 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                   user: user,
                   adminId: widget.adminId,
                   isProcessing: _isProcessing,
-                  onVerify: user.isPendingVerification
+                  onVerify: user.canBeApproved
                       ? () => _confirmAndRunAction(
                           title: 'Verify User?',
                           message:
@@ -210,6 +231,24 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
             url: user.driversLicenseUrl!,
             icon: Icons.credit_card_outlined,
           ),
+        if (user.orCrUrl != null)
+          _ReviewDocument(
+            label: 'OR/CR Document',
+            url: user.orCrUrl!,
+            icon: Icons.article_outlined,
+          ),
+        if (user.tricycleFrontUrl != null)
+          _ReviewDocument(
+            label: 'Front Tricycle Photo',
+            url: user.tricycleFrontUrl!,
+            icon: Icons.directions_car_filled_outlined,
+          ),
+        if (user.tricycleBackUrl != null)
+          _ReviewDocument(
+            label: 'Back Tricycle Photo',
+            url: user.tricycleBackUrl!,
+            icon: Icons.local_taxi_rounded,
+          ),
       ];
     }
 
@@ -222,7 +261,9 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
         ),
       if (user.idImageUrl != null)
         _ReviewDocument(
-          label: user.isStudentPassenger ? 'Student ID' : 'ID Image',
+          label: user.isStudentPassenger
+              ? 'Student ID'
+              : (user.isSeniorCitizenPassenger ? 'Senior Citizen ID' : 'ID Image'),
           url: user.idImageUrl!,
           icon: Icons.badge_outlined,
         ),
@@ -538,6 +579,41 @@ class _ActionPanel extends StatelessWidget {
             'Verify this account to approve the submitted credentials and unlock features that require verification.',
             style: AdminUi.bodyText,
           ),
+          if (user.isDriver && !user.isDriverVerificationComplete) ...[
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AdminUi.warningSoft,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AdminUi.highlightAmber.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: AdminUi.highlightAmber,
+                    size: 20,
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Cannot verify account: This driver has incomplete vehicle information or missing verification documents.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AdminUi.title,
+                        height: 1.35,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           SizedBox(height: 14),
           Wrap(
             spacing: 10,

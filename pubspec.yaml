@@ -1,6 +1,6 @@
 name: sakaynow_buenatoda
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -12,11 +12,11 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
-  firebase_core: ^4.6.0
-  firebase_auth: ^6.3.0
-  cloud_firestore: ^6.2.0
+  firebase_core: ">=4.6.0 <4.9.0"
+  firebase_auth: ">=6.3.0 <6.6.0"
+  cloud_firestore: ">=6.2.0 <6.5.0"
   cloud_functions: ^6.0.2
-  firebase_storage: ^13.2.0
+  firebase_storage: ">=13.2.0 <13.5.0"
   image_picker: ^1.1.2
   shared_preferences: ^2.3.2
   google_fonts: ^6.1.0
@@ -26,12 +26,14 @@ dependencies:
   flutter_dotenv: ^6.0.1
   url_launcher: ^6.3.2
   web: ^1.1.1
-  firebase_messaging: ^16.2.1
+  firebase_messaging: ">=16.2.1 <16.5.0"
   flutter_local_notifications: ^20.1.0
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.7
   lottie: ^3.3.1
   local_auth: ^2.3.0
+
+
 
 dev_dependencies:
   flutter_test:

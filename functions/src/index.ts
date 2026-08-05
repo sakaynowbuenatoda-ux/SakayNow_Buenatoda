@@ -2052,7 +2052,7 @@ function normalizedBookingStatus(value: unknown) {
 
 function normalizedUserRole(data: Record<string, unknown>) {
   const role = readOptionalString(data.role)?.toLowerCase() ?? "passenger";
-  if (role === "regular" || role === "student") {
+  if (role === "regular" || role === "student" || role === "senior_citizen") {
     return "passenger";
   }
 

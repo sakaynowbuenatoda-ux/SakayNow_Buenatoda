@@ -23,8 +23,6 @@ class RegistrationService {
     required String age,
     required String? gender,
     required String passengerType,
-    required RegistrationImageSelection idFile,
-    required RegistrationImageSelection selfieFile,
   }) async {
     if (SignupValidators.isReservedAdminName(firstName)) {
       throw ArgumentError('The name admin is reserved.');
@@ -55,18 +53,7 @@ class RegistrationService {
       email: email,
       password: password,
       profileData: profileData,
-      uploads: <_UploadPayload>[
-        _UploadPayload(
-          fieldName: 'id_image_url',
-          fileName: 'id_upload.jpg',
-          file: idFile,
-        ),
-        _UploadPayload(
-          fieldName: 'selfie_url',
-          fileName: 'selfie.jpg',
-          file: selfieFile,
-        ),
-      ],
+      uploads: const <_UploadPayload>[],
     );
   }
 
@@ -77,9 +64,15 @@ class RegistrationService {
     required String lastName,
     required String age,
     required String? gender,
+    required String vehicleType,
+    required String tricycleColor,
+    required String plateNumber,
     required RegistrationImageSelection nbiFile,
     required RegistrationImageSelection licenseFile,
     required RegistrationImageSelection selfieFile,
+    required RegistrationImageSelection orCrFile,
+    required RegistrationImageSelection tricycleFrontFile,
+    required RegistrationImageSelection tricycleBackFile,
   }) async {
     if (SignupValidators.isReservedAdminName(firstName)) {
       throw ArgumentError('The name admin is reserved.');
@@ -90,6 +83,9 @@ class RegistrationService {
       'first_name': firstName.trim(),
       'last_name': lastName.trim(),
       'role': 'driver',
+      'vehicle_type': vehicleType.trim(),
+      'tricycle_color': tricycleColor.trim(),
+      'plate_number': plateNumber.trim(),
       'is_verified': false,
       'is_active': false,
       'is_banned': false,
@@ -125,6 +121,21 @@ class RegistrationService {
           fileName: 'selfie.jpg',
           file: selfieFile,
         ),
+        _UploadPayload(
+          fieldName: 'or_cr_url',
+          fileName: 'or_cr.jpg',
+          file: orCrFile,
+        ),
+        _UploadPayload(
+          fieldName: 'tricycle_front_url',
+          fileName: 'tricycle_front.jpg',
+          file: tricycleFrontFile,
+        ),
+        _UploadPayload(
+          fieldName: 'tricycle_back_url',
+          fileName: 'tricycle_back.jpg',
+          file: tricycleBackFile,
+        ),
       ],
     );
   }
@@ -157,55 +168,57 @@ class RegistrationService {
       await _firestore.collection('users').doc(uid).set(writeData);
       profileCreated = true;
 
-      final uploadedUrls = <String, dynamic>{};
-      try {
-        for (final upload in uploads) {
-          final ref = _storage.ref('users/$uid/${upload.fileName}');
-          await ref.putData(
-            upload.file.bytes,
-            SettableMetadata(
-              contentType: upload.file.contentType,
-              customMetadata: <String, String>{
-                'owner_id': uid,
-                'field_name': upload.fieldName,
-                'kind': 'registration_document',
-              },
-            ),
-          );
-          uploadedRefs.add(ref);
-          uploadedUrls[upload.fieldName] = await ref.getDownloadURL();
-        }
-      } on FirebaseException catch (e) {
-        await _deleteUploadedRefs(uploadedRefs);
+      if (uploads.isNotEmpty) {
+        final uploadedUrls = <String, dynamic>{};
         try {
-          await _firestore.collection('users').doc(uid).update({
-            'document_upload_status': 'failed',
-            'document_upload_error': e.message ?? e.code,
-          });
-        } catch (_) {
-          // Preserve the upload error shown to the user.
+          for (final upload in uploads) {
+            final ref = _storage.ref('users/$uid/${upload.fileName}');
+            await ref.putData(
+              upload.file.bytes,
+              SettableMetadata(
+                contentType: upload.file.contentType,
+                customMetadata: <String, String>{
+                  'owner_id': uid,
+                  'field_name': upload.fieldName,
+                  'kind': 'registration_document',
+                },
+              ),
+            );
+            uploadedRefs.add(ref);
+            uploadedUrls[upload.fieldName] = await ref.getDownloadURL();
+          }
+        } on FirebaseException catch (e) {
+          await _deleteUploadedRefs(uploadedRefs);
+          try {
+            await _firestore.collection('users').doc(uid).update({
+              'document_upload_status': 'failed',
+              'document_upload_error': e.message ?? e.code,
+            });
+          } catch (_) {
+            // Preserve the upload error shown to the user.
+          }
+          await _sendEmailVerificationIfPossible(credential.user);
+          throw RegistrationDocumentUploadException(e.message ?? e.code);
         }
-        await _sendEmailVerificationIfPossible(credential.user);
-        throw RegistrationDocumentUploadException(e.message ?? e.code);
-      }
 
-      try {
-        await _firestore.collection('users').doc(uid).update({
-          ...uploadedUrls,
-          'document_upload_status': 'uploaded',
-          'document_upload_error': FieldValue.delete(),
-        });
-      } on FirebaseException catch (e) {
         try {
           await _firestore.collection('users').doc(uid).update({
+            ...uploadedUrls,
             'document_upload_status': 'uploaded',
-            'document_upload_error': e.message ?? e.code,
+            'document_upload_error': FieldValue.delete(),
           });
-        } catch (_) {
-          // Preserve the profile update error shown to the user.
+        } on FirebaseException catch (e) {
+          try {
+            await _firestore.collection('users').doc(uid).update({
+              'document_upload_status': 'uploaded',
+              'document_upload_error': e.message ?? e.code,
+            });
+          } catch (_) {
+            // Preserve the profile update error shown to the user.
+          }
+          await _sendEmailVerificationIfPossible(credential.user);
+          throw RegistrationDocumentUploadException(e.message ?? e.code);
         }
-        await _sendEmailVerificationIfPossible(credential.user);
-        throw RegistrationDocumentUploadException(e.message ?? e.code);
       }
 
       await _sendEmailVerificationIfPossible(credential.user);

@@ -397,7 +397,7 @@ class _BasicInfoCard extends StatelessWidget {
           if (user.isPassenger)
             _InfoRow(
               label: 'Passenger Type',
-              value: user.isStudentPassenger ? 'Student' : 'Regular',
+              value: user.passengerTypeLabel,
             ),
           _InfoRow(label: 'Gender', value: user.genderLabel),
           _InfoRow(label: 'Age', value: user.ageLabel),

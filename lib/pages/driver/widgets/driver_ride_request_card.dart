@@ -6,6 +6,7 @@ import '../../../services/ride_tracking_service.dart';
 import '../../../widgets/firebase_storage_image.dart';
 import '../../../widgets/maps/ride_location_preview_dialog.dart';
 import '../../../widgets/passenger_widgets/passenger_ui.dart';
+import '../../../widgets/reports/report_user_sheet.dart';
 import '../../profile/passenger_profile.dart';
 
 class DriverRideRequestCard extends StatelessWidget {
@@ -88,6 +89,44 @@ class DriverRideRequestCard extends StatelessWidget {
                         ? PassengerUi.dangerSoft
                         : PassengerUi.warningSoft,
                   ),
+                  if (passenger != null) ...<Widget>[
+                    const SizedBox(width: 6),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: () => _reportPassenger(context, passenger),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: PassengerUi.dangerSoft,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: PassengerUi.primary.withOpacity(0.4),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Icon(
+                              Icons.report_gmailerrorred_rounded,
+                              size: 14,
+                              color: PassengerUi.primary,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              'Report',
+                              style: PassengerUi.valueText.copyWith(
+                                fontSize: 11,
+                                color: PassengerUi.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 12),
@@ -242,6 +281,47 @@ class DriverRideRequestCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _reportPassenger(
+    BuildContext context,
+    PassengerReviewProfile passenger,
+  ) async {
+    final draft = await showUserReportSheet(
+      context,
+      title: 'Report ${passenger.fullName}',
+      reasons: const <String>[
+        'Safety concern',
+        'No-show or unreachable',
+        'Incorrect pickup details',
+        'Unprofessional behavior',
+        'Payment concern',
+        'Other',
+      ],
+    );
+    if (draft == null) {
+      return;
+    }
+    try {
+      await rideTrackingService.reportPassenger(
+        bookingId: ride.bookingId,
+        driverId: driverId,
+        passengerId: passenger.userId,
+        reason: draft.reason,
+        details: draft.details,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report submitted for admin review.')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to submit report: $error')),
+        );
+      }
+    }
   }
 }
 

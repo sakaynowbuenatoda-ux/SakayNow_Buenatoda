@@ -31,6 +31,12 @@ class AdminUserRecord {
   final String? selfieUrl;
   final String? nbiClearanceUrl;
   final String? driversLicenseUrl;
+  final String? vehicleType;
+  final String? tricycleColor;
+  final String? plateNumber;
+  final String? orCrUrl;
+  final String? tricycleFrontUrl;
+  final String? tricycleBackUrl;
   final double averageRating;
   final int reviewCount;
 
@@ -60,6 +66,12 @@ class AdminUserRecord {
     required this.selfieUrl,
     required this.nbiClearanceUrl,
     required this.driversLicenseUrl,
+    required this.vehicleType,
+    required this.tricycleColor,
+    required this.plateNumber,
+    required this.orCrUrl,
+    required this.tricycleFrontUrl,
+    required this.tricycleBackUrl,
     required this.averageRating,
     required this.reviewCount,
   });
@@ -114,6 +126,12 @@ class AdminUserRecord {
       selfieUrl: _readNullableString(data['selfie_url']),
       nbiClearanceUrl: _readNullableString(data['nbi_clearance_url']),
       driversLicenseUrl: _readNullableString(data['drivers_license_url']),
+      vehicleType: _readNullableString(data['vehicle_type']),
+      tricycleColor: _readNullableString(data['tricycle_color']),
+      plateNumber: _readNullableString(data['plate_number']),
+      orCrUrl: _readNullableString(data['or_cr_url']),
+      tricycleFrontUrl: _readNullableString(data['tricycle_front_url']),
+      tricycleBackUrl: _readNullableString(data['tricycle_back_url']),
       averageRating: _readDouble(
         data['driver_average_rating'] ??
             data['passenger_average_rating'] ??
@@ -157,6 +175,13 @@ class AdminUserRecord {
   bool get isPassengerOrDriver => isPassenger || isDriver;
   bool get isStudentPassenger =>
       isPassenger && passengerType.toLowerCase() == 'student';
+  bool get isSeniorCitizenPassenger =>
+      isPassenger && passengerType.toLowerCase() == 'senior_citizen';
+  String get passengerTypeLabel {
+    if (isStudentPassenger) return 'Student';
+    if (isSeniorCitizenPassenger) return 'Senior Citizen';
+    return 'Regular';
+  }
   bool get isEligibleDriverAccount =>
       isDriver && isVerified && !isBanned && !isDeactivated && !isDeleted;
   bool get canReceiveBookings => isEligibleDriverAccount && isActive;
@@ -176,12 +201,25 @@ class AdminUserRecord {
   bool get hasDriverDocuments =>
       _hasValue(selfieUrl) &&
       _hasValue(nbiClearanceUrl) &&
-      _hasValue(driversLicenseUrl);
+      _hasValue(driversLicenseUrl) &&
+      _hasValue(orCrUrl) &&
+      _hasValue(tricycleFrontUrl) &&
+      _hasValue(tricycleBackUrl);
+
+  bool get isDriverVerificationComplete =>
+      hasDriverDocuments &&
+      _hasValue(vehicleType) &&
+      _hasValue(tricycleColor) &&
+      _hasValue(plateNumber);
+
+  bool get canBeApproved =>
+      isPendingVerification && (!isDriver || isDriverVerificationComplete);
 
   String get roleLabel {
     if (isAdmin) return 'Admin';
     if (isDriver) return 'Driver';
     if (isStudentPassenger) return 'Student Passenger';
+    if (isSeniorCitizenPassenger) return 'Senior Citizen Passenger';
     if (isPassenger) return 'Passenger';
     return 'User';
   }

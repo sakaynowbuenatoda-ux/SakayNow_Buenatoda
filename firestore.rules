@@ -27,12 +27,15 @@ service cloud.firestore {
         'passenger',
         'regular',
         'student',
+        'senior_citizen',
         'Passenger',
         'Regular',
         'Student',
+        'Senior Citizen',
         'PASSENGER',
         'REGULAR',
-        'STUDENT'
+        'STUDENT',
+        'SENIOR_CITIZEN'
       ];
     }
 
@@ -534,6 +537,9 @@ service cloud.firestore {
           'email',
           'role',
           'passenger_type',
+          'vehicle_type',
+          'tricycle_color',
+          'plate_number',
           'age',
           'gender',
           'is_verified',
@@ -560,7 +566,18 @@ service cloud.firestore {
         && request.resource.data.created_at <= request.time
         && (
           request.resource.data.role != 'passenger'
-          || request.resource.data.passenger_type in ['regular', 'student']
+          || request.resource.data.passenger_type in ['regular', 'student', 'senior_citizen']
+        )
+        && (
+          request.resource.data.role != 'driver'
+          || (
+            request.resource.data.vehicle_type is string
+            && request.resource.data.vehicle_type.size() > 0
+            && request.resource.data.tricycle_color is string
+            && request.resource.data.tricycle_color.size() > 0
+            && request.resource.data.plate_number is string
+            && request.resource.data.plate_number.size() > 0
+          )
         )
         && (
           !request.resource.data.keys().hasAny(['age'])

@@ -2310,11 +2310,6 @@ class AvailableDriver {
           rank: ratingRank,
         );
 
-  static String? _readNullableString(Object? value) {
-    final text = value?.toString().trim() ?? '';
-    return text.isEmpty ? null : text;
-  }
-
   static double _readRating(Object? value) {
     if (value is num) {
       return value.toDouble();

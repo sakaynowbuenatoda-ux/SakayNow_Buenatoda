@@ -103,7 +103,7 @@ class DriverRideRequestCard extends StatelessWidget {
                           color: PassengerUi.dangerSoft,
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(
-                            color: PassengerUi.primary.withOpacity(0.4),
+                            color: PassengerUi.primary.withValues(alpha: 0.4),
                           ),
                         ),
                         child: Row(

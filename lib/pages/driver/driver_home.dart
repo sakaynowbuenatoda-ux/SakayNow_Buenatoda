@@ -256,7 +256,7 @@ class DriverActiveRideShortcut extends StatelessWidget {
                       ),
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(
-                          color: PassengerUi.primary.withOpacity(0.5),
+                          color: PassengerUi.primary.withValues(alpha: 0.5),
                         ),
                       ),
                     ),
@@ -1203,7 +1203,7 @@ class DriverRecentTripCard extends StatelessWidget {
                     color: PassengerUi.dangerSoft,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: PassengerUi.primary.withOpacity(0.3),
+                      color: PassengerUi.primary.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Icon(

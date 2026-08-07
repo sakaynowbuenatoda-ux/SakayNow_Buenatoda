@@ -124,13 +124,22 @@ class Ride {
   }
 
   String get etaLabel {
+    if (status == RideStatus.arrived) {
+      return 'Arrived';
+    }
+
+    if (status == RideStatus.completed || status == RideStatus.cancelled) {
+      return status.label;
+    }
+
     final seconds = switch (status) {
       RideStatus.searching => estimatedDurationSeconds,
       RideStatus.accepted ||
-      RideStatus.driverArriving ||
-      RideStatus.arrived => driverToPickupDurationSeconds,
+      RideStatus.driverArriving => driverToPickupDurationSeconds,
       RideStatus.inProgress => remainingRideDurationSeconds,
-      RideStatus.completed || RideStatus.cancelled => null,
+      RideStatus.arrived ||
+      RideStatus.completed ||
+      RideStatus.cancelled => null,
     };
 
     if (seconds == null || seconds <= 0) {

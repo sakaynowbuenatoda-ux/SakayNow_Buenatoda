@@ -277,6 +277,21 @@ void main() {
       expect(rules, contains('canWriteConversation(parentConversation())'));
     });
 
+    test('restrict ETA writes to the assigned verified driver path', () {
+      expect(rules, contains('function hasNoEtaChanges()'));
+      expect(rules, contains('function isValidDriverEtaUpdate()'));
+      expect(rules, contains('resource.data.driver_id == request.auth.uid'));
+      expect(
+        rules,
+        contains(
+          "resource.data.status in ['accepted', 'driver_arriving', 'arrived']",
+        ),
+      );
+      expect(rules, contains("resource.data.status == 'in_progress'"));
+      expect(rules, contains(".hasAny(['eta'])"));
+      expect(rules, contains('allow update: if isValidDriverEtaUpdate();'));
+    });
+
     test('allow report duplicate checks without opening report reads', () {
       expect(rules, contains('function isMissingDailyReportProbe(reportId)'));
       expect(

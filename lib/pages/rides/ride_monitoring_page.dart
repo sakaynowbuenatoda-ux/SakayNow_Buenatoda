@@ -22,6 +22,7 @@ import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/passenger_widgets/ride_status_strip.dart';
 import '../../widgets/reviews/review_dialogs.dart';
+import '../../widgets/rides/ride_eta_card.dart';
 
 class RideMonitoringPage extends StatefulWidget {
   final String bookingId;
@@ -224,7 +225,9 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
                 children: <Widget>[
                   PassengerPageHeader(
                     title: ride.status.label,
-                    subtitle: _statusSubtitle(ride),
+                    subtitle: _controller.isPassenger
+                        ? ride.status.passengerMonitoringSubtitle
+                        : ride.status.driverMonitoringSubtitle,
                     icon: Icons.route_rounded,
                     accentColor: _statusColor(ride.status),
                   ),
@@ -269,9 +272,11 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
                   const SizedBox(height: 10),
                   RideStatusStripForRide(ride: ride),
                   const SizedBox(height: 16),
-                  _RideEtaCard(ride: ride),
+                  RideEtaCard(ride: ride),
                   const SizedBox(height: 16),
-                  if (_controller.isPassenger && ride.hasDriver && ride.driverId != null)
+                  if (_controller.isPassenger &&
+                      ride.hasDriver &&
+                      ride.driverId != null)
                     _DriverVehicleSection(
                       rideTrackingService: _rideTrackingService,
                       driverId: ride.driverId!,
@@ -341,25 +346,6 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
 
   bool _canChangePaymentMethod(Ride ride) {
     return !ride.status.isTerminal && !ride.isPaymentPaid;
-  }
-
-  String _statusSubtitle(Ride ride) {
-    switch (ride.status) {
-      case RideStatus.searching:
-        return 'Waiting for a verified driver to accept this booking.';
-      case RideStatus.accepted:
-        return 'Driver accepted the booking and can start heading to pickup.';
-      case RideStatus.driverArriving:
-        return 'Driver location updates are shown on the map in real time.';
-      case RideStatus.arrived:
-        return 'Driver has arrived at the pickup radius.';
-      case RideStatus.inProgress:
-        return 'Trip is active. Remaining distance and ETA update while moving.';
-      case RideStatus.completed:
-        return 'Trip completed successfully.';
-      case RideStatus.cancelled:
-        return 'This booking has been cancelled.';
-    }
   }
 
   Color _statusColor(RideStatus status) {
@@ -518,74 +504,6 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
         setState(() => _isOpeningCheckout = false);
       }
     }
-  }
-}
-
-class _RideEtaCard extends StatelessWidget {
-  final Ride ride;
-
-  const _RideEtaCard({required this.ride});
-
-  @override
-  Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Row(
-        children: <Widget>[
-          _RideMetricTile(
-            icon: Icons.access_time_rounded,
-            label: ride.status == RideStatus.inProgress
-                ? 'Destination ETA'
-                : 'Pickup ETA',
-            value: ride.etaLabel,
-          ),
-          Container(width: 1, height: 42, color: PassengerUi.border),
-          _RideMetricTile(
-            icon: Icons.social_distance_rounded,
-            label: 'Distance',
-            value: ride.distanceLabel,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RideMetricTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _RideMetricTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Row(
-        children: <Widget>[
-          Icon(icon, color: PassengerUi.accentBlue),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(label, style: MapTextStyles.body.copyWith(fontSize: 12)),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MapTextStyles.value,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

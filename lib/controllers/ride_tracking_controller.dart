@@ -5,13 +5,13 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../config/map_config.dart';
-import '../models/distance_matrix_result.dart';
 import '../models/ride.dart';
 import '../models/ride_location.dart';
 import '../models/ride_status.dart';
 import '../services/distance_matrix_service.dart';
 import '../services/geofencing_service.dart';
 import '../services/location_service.dart';
+import '../services/ride_eta_service.dart';
 import '../services/ride_tracking_service.dart';
 import '../utils/user_facing_error_message.dart';
 
@@ -28,17 +28,18 @@ class RideTrackingController extends ChangeNotifier {
     GeofencingService? geofencingService,
   }) : _rideTrackingService = rideTrackingService ?? RideTrackingService(),
        _locationService = locationService ?? const LocationService(),
-       _distanceMatrixService =
-           distanceMatrixService ?? DistanceMatrixService(),
-       _geofencingService = geofencingService ?? const GeofencingService();
+       _rideEtaService = RideEtaService(
+         distanceMatrixService:
+             distanceMatrixService ?? DistanceMatrixService(),
+         geofencingService: geofencingService ?? const GeofencingService(),
+       );
 
   final String bookingId;
   final String userId;
   final RideViewerRole viewerRole;
   final RideTrackingService _rideTrackingService;
   final LocationService _locationService;
-  final DistanceMatrixService _distanceMatrixService;
-  final GeofencingService _geofencingService;
+  final RideEtaService _rideEtaService;
 
   StreamSubscription<Ride?>? _rideSubscription;
   StreamSubscription<Position>? _positionSubscription;
@@ -199,7 +200,7 @@ class RideTrackingController extends ChangeNotifier {
             errorMessage = value == null ? 'Ride not found.' : null;
             notifyListeners();
 
-            if (value != null) {
+            if (value != null && isDriver) {
               _refreshEtaIfNeeded();
             }
           },
@@ -215,11 +216,11 @@ class RideTrackingController extends ChangeNotifier {
 
     if (isDriver) {
       await _startDriverLocationPublishing();
-    }
 
-    _etaTimer = Timer.periodic(MapConfig.etaRefreshInterval, (_) {
-      _refreshEtaIfNeeded(force: true);
-    });
+      _etaTimer = Timer.periodic(MapConfig.etaRefreshInterval, (_) {
+        _refreshEtaIfNeeded(force: true);
+      });
+    }
   }
 
   Future<void> updateStatus(RideStatus status) async {
@@ -310,6 +311,10 @@ class RideTrackingController extends ChangeNotifier {
   }
 
   Future<void> _refreshEtaIfNeeded({bool force = false}) async {
+    if (!isDriver) {
+      return;
+    }
+
     final now = DateTime.now();
     if (!force &&
         _lastEtaRefresh != null &&
@@ -322,6 +327,10 @@ class RideTrackingController extends ChangeNotifier {
   }
 
   Future<void> _refreshEta() async {
+    if (!isDriver) {
+      return;
+    }
+
     final activeRide = ride;
     final driverLatLng = activeRide?.driverLocation?.latLng;
     final pickup = activeRide?.pickupLocation.latLng;
@@ -336,7 +345,10 @@ class RideTrackingController extends ChangeNotifier {
               activeRide.status == RideStatus.driverArriving ||
               activeRide.status == RideStatus.arrived) &&
           pickup != null) {
-        final eta = await _estimateWithFallback(driverLatLng, pickup);
+        final eta = await _rideEtaService.estimate(
+          origin: driverLatLng,
+          destination: pickup,
+        );
         await _rideTrackingService.updateRideEta(
           bookingId: bookingId,
           driverToPickup: eta,
@@ -344,7 +356,10 @@ class RideTrackingController extends ChangeNotifier {
       }
 
       if (activeRide.status == RideStatus.inProgress && dropoff != null) {
-        final eta = await _estimateWithFallback(driverLatLng, dropoff);
+        final eta = await _rideEtaService.estimate(
+          origin: driverLatLng,
+          destination: dropoff,
+        );
         await _rideTrackingService.updateRideEta(
           bookingId: bookingId,
           remainingRide: eta,
@@ -356,33 +371,6 @@ class RideTrackingController extends ChangeNotifier {
         fallback: 'Unable to refresh the ride estimate right now.',
       );
       notifyListeners();
-    }
-  }
-
-  Future<DistanceMatrixResult> _estimateWithFallback(
-    LatLng origin,
-    LatLng destination,
-  ) async {
-    try {
-      return await _distanceMatrixService.estimate(
-        origin: origin,
-        destination: destination,
-      );
-    } on Exception {
-      final distance = _geofencingService.distanceBetweenMeters(
-        origin,
-        destination,
-      );
-      final duration = _geofencingService.approximateDurationSeconds(distance);
-
-      return DistanceMatrixResult(
-        distanceMeters: distance.round(),
-        durationSeconds: duration,
-        distanceText: distance < 1000
-            ? '${distance.round()} m'
-            : '${(distance / 1000).toStringAsFixed(1)} km',
-        durationText: '${(duration / 60).ceil()} mins',
-      );
     }
   }
 

@@ -786,6 +786,149 @@ service cloud.firestore {
         || (isVerifiedDriver() && isOpenBookingQueueRecord(bookingData));
     }
 
+    function pickupEtaKeys() {
+      return [
+        'driver_to_pickup_distance_meters',
+        'driver_to_pickup_duration_seconds',
+        'driver_to_pickup_distance_text',
+        'driver_to_pickup_duration_text'
+      ];
+    }
+
+    function pickupEtaUpdateKeys() {
+      return [
+        'driver_to_pickup_distance_meters',
+        'driver_to_pickup_duration_seconds',
+        'driver_to_pickup_distance_text',
+        'driver_to_pickup_duration_text',
+        'updated_at'
+      ];
+    }
+
+    function remainingEtaKeys() {
+      return [
+        'remaining_ride_distance_meters',
+        'remaining_ride_duration_seconds',
+        'remaining_ride_distance_text',
+        'remaining_ride_duration_text'
+      ];
+    }
+
+    function remainingEtaUpdateKeys() {
+      return [
+        'remaining_ride_distance_meters',
+        'remaining_ride_duration_seconds',
+        'remaining_ride_distance_text',
+        'remaining_ride_duration_text',
+        'updated_at'
+      ];
+    }
+
+    function etaKeys() {
+      return [
+        'driver_to_pickup_distance_meters',
+        'driver_to_pickup_duration_seconds',
+        'driver_to_pickup_distance_text',
+        'driver_to_pickup_duration_text',
+        'remaining_ride_distance_meters',
+        'remaining_ride_duration_seconds',
+        'remaining_ride_distance_text',
+        'remaining_ride_duration_text',
+        'updated_at'
+      ];
+    }
+
+    function hasValidEtaShape(etaData) {
+      return etaData is map
+        && etaData.keys().hasOnly(etaKeys())
+        && (
+          !etaData.keys().hasAny(['driver_to_pickup_distance_meters'])
+          || (
+            etaData.driver_to_pickup_distance_meters is int
+            && etaData.driver_to_pickup_distance_meters >= 0
+          )
+        )
+        && (
+          !etaData.keys().hasAny(['driver_to_pickup_duration_seconds'])
+          || (
+            etaData.driver_to_pickup_duration_seconds is int
+            && etaData.driver_to_pickup_duration_seconds >= 0
+          )
+        )
+        && (
+          !etaData.keys().hasAny(['driver_to_pickup_distance_text'])
+          || etaData.driver_to_pickup_distance_text is string
+        )
+        && (
+          !etaData.keys().hasAny(['driver_to_pickup_duration_text'])
+          || etaData.driver_to_pickup_duration_text is string
+        )
+        && (
+          !etaData.keys().hasAny(['remaining_ride_distance_meters'])
+          || (
+            etaData.remaining_ride_distance_meters is int
+            && etaData.remaining_ride_distance_meters >= 0
+          )
+        )
+        && (
+          !etaData.keys().hasAny(['remaining_ride_duration_seconds'])
+          || (
+            etaData.remaining_ride_duration_seconds is int
+            && etaData.remaining_ride_duration_seconds >= 0
+          )
+        )
+        && (
+          !etaData.keys().hasAny(['remaining_ride_distance_text'])
+          || etaData.remaining_ride_distance_text is string
+        )
+        && (
+          !etaData.keys().hasAny(['remaining_ride_duration_text'])
+          || etaData.remaining_ride_duration_text is string
+        );
+    }
+
+    function hasNoEtaChanges() {
+      return !request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasAny(['eta']);
+    }
+
+    function isValidDriverEtaUpdate() {
+      return isVerifiedDriver()
+        && resource.data.driver_id == request.auth.uid
+        && request.resource.data.driver_id == resource.data.driver_id
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'eta',
+          'updated_at'
+        ])
+        && request.resource.data.updated_at == request.time
+        && hasValidEtaShape(request.resource.data.eta)
+        && request.resource.data.eta.updated_at == request.time
+        && (
+          (
+            resource.data.status in ['accepted', 'driver_arriving', 'arrived']
+            && request.resource.data.eta.keys().hasAll(pickupEtaKeys())
+            && request.resource.data.eta.diff(resource.data.get('eta', {}))
+              .affectedKeys()
+              .hasAny(pickupEtaKeys())
+            && request.resource.data.eta.diff(resource.data.get('eta', {}))
+              .affectedKeys()
+              .hasOnly(pickupEtaUpdateKeys())
+          )
+          || (
+            resource.data.status == 'in_progress'
+            && request.resource.data.eta.keys().hasAll(remainingEtaKeys())
+            && request.resource.data.eta.diff(resource.data.get('eta', {}))
+              .affectedKeys()
+              .hasAny(remainingEtaKeys())
+            && request.resource.data.eta.diff(resource.data.get('eta', {}))
+              .affectedKeys()
+              .hasOnly(remainingEtaUpdateKeys())
+          )
+        );
+    }
+
     function reportDocumentPath(reportId) {
       return /databases/$(database)/documents/reports/$(reportId);
     }
@@ -930,9 +1073,13 @@ service cloud.firestore {
       allow read: if canReadBooking(resource.data);
       allow create: if signedIn()
         && request.resource.data.passenger_id == request.auth.uid;
-      allow update: if isAdmin()
-        || isVerifiedDriver()
-        || (signedIn() && resource.data.passenger_id == request.auth.uid);
+      allow update: if (
+          isAdmin()
+          || isVerifiedDriver()
+          || (signedIn() && resource.data.passenger_id == request.auth.uid)
+        )
+        && hasNoEtaChanges();
+      allow update: if isValidDriverEtaUpdate();
       allow delete: if isAdmin();
     }
 

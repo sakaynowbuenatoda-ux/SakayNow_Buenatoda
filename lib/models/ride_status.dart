@@ -47,6 +47,38 @@ extension RideStatusX on RideStatus {
     }
   }
 
+  String get passengerMonitoringSubtitle {
+    return switch (this) {
+      RideStatus.searching =>
+        'Waiting for a verified driver to accept this booking.',
+      RideStatus.accepted =>
+        'Your driver accepted the ride. Live pickup ETA appears below.',
+      RideStatus.driverArriving =>
+        'Your driver is on the way. Follow the live pickup ETA below.',
+      RideStatus.arrived =>
+        'Your driver has arrived. Please meet them at the pickup point.',
+      RideStatus.inProgress =>
+        'Your ride is in progress. Follow the live destination ETA below.',
+      RideStatus.completed => 'You have reached your destination.',
+      RideStatus.cancelled => 'This booking has been cancelled.',
+    };
+  }
+
+  String get driverMonitoringSubtitle {
+    return switch (this) {
+      RideStatus.searching => 'Waiting for this booking to be assigned.',
+      RideStatus.accepted => 'Start heading to the passenger pickup point.',
+      RideStatus.driverArriving =>
+        'Your location and pickup ETA update while you travel.',
+      RideStatus.arrived =>
+        'You are at pickup. Start the ride when the passenger is aboard.',
+      RideStatus.inProgress =>
+        'Trip active. The destination ETA updates while you move.',
+      RideStatus.completed => 'Trip completed successfully.',
+      RideStatus.cancelled => 'This booking has been cancelled.',
+    };
+  }
+
   bool get isTerminal =>
       this == RideStatus.completed || this == RideStatus.cancelled;
 

@@ -198,7 +198,7 @@ class _PassengerDocumentVerificationPageState
                       title: 'Document Verification',
                       subtitle:
                           'Upload your valid student or senior citizen ID and selfie to apply for verified status and discount eligibility.',
-                      icon: Icons.badge_outlined,
+                      icon: Icons.document_scanner_rounded,
                       accentColor: _isVerified
                           ? PassengerUi.secondary
                           : PassengerUi.highlightAmber,

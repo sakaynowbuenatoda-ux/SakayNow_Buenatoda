@@ -323,9 +323,10 @@ class _ResetPasswordCard extends StatelessWidget {
             Center(
               child: Text(
                 'Reset Password',
-                style: GoogleFonts.archivoBlack(
+                style: GoogleFonts.poppins(
                   fontSize: compact ? 20 : 22,
                   color: AuthUi.title,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),

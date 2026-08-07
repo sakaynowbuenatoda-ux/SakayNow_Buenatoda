@@ -219,10 +219,10 @@ class _NameText extends StatelessWidget {
           firstName.isNotEmpty ? firstName : 'User',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.archivoBlack(
+          style: GoogleFonts.poppins(
             color: PassengerUi.title,
             fontSize: 16,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ],

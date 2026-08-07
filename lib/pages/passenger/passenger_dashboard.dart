@@ -35,7 +35,7 @@ class PassengerDashboard extends StatelessWidget {
             title: 'Dashboard',
             subtitle:
                 'A quick view of trips, payment readiness, and safety status.',
-            icon: Icons.dashboard_rounded,
+            icon: Icons.insights_rounded,
             accentColor: PassengerUi.primary,
           ),
           SizedBox(height: 16),
@@ -271,7 +271,9 @@ class _PassengerSafetyCard extends StatelessWidget {
             runSpacing: 8,
             children: <Widget>[
               PassengerStatusChip(
-                label: isVerified ? 'Verified account' : 'Optional verification',
+                label: isVerified
+                    ? 'Verified account'
+                    : 'Optional verification',
                 textColor: isVerified
                     ? PassengerUi.successText
                     : PassengerUi.highlightAmber,
@@ -301,7 +303,8 @@ class _PassengerSafetyCard extends StatelessWidget {
   }
 
   bool get _isStudent => passengerType.trim().toLowerCase() == 'student';
-  bool get _isSeniorCitizen => passengerType.trim().toLowerCase() == 'senior_citizen';
+  bool get _isSeniorCitizen =>
+      passengerType.trim().toLowerCase() == 'senior_citizen';
 
   String get _verificationMessage {
     if (isVerified && (_isStudent || _isSeniorCitizen)) {

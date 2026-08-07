@@ -25,7 +25,7 @@ class DriverLeaderboardPage extends StatelessWidget {
             PassengerPageHeader(
               title: 'Driver Leaderboard',
               subtitle: 'Top drivers ranked by completed trip reviews.',
-              icon: Icons.emoji_events_rounded,
+              icon: Icons.workspace_premium_rounded,
               accentColor: PassengerUi.highlightAmber,
             ),
             const SizedBox(height: 16),

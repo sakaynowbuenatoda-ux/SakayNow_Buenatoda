@@ -36,7 +36,7 @@ class DriverDashboardPage extends StatelessWidget {
             title: 'Dashboard',
             subtitle:
                 'Monitor performance, queue readiness, and account standing.',
-            icon: Icons.dashboard_rounded,
+            icon: Icons.insights_rounded,
             accentColor: PassengerUi.primary,
           ),
           SizedBox(height: 16),

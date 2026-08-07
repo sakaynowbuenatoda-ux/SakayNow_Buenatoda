@@ -81,7 +81,7 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
             title: 'Welcome, ${widget.firstName}',
             subtitle:
                 'Book faster with saved places, fair fares, and verified drivers.',
-            icon: Icons.waving_hand_rounded,
+            icon: Icons.near_me_rounded,
             accentColor: PassengerUi.primary,
             dense: true,
           ),

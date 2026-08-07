@@ -58,7 +58,7 @@ class DriverHomePage extends StatelessWidget {
             title: 'Welcome, $firstName',
             subtitle:
                 'Manage availability and respond to nearby booking requests.',
-            icon: Icons.electric_rickshaw_rounded,
+            icon: Icons.near_me_rounded,
             accentColor: PassengerUi.secondary,
             dense: true,
           ),

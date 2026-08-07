@@ -32,7 +32,7 @@ class LoginActivityPage extends StatelessWidget {
             PassengerPageHeader(
               title: 'Login Activity',
               subtitle: 'Basic account sign-in information.',
-              icon: Icons.manage_history_rounded,
+              icon: Icons.devices_rounded,
               accentColor: PassengerUi.accentBlue,
             ),
             const SizedBox(height: 16),

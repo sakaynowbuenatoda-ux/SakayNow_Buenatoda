@@ -17,7 +17,7 @@ class DriverHistoryPage extends StatelessWidget {
           PassengerPageHeader(
             title: 'History',
             subtitle: 'See finished trips, ratings, and earnings at a glance.',
-            icon: Icons.history_rounded,
+            icon: Icons.receipt_long_rounded,
             accentColor: PassengerUi.secondary,
           ),
           SizedBox(height: 16),

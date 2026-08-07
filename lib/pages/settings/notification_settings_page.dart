@@ -119,7 +119,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                   PassengerPageHeader(
                     title: 'Notifications',
                     subtitle: '',
-                    icon: Icons.notifications_none_rounded,
+                    icon: Icons.notifications_rounded,
                     accentColor: PassengerUi.secondary,
                   ),
                   SizedBox(height: 16),

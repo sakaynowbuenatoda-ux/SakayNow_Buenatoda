@@ -48,7 +48,7 @@ class _PassengerPaymentMethodsPageState
             PassengerPageHeader(
               title: 'Payment Methods',
               subtitle: '',
-              icon: Icons.account_balance_wallet_rounded,
+              icon: Icons.credit_card_rounded,
               accentColor: PassengerUi.accentBlue,
             ),
             const SizedBox(height: 16),

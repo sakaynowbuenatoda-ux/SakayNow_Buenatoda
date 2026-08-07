@@ -278,7 +278,7 @@ class BookingMapController extends ChangeNotifier {
       _isPickupCurrentLocation = true;
       cameraTarget = pickupLocation!.latLng;
       locationMessage = null;
-    } on Exception catch (error) {
+    } catch (error) {
       locationMessage = userFacingErrorMessage(
         error,
         fallback:
@@ -320,7 +320,7 @@ class BookingMapController extends ChangeNotifier {
         isCurrentPickup: true,
       );
       return pickupLocation;
-    } on Exception catch (error) {
+    } catch (error) {
       locationMessage = userFacingErrorMessage(
         error,
         fallback:

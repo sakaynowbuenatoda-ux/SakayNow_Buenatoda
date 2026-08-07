@@ -21,6 +21,7 @@ import 'passenger_home.dart';
 import 'passenger_messages.dart';
 import 'passenger_history.dart';
 import 'passenger_dashboard.dart';
+import 'passenger_book_ride_page.dart';
 
 class PassengerShell extends StatefulWidget {
   final String userId;
@@ -182,10 +183,24 @@ class _PassengerShellState extends State<PassengerShell> {
         onRefresh: _handleRefresh,
         children: pages,
       ),
+      floatingActionButton: PassengerBookingButton(onPressed: _openBooking),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomNavWidget(
         currentIndex: _currentIndex,
         messageUnreadCount: _messageUnreadCount,
         onTap: _selectTab,
+      ),
+    );
+  }
+
+  void _openBooking() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PassengerBookRidePage(
+          passengerId: widget.userId,
+          passengerType: widget.passengerType,
+          isVerified: widget.isVerified,
+        ),
       ),
     );
   }

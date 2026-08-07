@@ -267,51 +267,81 @@ class PassengerPageHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = accentColor ?? PassengerUi.primary;
+    final compact = PassengerUi.isCompactWidth(context);
+    final hasSubtitle = subtitle.trim().isNotEmpty;
+    final iconExtent = dense || compact ? 38.0 : 42.0;
 
-    return SizedBox(
-      width: double.infinity,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: dense ? 34 : 40,
-            height: dense ? 34 : 40,
-            child: Center(
-              child: Icon(icon, color: color, size: dense ? 27 : 31),
+    return Semantics(
+      container: true,
+      header: true,
+      child: SizedBox(
+        width: double.infinity,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            Container(
+              width: 4,
+              height: hasSubtitle ? (dense ? 46 : 52) : 36,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(999),
+              ),
             ),
-          ),
-          SizedBox(width: dense ? 10 : 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: PassengerUi.sectionTitle.copyWith(
-                    fontSize: dense ? 18 : 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                    height: 1.08,
-                  ),
-                ),
-                if (subtitle.trim().isNotEmpty) ...[
-                  SizedBox(height: dense ? 3 : 5),
+            SizedBox(width: dense ? 11 : 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
                   Text(
-                    subtitle,
-                    maxLines: dense ? 1 : 2,
+                    title,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: PassengerUi.bodyText.copyWith(
-                      fontSize: dense ? 12 : 12,
-                      height: 1.28,
+                    style: PassengerUi.sectionTitle.copyWith(
+                      fontSize: dense || compact ? 20 : 22,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.35,
+                      height: 1.08,
                     ),
                   ),
+                  if (hasSubtitle) ...<Widget>[
+                    SizedBox(height: dense ? 4 : 6),
+                    Text(
+                      subtitle,
+                      maxLines: dense ? 2 : 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: PassengerUi.bodyText.copyWith(
+                        fontSize: dense || compact ? 12 : 13,
+                        height: 1.32,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+            SizedBox(width: dense ? 10 : 12),
+            ExcludeSemantics(
+              child: Container(
+                width: iconExtent,
+                height: iconExtent,
+                decoration: BoxDecoration(
+                  color: color.withValues(
+                    alpha: PassengerUi.isDarkMode ? 0.16 : 0.08,
+                  ),
+                  borderRadius: BorderRadius.circular(dense ? 12 : 14),
+                  border: Border.all(
+                    color: color.withValues(
+                      alpha: PassengerUi.isDarkMode ? 0.24 : 0.12,
+                    ),
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: color, size: dense ? 19 : 21),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -65,7 +65,7 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
             title: 'Queue',
             subtitle:
                 'Accept nearby passenger requests and monitor live ride progress.',
-            icon: Icons.list_alt_rounded,
+            icon: Icons.radar_rounded,
             accentColor: PassengerUi.highlightAmber,
           ),
           const SizedBox(height: 16),

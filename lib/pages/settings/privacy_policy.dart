@@ -143,7 +143,7 @@ class PrivacyPolicyPage extends StatelessWidget {
               title: 'Privacy Policy',
               subtitle:
                   'What data is collected, how it is used, and the rights available to users.',
-              icon: Icons.privacy_tip_outlined,
+              icon: Icons.policy_rounded,
               accentColor: PassengerUi.primary,
             ),
             SizedBox(height: 16),

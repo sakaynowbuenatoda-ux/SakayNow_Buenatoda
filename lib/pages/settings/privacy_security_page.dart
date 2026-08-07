@@ -50,7 +50,7 @@ class _PrivacySecurityPageState extends State<PrivacySecurityPage> {
               title: 'Privacy and Security',
               subtitle:
                   'Account safeguards and privacy controls for your profile.',
-              icon: Icons.verified_user_outlined,
+              icon: Icons.shield_rounded,
               accentColor: PassengerUi.primary,
             ),
             const SizedBox(height: 16),

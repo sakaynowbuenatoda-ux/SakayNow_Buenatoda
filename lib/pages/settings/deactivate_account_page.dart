@@ -50,7 +50,7 @@ class _DeactivateAccountPageState extends State<DeactivateAccountPage> {
                 title: 'Deactivate Account',
                 subtitle:
                     'Confirm your password to start the 60-day restoration window.',
-                icon: Icons.no_accounts_outlined,
+                icon: Icons.person_off_rounded,
                 accentColor: Colors.red.shade600,
               ),
               const SizedBox(height: 16),

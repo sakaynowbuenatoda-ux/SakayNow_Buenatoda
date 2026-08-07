@@ -55,9 +55,10 @@ class LoadingScreen extends StatelessWidget {
                     Text(
                       'SakayNow Buenatoda',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.luckiestGuy(
+                      style: GoogleFonts.poppins(
                         fontSize: 26,
                         color: AuthUi.primary,
+                        fontWeight: FontWeight.w900,
                         letterSpacing: 0.3,
                       ),
                     ),

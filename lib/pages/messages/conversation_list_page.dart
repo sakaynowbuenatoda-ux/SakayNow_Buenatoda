@@ -327,7 +327,7 @@ class _ConversationHeader extends StatelessWidget {
         final header = PassengerPageHeader(
           title: title,
           subtitle: 'Stay close to ride updates, passengers, and support.',
-          icon: Icons.forum_rounded,
+          icon: Icons.chat_bubble_rounded,
           accentColor: PassengerUi.primary,
         );
         final search = _ConversationSearchField(controller: searchController);

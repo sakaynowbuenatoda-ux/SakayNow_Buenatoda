@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'core/preferences/app_preferences_controller.dart';
 import 'core/session/privacy_security_session_guard.dart';
@@ -58,6 +59,8 @@ class MyApp extends StatelessWidget {
         );
 
     return ThemeData(
+      textTheme: GoogleFonts.poppinsTextTheme(),
+      primaryTextTheme: GoogleFonts.poppinsTextTheme(),
       colorScheme: colorScheme,
       brightness: brightness,
       scaffoldBackgroundColor: palette.background,

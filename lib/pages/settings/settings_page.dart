@@ -292,7 +292,7 @@ class _SettingsPageState extends State<SettingsPage> {
             title: 'Settings',
             subtitle:
                 'Personalize your account, alerts, security, and app display.',
-            icon: Icons.tune_rounded,
+            icon: Icons.settings_suggest_rounded,
             accentColor: PassengerUi.primary,
           ),
           SizedBox(height: 16),

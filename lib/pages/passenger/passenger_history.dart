@@ -24,7 +24,7 @@ class PassengerHistory extends StatelessWidget {
           PassengerPageHeader(
             title: 'History',
             subtitle: 'Review completed rides, routes, fares, and ratings.',
-            icon: Icons.history_rounded,
+            icon: Icons.receipt_long_rounded,
             accentColor: PassengerUi.secondary,
           ),
           SizedBox(height: 16),

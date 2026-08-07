@@ -55,7 +55,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 title: 'Change Password',
                 subtitle:
                     'Confirm your current password before setting a new one.',
-                icon: Icons.lock_outline_rounded,
+                icon: Icons.password_rounded,
                 accentColor: PassengerUi.accentBlue,
               ),
               const SizedBox(height: 16),

@@ -48,7 +48,7 @@ class _DriverPayoutAccountsPageState extends State<DriverPayoutAccountsPage> {
             PassengerPageHeader(
               title: 'Payout Accounts',
               subtitle: '',
-              icon: Icons.account_balance_rounded,
+              icon: Icons.payments_rounded,
               accentColor: PassengerUi.accentBlue,
             ),
             const SizedBox(height: 16),

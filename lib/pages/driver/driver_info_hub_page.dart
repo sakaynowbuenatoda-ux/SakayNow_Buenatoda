@@ -127,7 +127,7 @@ class _DriverInfoHubPageState extends State<DriverInfoHubPage> {
             title: 'Renewal Status',
             subtitle:
                 'Keep your Driver\'s License and OR/CR current to continue receiving bookings.',
-            icon: Icons.fact_check_outlined,
+            icon: Icons.verified_rounded,
             accentColor: PassengerUi.highlightAmber,
           ),
           const SizedBox(height: 16),
@@ -407,7 +407,7 @@ class _BasicInfoTab extends StatelessWidget {
           PassengerPageHeader(
             title: profile.fullName,
             subtitle: 'Basic driver account information',
-            icon: Icons.person_outline_rounded,
+            icon: Icons.account_circle_rounded,
             accentColor: PassengerUi.primary,
           ),
           const SizedBox(height: 16),
@@ -458,7 +458,7 @@ class _RequirementsTab extends StatelessWidget {
           PassengerPageHeader(
             title: 'Requirements & Documents',
             subtitle: 'Private credentials visible only to you and admins.',
-            icon: Icons.folder_shared_outlined,
+            icon: Icons.description_rounded,
             accentColor: PassengerUi.accentBlue,
           ),
           const SizedBox(height: 16),
@@ -492,7 +492,7 @@ class _VehicleDetailsTab extends StatelessWidget {
           PassengerPageHeader(
             title: 'Vehicle Details',
             subtitle: 'The identification passengers see for assigned rides.',
-            icon: Icons.electric_rickshaw_rounded,
+            icon: Icons.local_taxi_rounded,
             accentColor: PassengerUi.secondary,
           ),
           const SizedBox(height: 16),
@@ -543,7 +543,7 @@ class _PayoutReferenceTab extends StatelessWidget {
           PassengerPageHeader(
             title: 'Payout Reference',
             subtitle: 'Accounts used for online ride payouts.',
-            icon: Icons.account_balance_wallet_outlined,
+            icon: Icons.payments_rounded,
             accentColor: PassengerUi.accentBlue,
           ),
           Align(

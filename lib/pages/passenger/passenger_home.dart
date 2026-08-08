@@ -131,25 +131,10 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
             },
           ),
           SizedBox(height: 24),
-          PassengerSurfaceCard(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                _OneTapBookingHeader(onActionTap: _openQuickDestinationsPage),
-                SizedBox(height: 14),
-                AnimatedBuilder(
-                  animation: _quickDestinationsController,
-                  builder: (context, _) {
-                    return PassengerQuickDestinationsSection(
-                      destinations: _quickDestinationsController.destinations,
-                      onSeeAllTap: _openQuickDestinationsPage,
-                      onDestinationTap: _handleQuickDestinationTap,
-                    );
-                  },
-                ),
-              ],
-            ),
+          _AnimatedOneTapBookingCard(
+            quickDestinationsController: _quickDestinationsController,
+            onSeeAllTap: _openQuickDestinationsPage,
+            onDestinationTap: _handleQuickDestinationTap,
           ),
           SizedBox(height: 24),
           PassengerRecentTripsSection(
@@ -461,29 +446,228 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
   }
 }
 
-class _OneTapBookingHeader extends StatelessWidget {
+class _AnimatedOneTapBookingCard extends StatefulWidget {
+  final QuickDestinationsController quickDestinationsController;
+  final VoidCallback onSeeAllTap;
+  final ValueChanged<PassengerQuickDestination> onDestinationTap;
+
+  const _AnimatedOneTapBookingCard({
+    required this.quickDestinationsController,
+    required this.onSeeAllTap,
+    required this.onDestinationTap,
+  });
+
+  @override
+  State<_AnimatedOneTapBookingCard> createState() =>
+      _AnimatedOneTapBookingCardState();
+}
+
+class _AnimatedOneTapBookingCardState extends State<_AnimatedOneTapBookingCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
+      ),
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0.12, 0),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.75, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // Slight delay so it appears after the hero card
+    Future<void>.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) {
+        _controller.forward();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PassengerUi.isDarkMode;
+
+    return SlideTransition(
+      position: _slideAnimation,
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: <Color>[
+                isDark ? const Color(0xFF111827) : Colors.white,
+                isDark ? const Color(0xFF0F1420) : const Color(0xFFF9FAFB),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isDark
+                  ? const Color(0xFF1E2536)
+                  : const Color(0xFFE2E6EE),
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.06),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.10 : 0.03),
+                blurRadius: 2,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  _OneTapBookingHeader(
+                    onActionTap: widget.onSeeAllTap,
+                  ),
+                  const SizedBox(height: 16),
+                  AnimatedBuilder(
+                    animation: widget.quickDestinationsController,
+                    builder: (context, _) {
+                      return PassengerQuickDestinationsSection(
+                        destinations:
+                            widget.quickDestinationsController.destinations,
+                        onSeeAllTap: widget.onSeeAllTap,
+                        onDestinationTap: widget.onDestinationTap,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OneTapBookingHeader extends StatefulWidget {
   final VoidCallback onActionTap;
 
   const _OneTapBookingHeader({required this.onActionTap});
 
   @override
+  State<_OneTapBookingHeader> createState() => _OneTapBookingHeaderState();
+}
+
+class _OneTapBookingHeaderState extends State<_OneTapBookingHeader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _iconController;
+  late final Animation<double> _iconGlowAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _iconController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+
+    _iconGlowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _iconController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _iconController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final compact = PassengerUi.isCompactWidth(context);
+    final isDark = PassengerUi.isDarkMode;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
-        Container(
-          width: compact ? 36 : 40,
-          height: compact ? 36 : 40,
-          decoration: BoxDecoration(
-            color: PassengerUi.successBackground,
-            borderRadius: BorderRadius.circular(12),
-          ),
+        AnimatedBuilder(
+          animation: _iconGlowAnimation,
+          builder: (context, child) {
+            final glow = _iconGlowAnimation.value;
+
+            return Container(
+              width: compact ? 40 : 44,
+              height: compact ? 40 : 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: <Color>[
+                    Color.lerp(
+                      isDark
+                          ? const Color(0xFF064E3B)
+                          : const Color(0xFFDCFCE7),
+                      isDark
+                          ? const Color(0xFF065F46)
+                          : const Color(0xFFC6F6D5),
+                      glow,
+                    )!,
+                    Color.lerp(
+                      isDark
+                          ? const Color(0xFF053B2C)
+                          : const Color(0xFFE7F8EF),
+                      isDark
+                          ? const Color(0xFF064E3B)
+                          : const Color(0xFFDCFCE7),
+                      glow,
+                    )!,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(13),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: PassengerUi.successText.withValues(
+                      alpha: 0.12 + (glow * 0.08),
+                    ),
+                    blurRadius: 8 + (glow * 4),
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: child,
+            );
+          },
           child: Icon(
             Icons.flash_on_rounded,
             color: PassengerUi.successText,
-            size: compact ? 20 : 22,
+            size: compact ? 22 : 24,
           ),
         ),
         const SizedBox(width: 12),
@@ -491,41 +675,76 @@ class _OneTapBookingHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                'One-tap booking',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: PassengerUi.cardTitle.copyWith(
-                  fontSize: compact ? 15 : 16,
-                  fontWeight: FontWeight.w800,
-                  height: 1.12,
-                ),
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 3,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: PassengerUi.successText,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'One-tap booking',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: PassengerUi.cardTitle.copyWith(
+                        fontSize: compact ? 15.5 : 17,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                        height: 1.12,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 4),
               Text(
                 'Pick a saved destination and ride faster.',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: PassengerUi.bodyText.copyWith(fontSize: 12),
+                style: PassengerUi.bodyText.copyWith(
+                  fontSize: compact ? 11.5 : 12.5,
+                  color: PassengerUi.body.withValues(alpha: 0.85),
+                ),
               ),
             ],
           ),
         ),
         const SizedBox(width: 8),
-        TextButton(
-          onPressed: onActionTap,
-          style: TextButton.styleFrom(
-            foregroundColor: PassengerUi.primary,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            minimumSize: const Size(0, 36),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          child: Text(
-            'See all',
-            style: TextStyle(
-              color: PassengerUi.primary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
+        Material(
+          color: isDark ? const Color(0xFF1A2332) : const Color(0xFFF3F4F6),
+          borderRadius: BorderRadius.circular(999),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: widget.onActionTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 8,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'See all',
+                    style: TextStyle(
+                      color: PassengerUi.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: PassengerUi.primary,
+                    size: 11,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

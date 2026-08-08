@@ -17,8 +17,10 @@ class FareService {
       FareSettings.defaultOutsideBuenavistaMaxFare;
   static const double barangayHopDistanceMeters = 1700;
   static const int oneBarangayRangeMeters = 2500;
-  static const int driverPickupSurchargePerExtraBarangay = 5;
-  static const int maxDriverPickupSurcharge = 10;
+  static const int driverPickupSurchargePerExtraBarangay =
+      FareSettings.defaultDriverPickupSurchargePerExtraBarangay;
+  static const int maxDriverPickupSurcharge =
+      FareSettings.defaultMaxDriverPickupSurcharge;
 
   static const List<String> buenavistaBarangays = <String>[
     'Anonang',
@@ -62,11 +64,16 @@ class FareService {
     required RideLocation pickupLocation,
     required RideLocation dropoffLocation,
     required int distanceMeters,
+    String passengerType = 'regular',
+    bool passengerIsVerified = false,
     bool studentDiscountEligible = false,
     FareSettings settings = FareSettings.defaults,
     int? driverToPickupDistanceMeters,
   }) {
     final activeSettings = settings.normalized();
+    final activePassengerType = studentDiscountEligible
+        ? 'student'
+        : _normalizePassengerType(passengerType);
     final normalizedDistance = distanceMeters < 0 ? 0 : distanceMeters;
     final normalizedDriverDistance =
         driverToPickupDistanceMeters == null || driverToPickupDistanceMeters < 0
@@ -77,6 +84,7 @@ class FareService {
     );
     final driverPickupSurcharge = driverPickupSurchargeForDistance(
       normalizedDriverDistance,
+      settings: activeSettings,
     );
     final pickupBarangay = detectBuenavistaBarangay(pickupLocation);
     final dropoffBarangay = detectBuenavistaBarangay(dropoffLocation);
@@ -107,6 +115,8 @@ class FareService {
           driverPickupBarangayHopEstimate: driverPickupHopEstimate,
         ),
         studentDiscountEligible: studentDiscountEligible,
+        passengerType: activePassengerType,
+        passengerIsVerified: passengerIsVerified,
         settings: activeSettings,
       );
     }
@@ -129,6 +139,8 @@ class FareService {
           driverPickupBarangayHopEstimate: driverPickupHopEstimate,
         ),
         studentDiscountEligible: studentDiscountEligible,
+        passengerType: activePassengerType,
+        passengerIsVerified: passengerIsVerified,
         settings: activeSettings,
       );
     }
@@ -155,6 +167,8 @@ class FareService {
         driverPickupBarangayHopEstimate: driverPickupHopEstimate,
       ),
       studentDiscountEligible: studentDiscountEligible,
+      passengerType: activePassengerType,
+      passengerIsVerified: passengerIsVerified,
       settings: activeSettings,
     );
   }
@@ -162,11 +176,37 @@ class FareService {
   FareEstimate _applyDiscounts(
     FareEstimate estimate, {
     required bool studentDiscountEligible,
+    required String passengerType,
+    required bool passengerIsVerified,
     required FareSettings settings,
   }) {
-    return estimate.applyStudentDiscount(
-      isEligible: studentDiscountEligible,
-      discountRate: settings.studentDiscountRate,
+    final discount = switch (passengerType) {
+      'student' => (
+        isEligible: studentDiscountEligible || passengerIsVerified,
+        rate: settings.studentDiscountRate,
+        code: FareEstimate.studentDiscountCode,
+        label: 'student',
+      ),
+      'senior_citizen' => (
+        isEligible: passengerIsVerified,
+        rate: settings.seniorCitizenDiscountRate,
+        code: FareEstimate.seniorCitizenDiscountCode,
+        label: 'senior citizen',
+      ),
+      _ => (
+        isEligible: true,
+        rate: settings.regularPassengerDiscountRate,
+        code: FareEstimate.regularPassengerDiscountCode,
+        label: 'regular passenger',
+      ),
+    };
+
+    return estimate.applyDiscount(
+      isEligible: discount.isEligible,
+      discountRate: discount.rate,
+      discountCode: discount.code,
+      discountLabel:
+          '${_formatDiscountPercent(discount.rate)}% ${discount.label} discount',
     );
   }
 
@@ -230,7 +270,10 @@ class FareService {
     return _estimateDistanceBarangayHops(distanceMeters);
   }
 
-  int driverPickupSurchargeForDistance(int? distanceMeters) {
+  int driverPickupSurchargeForDistance(
+    int? distanceMeters, {
+    FareSettings settings = FareSettings.defaults,
+  }) {
     final extraBarangayHops =
         driverPickupBarangayHopsForDistance(distanceMeters) - 1;
     if (extraBarangayHops <= 0) {
@@ -238,8 +281,8 @@ class FareService {
     }
 
     return math.min(
-      extraBarangayHops * driverPickupSurchargePerExtraBarangay,
-      maxDriverPickupSurcharge,
+      extraBarangayHops * settings.driverPickupSurchargePerExtraBarangay,
+      settings.maxDriverPickupSurcharge,
     );
   }
 
@@ -281,6 +324,21 @@ class FareService {
 
   String _normalize(String value) {
     return value.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  String _normalizePassengerType(String value) {
+    return switch (value.trim().toLowerCase()) {
+      'student' => 'student',
+      'senior' || 'senior citizen' || 'senior_citizen' => 'senior_citizen',
+      _ => 'regular',
+    };
+  }
+
+  String _formatDiscountPercent(double rate) {
+    final percent = rate.clamp(0.0, 1.0).toDouble() * 100;
+    return percent % 1 == 0
+        ? percent.toStringAsFixed(0)
+        : percent.toStringAsFixed(1);
   }
 
   double _distanceBetweenMeters(

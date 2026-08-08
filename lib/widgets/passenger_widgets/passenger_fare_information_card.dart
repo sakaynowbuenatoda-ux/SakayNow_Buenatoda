@@ -139,8 +139,18 @@ class _PassengerFareInformationCardState
         value: settings.outsideBuenavistaRangeLabel,
       ),
       PassengerFareDetail(
+        label: 'Regular passenger discount',
+        value: settings.regularPassengerDiscountLabel,
+        valueColor: PassengerUi.successText,
+      ),
+      PassengerFareDetail(
         label: 'Student discount',
         value: settings.studentDiscountLabel,
+        valueColor: PassengerUi.successText,
+      ),
+      PassengerFareDetail(
+        label: 'Senior citizen discount',
+        value: settings.seniorCitizenDiscountLabel,
         valueColor: PassengerUi.successText,
       ),
       const PassengerFareDetail(

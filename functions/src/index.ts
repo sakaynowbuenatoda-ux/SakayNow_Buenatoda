@@ -42,8 +42,13 @@ const xenditAllowedMethods = new Set(["GCASH", "PAYMAYA", "CREDIT_CARD"]);
 const regularMinimumRideFare = 25;
 const minimumStudentDiscountedFare = 21;
 const maximumRideFare = 100;
+const regularPassengerDiscountRate = 0;
 const studentDiscountRate = 0.15;
+const seniorCitizenDiscountRate = 0.15;
+const defaultMaxDriverPickupSurcharge = 10;
+const regularPassengerDiscountCode = "regular_passenger";
 const studentDiscountCode = "verified_student";
+const seniorCitizenDiscountCode = "verified_senior_citizen";
 const fareSettingsCollection = "fare_settings";
 const currentFareSettingsDocument = "current";
 const adminLogsCollection = "admin_logs";
@@ -107,9 +112,11 @@ type RevieweeTarget = {
 
 type FareValidationSettings = {
   regularMinimumRideFare: number;
-  minimumStudentDiscountedFare: number;
+  minimumDiscountedFare: number;
   maximumRideFare: number;
+  regularPassengerDiscountRate: number;
   studentDiscountRate: number;
+  seniorCitizenDiscountRate: number;
 };
 
 type AdminLogParams = {
@@ -126,9 +133,11 @@ type AdminLogParams = {
 
 const defaultFareValidationSettings: FareValidationSettings = {
   regularMinimumRideFare,
-  minimumStudentDiscountedFare,
-  maximumRideFare,
+  minimumDiscountedFare: minimumStudentDiscountedFare,
+  maximumRideFare: maximumRideFare + defaultMaxDriverPickupSurcharge,
+  regularPassengerDiscountRate,
   studentDiscountRate,
+  seniorCitizenDiscountRate,
 };
 
 export const createXenditCheckoutSession = onCall(
@@ -1246,6 +1255,15 @@ export const logFareSettingsUpdated = onDocumentWritten(
           settings.buenavista_five_barangay_fare,
         outside_buenavista_min_fare: settings.outside_buenavista_min_fare,
         outside_buenavista_max_fare: settings.outside_buenavista_max_fare,
+        regular_passenger_discount_rate:
+          settings.regular_passenger_discount_rate ?? 0,
+        student_discount_rate: settings.student_discount_rate ?? 0.15,
+        senior_citizen_discount_rate:
+          settings.senior_citizen_discount_rate ?? 0.15,
+        driver_pickup_surcharge_per_extra_barangay:
+          settings.driver_pickup_surcharge_per_extra_barangay ?? 5,
+        max_driver_pickup_surcharge:
+          settings.max_driver_pickup_surcharge ?? 10,
         commission_rate: settings.commission_rate ?? 0,
       },
     });
@@ -3248,13 +3266,43 @@ async function loadFareValidationSettings(): Promise<FareValidationSettings> {
     outsideSixteenKmFare,
     readPositiveNumber(data.outside_buenavista_max_fare, maximumRideFare),
   );
-  const discountRate = Math.min(
+  const regularDiscountRate = Math.min(
+    1,
+    Math.max(
+      0,
+      readNumber(data.regular_passenger_discount_rate) ??
+        regularPassengerDiscountRate,
+    ),
+  );
+  const activeStudentDiscountRate = Math.min(
     1,
     Math.max(
       0,
       readNumber(data.student_discount_rate) ?? studentDiscountRate,
     ),
   );
+  const activeSeniorDiscountRate = Math.min(
+    1,
+    Math.max(
+      0,
+      readNumber(data.senior_citizen_discount_rate) ??
+        seniorCitizenDiscountRate,
+    ),
+  );
+  const pickupSurchargePerExtraBarangay = Math.max(
+    0,
+    Math.round(
+      readNumber(data.driver_pickup_surcharge_per_extra_barangay) ?? 5,
+    ),
+  );
+  const maximumPickupSurcharge = pickupSurchargePerExtraBarangay === 0 ? 0 :
+    Math.max(
+      pickupSurchargePerExtraBarangay,
+      Math.round(
+        readNumber(data.max_driver_pickup_surcharge) ??
+          defaultMaxDriverPickupSurcharge,
+      ),
+    );
   const minimumRegularFare = Math.min(
     oneBarangayFare,
     fiveBarangayFare,
@@ -3263,12 +3311,18 @@ async function loadFareValidationSettings(): Promise<FareValidationSettings> {
 
   return {
     regularMinimumRideFare: minimumRegularFare,
-    minimumStudentDiscountedFare: Math.max(
+    minimumDiscountedFare: Math.max(
       1,
-      Math.round(minimumRegularFare * (1 - discountRate)),
+      Math.min(
+        Math.round(minimumRegularFare * (1 - regularDiscountRate)),
+        Math.round(minimumRegularFare * (1 - activeStudentDiscountRate)),
+        Math.round(minimumRegularFare * (1 - activeSeniorDiscountRate)),
+      ),
     ),
-    maximumRideFare: outsideMaximumFare,
-    studentDiscountRate: discountRate,
+    maximumRideFare: outsideMaximumFare + maximumPickupSurcharge,
+    regularPassengerDiscountRate: regularDiscountRate,
+    studentDiscountRate: activeStudentDiscountRate,
+    seniorCitizenDiscountRate: activeSeniorDiscountRate,
   };
 }
 
@@ -3295,14 +3349,14 @@ function isAllowedFareAmount(params: {
     return true;
   }
 
-  if (params.amount < params.fareSettings.minimumStudentDiscountedFare) {
+  if (params.amount < params.fareSettings.minimumDiscountedFare) {
     return false;
   }
 
-  return hasVerifiedStudentDiscount(params);
+  return hasValidPassengerDiscount(params);
 }
 
-function hasVerifiedStudentDiscount(params: {
+function hasValidPassengerDiscount(params: {
   amount: number;
   booking: Record<string, unknown>;
   passengerData: Record<string, unknown>;
@@ -3310,13 +3364,32 @@ function hasVerifiedStudentDiscount(params: {
 }) {
   const passengerType =
     readOptionalString(params.passengerData.passenger_type)?.toLowerCase() ??
-    (readOptionalString(params.passengerData.role)?.toLowerCase() === "student" ?
-      "student" :
-      "regular");
+    (() => {
+      const role = readOptionalString(params.passengerData.role)?.toLowerCase();
+      if (role === "student") return "student";
+      if (role === "senior_citizen") return "senior_citizen";
+      return "regular";
+    })();
   const isVerified = params.passengerData.is_verified === true ||
     params.passengerData.isVerified === true ||
     params.passengerData.isVerrified === true;
-  if (passengerType !== "student" || !isVerified) {
+  const discountConfiguration = passengerType === "student" ? {
+    rate: params.fareSettings.studentDiscountRate,
+    code: studentDiscountCode,
+    requiresVerification: true,
+  } : passengerType === "senior_citizen" ? {
+    rate: params.fareSettings.seniorCitizenDiscountRate,
+    code: seniorCitizenDiscountCode,
+    requiresVerification: true,
+  } : {
+    rate: params.fareSettings.regularPassengerDiscountRate,
+    code: regularPassengerDiscountCode,
+    requiresVerification: false,
+  };
+  if (
+    discountConfiguration.rate <= 0 ||
+    (discountConfiguration.requiresVerification && !isVerified)
+  ) {
     return false;
   }
 
@@ -3335,9 +3408,9 @@ function hasVerifiedStudentDiscount(params: {
 
   if (
     !discountApplied ||
-    discountCode !== studentDiscountCode ||
+    discountCode !== discountConfiguration.code ||
     discountRate === undefined ||
-    Math.abs(discountRate - params.fareSettings.studentDiscountRate) > 0.001 ||
+    Math.abs(discountRate - discountConfiguration.rate) > 0.001 ||
     baseFare === undefined ||
     baseFare < params.fareSettings.regularMinimumRideFare ||
     baseFare > params.fareSettings.maximumRideFare
@@ -3345,8 +3418,9 @@ function hasVerifiedStudentDiscount(params: {
     return false;
   }
 
-  return Math.round(
-    baseFare * (1 - params.fareSettings.studentDiscountRate),
+  return Math.max(
+    1,
+    Math.round(baseFare * (1 - discountConfiguration.rate)),
   ) === params.amount;
 }
 

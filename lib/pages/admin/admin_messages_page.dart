@@ -337,122 +337,115 @@ class _AdminSupportConversationCard extends StatelessWidget {
     final hasUnread = unreadCount > 0;
     const roleLabel = 'Support';
 
-    return AdminSurfaceCard(
-      padding: EdgeInsets.zero,
-      child: InkWell(
-        borderRadius: AdminUi.cardRadius,
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ChatPage(
-                conversationId: conversation.conversationId,
-                currentUserId: adminId,
-                currentUserRole: 'admin',
-                title: title,
-                subtitle: 'Support request',
-              ),
+    return AdminInteractiveCard(
+      semanticLabel: 'Open conversation with $title',
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ChatPage(
+              conversationId: conversation.conversationId,
+              currentUserId: adminId,
+              currentUserRole: 'admin',
+              title: title,
+              subtitle: 'Support request',
             ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Container(
-                width: 42,
-                height: 42,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: AdminUi.mutedSurface,
-                  shape: BoxShape.circle,
-                ),
-                child: _AdminConversationAvatar(
-                  key: ValueKey<String>('admin_avatar_$avatarIdentity'),
-                  title: title,
-                  avatarIdentity: avatarIdentity,
-                  profileFuture: targetProfileFuture,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+        );
+      },
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 42,
+            height: 42,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: AdminUi.mutedSurface,
+              shape: BoxShape.circle,
+            ),
+            child: _AdminConversationAvatar(
+              key: ValueKey<String>('admin_avatar_$avatarIdentity'),
+              title: title,
+              avatarIdentity: avatarIdentity,
+              profileFuture: targetProfileFuture,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
                   children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Row(
-                            children: <Widget>[
-                              Flexible(
-                                child: Text(
-                                  title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AdminUi.cardTitle.copyWith(
-                                    color: AdminUi.title,
-                                    fontSize: 15,
-                                    fontWeight: hasUnread
-                                        ? FontWeight.w800
-                                        : FontWeight.w600,
-                                  ),
-                                ),
+                    Expanded(
+                      child: Row(
+                        children: <Widget>[
+                          Flexible(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AdminUi.cardTitle.copyWith(
+                                color: AdminUi.title,
+                                fontSize: 15,
+                                fontWeight: hasUnread
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
                               ),
-                              const SizedBox(width: 8),
-                              const _AdminConversationRoleLabel(
-                                label: roleLabel,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        TimeAgoText(
-                          dateTime: conversation.latestActivityAt,
-                          style: AdminUi.bodyText.copyWith(
-                            color: hasUnread ? AdminUi.title : AdminUi.body,
-                            fontSize: 12,
-                            fontWeight: hasUnread
-                                ? FontWeight.w700
-                                : FontWeight.w400,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: <Widget>[
-                        Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          color: hasUnread ? AdminUi.title : AdminUi.body,
-                          size: 15,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            conversation.previewFor(adminId),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AdminUi.bodyText.copyWith(
-                              color: hasUnread ? AdminUi.title : AdminUi.body,
-                              fontSize: 13,
-                              fontWeight: hasUnread
-                                  ? FontWeight.w700
-                                  : FontWeight.w400,
                             ),
                           ),
-                        ),
-                        if (hasUnread) ...<Widget>[
                           const SizedBox(width: 8),
-                          _AdminUnreadCountBadge(unreadCount: unreadCount),
+                          const _AdminConversationRoleLabel(label: roleLabel),
                         ],
-                      ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    TimeAgoText(
+                      dateTime: conversation.latestActivityAt,
+                      style: AdminUi.bodyText.copyWith(
+                        color: hasUnread ? AdminUi.title : AdminUi.body,
+                        fontSize: 12,
+                        fontWeight: hasUnread
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 5),
+                Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      color: hasUnread ? AdminUi.title : AdminUi.body,
+                      size: 15,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        conversation.previewFor(adminId),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AdminUi.bodyText.copyWith(
+                          color: hasUnread ? AdminUi.title : AdminUi.body,
+                          fontSize: 13,
+                          fontWeight: hasUnread
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                    if (hasUnread) ...<Widget>[
+                      const SizedBox(width: 8),
+                      _AdminUnreadCountBadge(unreadCount: unreadCount),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

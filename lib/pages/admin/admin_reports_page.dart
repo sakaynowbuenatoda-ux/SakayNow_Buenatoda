@@ -695,37 +695,39 @@ class _ReportUserCard extends StatelessWidget {
     final roleLabel = reportedUser?.roleLabel ?? report.reportedUserRoleLabel;
     final reporterName = reporter?.fullName ?? _fallbackReporterName(report);
 
-    return MouseRegion(
-      cursor: onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: AdminSurfaceCard(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _ReportAvatar(
-                imageUrl: reportedUser?.profileImageUrl,
-                name: displayName,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: _ReportCardContent(
-                  report: report,
-                  displayName: displayName,
-                  roleLabel: roleLabel,
-                  reporterName: reporterName,
-                ),
-              ),
-              if (onTap != null) ...[
-                const SizedBox(width: 10),
-                Icon(Icons.chevron_right_rounded, color: AdminUi.muted),
-              ],
-            ],
+    final content = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ReportAvatar(
+          imageUrl: reportedUser?.profileImageUrl,
+          name: displayName,
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: _ReportCardContent(
+            report: report,
+            displayName: displayName,
+            roleLabel: roleLabel,
+            reporterName: reporterName,
           ),
         ),
-      ),
+        if (onTap != null) ...[
+          const SizedBox(width: 10),
+          Icon(Icons.chevron_right_rounded, color: AdminUi.muted),
+        ],
+      ],
     );
+
+    if (onTap != null) {
+      return AdminInteractiveCard(
+        onTap: onTap!,
+        accentColor: report.isOpen ? AdminUi.warning : AdminUi.accent,
+        semanticLabel: 'Open report for $displayName',
+        child: content,
+      );
+    }
+
+    return AdminSurfaceCard(child: content);
   }
 
   static String _fallbackUserName(AdminReportRecord report) {

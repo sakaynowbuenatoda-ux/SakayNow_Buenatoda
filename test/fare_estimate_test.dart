@@ -113,6 +113,73 @@ void main() {
     expect(fare.discountLabel, '50% student discount');
   });
 
+  test('applies editable senior citizen discount to verified seniors', () {
+    const service = FareService();
+    final settings = FareSettings.defaults.copyWith(
+      oneBarangayFare: 40,
+      buenavistaFiveBarangayFare: 40,
+      seniorCitizenDiscountRate: 0.15,
+    );
+
+    final fare = service.estimateFare(
+      pickupLocation: const RideLocation(
+        address: 'Poblacion, Buenavista',
+        name: 'Poblacion',
+      ),
+      dropoffLocation: const RideLocation(
+        address: 'Poblacion, Buenavista',
+        name: 'Poblacion',
+      ),
+      distanceMeters: 900,
+      passengerType: 'senior_citizen',
+      passengerIsVerified: true,
+      settings: settings,
+    );
+
+    expect(fare.amount, 34);
+    expect(fare.discountRate, 0.15);
+    expect(fare.discountCode, FareEstimate.seniorCitizenDiscountCode);
+    expect(fare.discountLabel, '15% senior citizen discount');
+  });
+
+  test(
+    'applies an editable regular passenger discount without verification',
+    () {
+      const service = FareService();
+      final settings = FareSettings.defaults.copyWith(
+        oneBarangayFare: 40,
+        buenavistaFiveBarangayFare: 40,
+        regularPassengerDiscountRate: 0.1,
+      );
+
+      final fare = service.estimateFare(
+        pickupLocation: const RideLocation(address: 'Poblacion, Buenavista'),
+        dropoffLocation: const RideLocation(address: 'Poblacion, Buenavista'),
+        distanceMeters: 900,
+        settings: settings,
+      );
+
+      expect(fare.amount, 36);
+      expect(fare.discountCode, FareEstimate.regularPassengerDiscountCode);
+      expect(fare.discountLabel, '10% regular passenger discount');
+    },
+  );
+
+  test('does not apply senior discount before verification', () {
+    const service = FareService();
+
+    final fare = service.estimateFare(
+      pickupLocation: const RideLocation(address: 'Poblacion, Buenavista'),
+      dropoffLocation: const RideLocation(address: 'Poblacion, Buenavista'),
+      distanceMeters: 900,
+      passengerType: 'senior_citizen',
+      passengerIsVerified: false,
+    );
+
+    expect(fare.amount, 25);
+    expect(fare.hasDiscount, isFalse);
+  });
+
   test('adds no driver pickup surcharge within one barangay range', () {
     const service = FareService();
 
@@ -175,5 +242,24 @@ void main() {
     expect(fare.amount, 35);
     expect(fare.driverPickupSurcharge, 10);
     expect(fare.driverPickupBarangayHopEstimate, greaterThan(2));
+  });
+
+  test('uses editable pickup add-on and cap', () {
+    const service = FareService();
+    final settings = FareSettings.defaults.copyWith(
+      driverPickupSurchargePerExtraBarangay: 8,
+      maxDriverPickupSurcharge: 24,
+    );
+
+    final fare = service.estimateFare(
+      pickupLocation: const RideLocation(address: 'Poblacion, Buenavista'),
+      dropoffLocation: const RideLocation(address: 'Poblacion, Buenavista'),
+      distanceMeters: 900,
+      driverToPickupDistanceMeters: 9000,
+      settings: settings,
+    );
+
+    expect(fare.driverPickupSurcharge, 24);
+    expect(fare.amount, 49);
   });
 }

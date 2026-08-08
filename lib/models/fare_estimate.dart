@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FareEstimate {
   static const double studentDiscountRate = 0.15;
+  static const String regularPassengerDiscountCode = 'regular_passenger';
   static const String studentDiscountCode = 'verified_student';
+  static const String seniorCitizenDiscountCode = 'verified_senior_citizen';
 
   final int amount;
   final int baseAmount;
@@ -53,6 +55,20 @@ class FareEstimate {
     required bool isEligible,
     double discountRate = studentDiscountRate,
   }) {
+    return applyDiscount(
+      isEligible: isEligible,
+      discountRate: discountRate,
+      discountCode: studentDiscountCode,
+      discountLabel: '${_formatPercent(discountRate)}% student discount',
+    );
+  }
+
+  FareEstimate applyDiscount({
+    required bool isEligible,
+    required double discountRate,
+    required String discountCode,
+    required String discountLabel,
+  }) {
     final originalAmount = baseAmount;
     final activeDiscountRate = discountRate.clamp(0.0, 1.0).toDouble();
     if (!isEligible || originalAmount <= 0) {
@@ -88,9 +104,16 @@ class FareEstimate {
       baseAmount: originalAmount,
       discountAmount: savings,
       discountRate: activeDiscountRate,
-      discountCode: studentDiscountCode,
-      discountLabel: '${(activeDiscountRate * 100).round()}% student discount',
+      discountCode: discountCode,
+      discountLabel: discountLabel,
     );
+  }
+
+  static String _formatPercent(double rate) {
+    final percent = rate.clamp(0.0, 1.0).toDouble() * 100;
+    return percent % 1 == 0
+        ? percent.toStringAsFixed(0)
+        : percent.toStringAsFixed(1);
   }
 
   FareEstimate _copyWithFare({

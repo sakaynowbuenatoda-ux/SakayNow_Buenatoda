@@ -103,7 +103,7 @@ class BookingMapController extends ChangeNotifier {
     final activeFare = fareEstimate;
     final profile = passengerFareProfile;
     if (activeFare?.hasDiscount == true) {
-      final label = activeFare!.discountLabel ?? 'Student discount';
+      final label = activeFare!.discountLabel ?? 'Passenger discount';
       return '$label applied. Saved ${activeFare.discountAmountLabel} from ${activeFare.baseAmountLabel}.';
     }
 
@@ -767,7 +767,8 @@ class BookingMapController extends ChangeNotifier {
       pickupLocation: pickupLocation!,
       dropoffLocation: dropoffLocation!,
       distanceMeters: distanceMeters,
-      studentDiscountEligible: isStudentDiscountEligible,
+      passengerType: passengerFareProfile?.passengerType ?? 'regular',
+      passengerIsVerified: passengerFareProfile?.isVerified ?? false,
       settings: fareSettings,
       driverToPickupDistanceMeters: driverToPickupDistanceMeters,
     );

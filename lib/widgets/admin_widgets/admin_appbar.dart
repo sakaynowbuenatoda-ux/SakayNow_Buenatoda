@@ -34,6 +34,9 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final appBarForeground = AdminUi.isDarkMode ? AdminUi.title : Colors.black;
+
     return AppBar(
       automaticallyImplyLeading: false,
       bottom: PreferredSize(
@@ -46,7 +49,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
       toolbarHeight: AdminUi.appBarHeight,
       titleSpacing: 0,
       title: Padding(
-        padding: EdgeInsets.only(left: showMenuButton ? 10 : 22, right: 10),
+        padding: EdgeInsets.only(left: showMenuButton ? 10 : 24, right: 10),
         child: Row(
           children: [
             if (showMenuButton) ...[
@@ -71,12 +74,12 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
                     child: Row(
                       children: [
                         Container(
-                          height: 34,
-                          width: 34,
+                          height: 36,
+                          width: 36,
                           decoration: BoxDecoration(
                             color: AdminUi.mutedSurface,
                             borderRadius: AdminUi.radius,
-                            border: Border.all(color: AdminUi.border),
+                            border: Border.all(color: AdminUi.strongBorder),
                           ),
                           child: logoAssetPath != null
                               ? ClipRRect(
@@ -97,7 +100,11 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
                           child: Text(
                             appName,
                             overflow: TextOverflow.ellipsis,
-                            style: AdminUi.cardTitle.copyWith(fontSize: 16),
+                            style: AdminUi.cardTitle.copyWith(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.25,
+                            ),
                           ),
                         ),
                       ],
@@ -126,43 +133,91 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
               onTap: onProfileTap,
               borderRadius: AdminUi.radius,
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 10,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
                 child: Row(
                   children: [
-                    ClipOval(
-                      child: FirebaseStorageImage(
-                        imageUrl: profileImageUrl,
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.cover,
-                        fallback: CircleAvatar(
-                          radius: 16,
-                          backgroundColor: AdminUi.mutedSurface,
-                          child: Text(
-                            adminName.isNotEmpty
-                                ? adminName[0].toUpperCase()
-                                : 'A',
-                            style: TextStyle(
-                              color: AdminUi.primary,
-                              fontWeight: FontWeight.bold,
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AdminUi.strongBorder),
+                          ),
+                          child: ClipOval(
+                            child: FirebaseStorageImage(
+                              imageUrl: profileImageUrl,
+                              width: 34,
+                              height: 34,
+                              fit: BoxFit.cover,
+                              fallback: CircleAvatar(
+                                radius: 17,
+                                backgroundColor: AdminUi.mutedSurface,
+                                child: Text(
+                                  adminName.isNotEmpty
+                                      ? adminName[0].toUpperCase()
+                                      : 'A',
+                                  style: TextStyle(
+                                    color: appBarForeground,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 120),
-                      child: Text(
-                        adminName,
-                        overflow: TextOverflow.ellipsis,
-                        style: AdminUi.bodyText.copyWith(
-                          color: AdminUi.primary,
-                          fontWeight: FontWeight.w700,
+                        Positioned(
+                          right: -1,
+                          bottom: -1,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: AdminUi.success,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AdminUi.surface,
+                                width: 2,
+                              ),
+                            ),
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(width: 10),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: compact ? 92 : 132),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            adminName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AdminUi.bodyText.copyWith(
+                              color: appBarForeground,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              height: 1.2,
+                            ),
+                          ),
+                          if (!compact) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Administrator',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AdminUi.labelText.copyWith(
+                                color: appBarForeground.withValues(alpha: 0.60),
+                                fontSize: 10.5,
+                                height: 1.15,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ],
@@ -185,6 +240,7 @@ class _AdminNotificationButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasUnread = count > 0;
+    final iconColor = AdminUi.isDarkMode ? AdminUi.title : Colors.black;
 
     return Material(
       color: AdminUi.surface,
@@ -202,11 +258,7 @@ class _AdminNotificationButton extends StatelessWidget {
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
-              Icon(
-                Icons.notifications_none_rounded,
-                color: AdminUi.primary,
-                size: 22,
-              ),
+              Icon(Icons.notifications_rounded, color: iconColor, size: 21),
               if (hasUnread)
                 Positioned(
                   top: 7,

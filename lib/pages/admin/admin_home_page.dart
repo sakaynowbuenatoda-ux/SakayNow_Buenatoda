@@ -466,8 +466,19 @@ class _AdminNavigationContent extends StatelessWidget {
           Divider(height: 1, color: AdminUi.border),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+              padding: const EdgeInsets.fromLTRB(12, 18, 12, 14),
               children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                  child: Text(
+                    'WORKSPACE',
+                    style: AdminUi.labelText.copyWith(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.9,
+                    ),
+                  ),
+                ),
                 for (final entry in _adminDestinations.asMap().entries)
                   _AdminNavItem(
                     icon: entry.value.icon,
@@ -507,7 +518,7 @@ class _AdminNavigationContent extends StatelessWidget {
                 _AdminNavAction(
                   icon: Icons.logout_rounded,
                   label: 'Logout',
-                  color: AdminUi.primary,
+                  color: AdminUi.danger,
                   onTap: onLogout,
                 ),
               ],
@@ -575,19 +586,38 @@ class _AdminNavItem extends StatelessWidget {
     final foreground = selected ? AdminUi.accent : AdminUi.body;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Material(
         color: selected ? AdminUi.soft(AdminUi.accent) : Colors.transparent,
-        borderRadius: AdminUi.radius,
+        shape: RoundedRectangleBorder(
+          borderRadius: AdminUi.radius,
+          side: BorderSide(
+            color: selected
+                ? AdminUi.accent.withValues(alpha: 0.16)
+                : Colors.transparent,
+          ),
+        ),
         child: InkWell(
           onTap: onTap,
           borderRadius: AdminUi.radius,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             child: Row(
               children: [
-                Icon(icon, size: 20, color: foreground),
-                const SizedBox(width: 10),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? AdminUi.surface.withValues(
+                            alpha: AdminUi.isDarkMode ? 0.10 : 0.72,
+                          )
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, size: 19, color: foreground),
+                ),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Text(
                     label,
@@ -663,7 +693,7 @@ class _AdminNavAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected ? AdminUi.accent : color ?? AdminUi.accent;
+    final foreground = selected ? AdminUi.accent : color ?? AdminUi.body;
 
     return Material(
       color: selected ? AdminUi.soft(AdminUi.accent) : Colors.transparent,

@@ -10,8 +10,8 @@ class AdminUi {
   static const double listContentWidth = 1040;
   static const double detailContentWidth = 760;
   static const double formContentWidth = 860;
-  static const double sidebarWidth = 268;
-  static const double appBarHeight = 68;
+  static const double sidebarWidth = 272;
+  static const double appBarHeight = 72;
   static const double metricCardMinWidth = 144;
   static const double metricCardMaxWidth = 220;
   static const double metricCardSpacing = 12;
@@ -19,24 +19,26 @@ class AdminUi {
   static bool get isDarkMode => AppPreferencesController.instance.isDarkMode;
 
   static Color get background =>
-      isDarkMode ? const Color(0xFF0B0F17) : const Color(0xFFF6F7F9);
+      isDarkMode ? const Color(0xFF0B1018) : const Color(0xFFF6F8FB);
   static Color get surface =>
-      isDarkMode ? const Color(0xFF121721) : const Color(0xFFFFFFFF);
+      isDarkMode ? const Color(0xFF121923) : const Color(0xFFFFFFFF);
   static Color get elevatedSurface =>
-      isDarkMode ? const Color(0xFF171D29) : const Color(0xFFFFFFFF);
+      isDarkMode ? const Color(0xFF17202C) : const Color(0xFFFFFFFF);
   static Color get mutedSurface =>
-      isDarkMode ? const Color(0xFF1D2430) : const Color(0xFFF3F4F6);
+      isDarkMode ? const Color(0xFF1B2532) : const Color(0xFFF1F5F9);
   static Color get subtleSurface =>
-      isDarkMode ? const Color(0xFF10151F) : const Color(0xFFFAFAFB);
+      isDarkMode ? const Color(0xFF0F1620) : const Color(0xFFF8FAFC);
   static Color get border =>
-      isDarkMode ? const Color(0xFF263142) : const Color(0xFFE5E7EB);
+      isDarkMode ? const Color(0xFF273548) : const Color(0xFFE2E8F0);
   static Color get strongBorder =>
-      isDarkMode ? const Color(0xFF334155) : const Color(0xFFD1D5DB);
+      isDarkMode ? const Color(0xFF3A4A61) : const Color(0xFFCBD5E1);
 
   static Color get title =>
-      isDarkMode ? const Color(0xFFF8FAFC) : const Color(0xFF111827);
-  static Color get body => isDarkMode ? const Color(0xFFCBD5E1) : Colors.black;
-  static Color get muted => isDarkMode ? const Color(0xFF94A3B8) : Colors.black;
+      isDarkMode ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A);
+  static Color get body =>
+      isDarkMode ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
+  static Color get muted =>
+      isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
 
   static Color get accent =>
       isDarkMode ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
@@ -47,8 +49,8 @@ class AdminUi {
   static Color get danger =>
       isDarkMode ? const Color(0xFFF87171) : const Color(0xFFDC2626);
   static Color get neutral =>
-      isDarkMode ? const Color(0xFFE5E7EB) : const Color(0xFF111827);
-  static Color get primary => isDarkMode ? accent : neutral;
+      isDarkMode ? const Color(0xFFE5E7EB) : const Color(0xFF0F172A);
+  static Color get primary => accent;
   static Color get onPrimary => Colors.white;
   static Color get secondary => success;
   static Color get accentBlue => accent;
@@ -63,22 +65,39 @@ class AdminUi {
     return color.withValues(alpha: isDarkMode ? alpha + 0.04 : alpha);
   }
 
-  static BorderRadius get radius => BorderRadius.circular(8);
-  static BorderRadius get cardRadius => radius;
+  static BorderRadius get radius => BorderRadius.circular(10);
+  static BorderRadius get cardRadius => BorderRadius.circular(14);
 
-  static List<BoxShadow> get cardShadow => <BoxShadow>[
+  /// Reserved for controls and cards that can be opened or activated.
+  static List<BoxShadow> get interactiveShadow => <BoxShadow>[
     BoxShadow(
-      color: Colors.black.withValues(alpha: isDarkMode ? 0.26 : 0.035),
-      blurRadius: 18,
-      offset: const Offset(0, 10),
+      color: const Color(
+        0xFF0F172A,
+      ).withValues(alpha: isDarkMode ? 0.30 : 0.09),
+      blurRadius: 22,
+      offset: const Offset(0, 9),
     ),
   ];
 
+  static List<BoxShadow> get interactiveHoverShadow => <BoxShadow>[
+    BoxShadow(
+      color: const Color(
+        0xFF0F172A,
+      ).withValues(alpha: isDarkMode ? 0.38 : 0.14),
+      blurRadius: 28,
+      offset: const Offset(0, 12),
+    ),
+  ];
+
+  /// Kept for small elevated UI such as unread badges.
+  static List<BoxShadow> get cardShadow => interactiveShadow;
+
   static TextStyle get pageTitle => GoogleFonts.poppins(
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: FontWeight.w700,
     color: title,
-    height: 1.15,
+    height: 1.18,
+    letterSpacing: -0.55,
   );
 
   static TextStyle get sectionTitle => GoogleFonts.poppins(
@@ -86,27 +105,30 @@ class AdminUi {
     fontWeight: FontWeight.w700,
     color: title,
     height: 1.25,
+    letterSpacing: -0.25,
   );
 
   static TextStyle get cardTitle => GoogleFonts.poppins(
     fontSize: 15,
-    fontWeight: FontWeight.w700,
+    fontWeight: FontWeight.w600,
     color: title,
-    height: 1.25,
+    height: 1.3,
+    letterSpacing: -0.1,
   );
 
   static TextStyle get labelText => GoogleFonts.poppins(
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: FontWeight.w600,
     color: muted,
-    height: 1.25,
+    height: 1.3,
+    letterSpacing: 0.1,
   );
 
   static TextStyle get bodyText => GoogleFonts.poppins(
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: FontWeight.w400,
     color: body,
-    height: 1.45,
+    height: 1.5,
   );
 
   static TextStyle get valueText => GoogleFonts.poppins(
@@ -114,21 +136,22 @@ class AdminUi {
     fontWeight: FontWeight.w700,
     color: title,
     height: 1.35,
+    letterSpacing: -0.15,
   );
 
   static EdgeInsets pagePadding(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final horizontal = width >= 1200
-        ? 32.0
+        ? 36.0
         : width >= 700
         ? 24.0
         : 16.0;
 
     return EdgeInsets.fromLTRB(
       horizontal,
-      width >= 700 ? 24 : 16,
+      width >= 700 ? 28 : 18,
       horizontal,
-      MediaQuery.of(context).viewPadding.bottom + 28,
+      MediaQuery.of(context).viewPadding.bottom + 32,
     );
   }
 
@@ -248,7 +271,7 @@ class AdminSurfaceCard extends StatelessWidget {
   const AdminSurfaceCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(18),
     this.color,
   });
 
@@ -261,11 +284,84 @@ class AdminSurfaceCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: color ?? AdminUi.surface,
-        borderRadius: AdminUi.radius,
+        borderRadius: AdminUi.cardRadius,
         border: Border.all(color: AdminUi.border),
-        boxShadow: AdminUi.cardShadow,
       ),
       child: child,
+    );
+  }
+}
+
+/// A clearly actionable surface with persistent elevation and hover feedback.
+/// Passive information should use [AdminSurfaceCard] instead.
+class AdminInteractiveCard extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  final EdgeInsetsGeometry padding;
+  final Color? color;
+  final Color? accentColor;
+  final String? semanticLabel;
+
+  const AdminInteractiveCard({
+    super.key,
+    required this.child,
+    required this.onTap,
+    this.padding = const EdgeInsets.all(18),
+    this.color,
+    this.accentColor,
+    this.semanticLabel,
+  });
+
+  @override
+  State<AdminInteractiveCard> createState() => _AdminInteractiveCardState();
+}
+
+class _AdminInteractiveCardState extends State<AdminInteractiveCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.accentColor ?? AdminUi.accent;
+    final card = AnimatedContainer(
+      duration: const Duration(milliseconds: 170),
+      curve: Curves.easeOutCubic,
+      transform: Matrix4.translationValues(0, _hovered ? -2 : 0, 0),
+      transformAlignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: widget.color ?? AdminUi.elevatedSurface,
+        borderRadius: AdminUi.cardRadius,
+        border: Border.all(
+          color: _hovered
+              ? accent.withValues(alpha: AdminUi.isDarkMode ? 0.60 : 0.38)
+              : AdminUi.strongBorder,
+        ),
+        boxShadow: _hovered
+            ? AdminUi.interactiveHoverShadow
+            : AdminUi.interactiveShadow,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: AdminUi.cardRadius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: AdminUi.cardRadius,
+          splashColor: accent.withValues(alpha: 0.08),
+          hoverColor: accent.withValues(alpha: 0.035),
+          child: Padding(padding: widget.padding, child: widget.child),
+        ),
+      ),
+    );
+
+    return Semantics(
+      button: true,
+      label: widget.semanticLabel,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: card,
+      ),
     );
   }
 }
@@ -292,8 +388,8 @@ class AdminPageHeader extends StatelessWidget {
 
     return AdminSurfaceCard(
       padding: EdgeInsets.symmetric(
-        horizontal: dense ? 14 : 16,
-        vertical: dense ? 12 : 14,
+        horizontal: dense ? 16 : 20,
+        vertical: dense ? 14 : 18,
       ),
       child: Row(
         children: <Widget>[
@@ -356,7 +452,7 @@ class AdminCountPageHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AdminSurfaceCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       child: Row(
         children: <Widget>[
           Container(

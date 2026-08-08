@@ -483,15 +483,13 @@ class _AnimatedOneTapBookingCardState extends State<_AnimatedOneTapBookingCard>
       ),
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0.12, 0),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.75, curve: Curves.easeOutCubic),
-      ),
-    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0.12, 0), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.0, 0.75, curve: Curves.easeOutCubic),
+          ),
+        );
 
     // Slight delay so it appears after the hero card
     Future<void>.delayed(const Duration(milliseconds: 200), () {
@@ -527,9 +525,7 @@ class _AnimatedOneTapBookingCardState extends State<_AnimatedOneTapBookingCard>
             ),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: isDark
-                  ? const Color(0xFF1E2536)
-                  : const Color(0xFFE2E6EE),
+              color: isDark ? const Color(0xFF1E2536) : const Color(0xFFE2E6EE),
             ),
             boxShadow: <BoxShadow>[
               BoxShadow(
@@ -551,9 +547,7 @@ class _AnimatedOneTapBookingCardState extends State<_AnimatedOneTapBookingCard>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  _OneTapBookingHeader(
-                    onActionTap: widget.onSeeAllTap,
-                  ),
+                  _OneTapBookingHeader(onActionTap: widget.onSeeAllTap),
                   const SizedBox(height: 16),
                   AnimatedBuilder(
                     animation: widget.quickDestinationsController,
@@ -722,10 +716,7 @@ class _OneTapBookingHeaderState extends State<_OneTapBookingHeader>
             borderRadius: BorderRadius.circular(999),
             onTap: widget.onActionTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 8,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
@@ -813,9 +804,19 @@ class _PassengerInformationKeySection extends StatelessWidget {
             'Cash, GCash, Maya, and Xendit checkout are supported when available.',
       ),
       _InformationKeyItem(
+        icon: Icons.person_outline_rounded,
+        title: 'Regular passenger discount',
+        description: settings.passengerRegularDiscountDescription,
+      ),
+      _InformationKeyItem(
         icon: Icons.school_rounded,
         title: 'Student discount',
         description: settings.passengerStudentDiscountDescription,
+      ),
+      _InformationKeyItem(
+        icon: Icons.elderly_rounded,
+        title: 'Senior citizen discount',
+        description: settings.passengerSeniorCitizenDiscountDescription,
       ),
       const _InformationKeyItem(
         icon: Icons.local_offer_rounded,

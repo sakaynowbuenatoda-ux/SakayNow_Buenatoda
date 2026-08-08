@@ -120,127 +120,100 @@ class AdminMetricCard extends StatelessWidget {
           final effectiveAccentColor = isPendingOrQueueMetric
               ? AdminUi.danger
               : accentColor;
-          final borderColor = AdminUi.primary.withValues(
-            alpha: AdminUi.isDarkMode ? 0.28 : 0.18,
-          );
-
-          return MouseRegion(
-            cursor: onTap == null
-                ? MouseCursor.defer
-                : SystemMouseCursors.click,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: AdminUi.radius,
-                child: Ink(
-                  decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: AdminUi.radius,
-                    border: Border.all(color: borderColor),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: Colors.black.withValues(
-                          alpha: AdminUi.isDarkMode ? 0.26 : 0.07,
-                        ),
-                        blurRadius: 18,
-                        offset: const Offset(0, 10),
-                      ),
-                      BoxShadow(
-                        color: effectiveAccentColor.withValues(
-                          alpha: isPendingOrQueueMetric
-                              ? (AdminUi.isDarkMode ? 0.06 : 0.025)
-                              : 0,
-                        ),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: contentPadding,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: iconSize,
-                              height: iconSize,
-                              decoration: BoxDecoration(
-                                color: AdminUi.soft(
-                                  effectiveAccentColor,
-                                  alpha: 0.12,
-                                ),
-                                borderRadius: AdminUi.radius,
-                                border: Border.all(
-                                  color: effectiveAccentColor.withValues(
-                                    alpha: 0.10,
-                                  ),
-                                ),
-                              ),
-                              child: Icon(
-                                icon,
-                                color: effectiveAccentColor,
-                                size: dense ? 15 : 16,
-                              ),
-                            ),
-                            SizedBox(width: dense ? 7 : 8),
-                            Expanded(
-                              child: Text(
-                                label,
-                                maxLines: veryDense ? 1 : 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: AdminUi.labelText.copyWith(
-                                  fontSize: dense ? 10.5 : 11,
-                                  color: AdminUi.body,
-                                  letterSpacing: 0,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: dense ? 7 : 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text(
-                                value,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: AdminUi.valueText.copyWith(
-                                  fontSize: dense ? 20 : 22,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.05,
-                                  letterSpacing: 0,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                helper,
-                                maxLines: dense ? 1 : 2,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: AdminUi.bodyText.copyWith(
-                                  fontSize: dense ? 11 : 11.5,
-                                  height: 1.25,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+          final content = Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: iconSize,
+                    height: iconSize,
+                    decoration: BoxDecoration(
+                      color: AdminUi.soft(effectiveAccentColor, alpha: 0.12),
+                      borderRadius: AdminUi.radius,
+                    ),
+                    child: Icon(
+                      icon,
+                      color: effectiveAccentColor,
+                      size: dense ? 15 : 16,
                     ),
                   ),
+                  SizedBox(width: dense ? 7 : 8),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: veryDense ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AdminUi.labelText.copyWith(
+                        fontSize: dense ? 10.5 : 11,
+                        color: AdminUi.body,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                  if (onTap != null) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.north_east_rounded,
+                      size: 14,
+                      color: AdminUi.muted,
+                    ),
+                  ],
+                ],
+              ),
+              SizedBox(height: dense ? 7 : 8),
+              SizedBox(
+                width: double.infinity,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AdminUi.valueText.copyWith(
+                        fontSize: dense ? 20 : 22,
+                        fontWeight: FontWeight.w800,
+                        height: 1.05,
+                        letterSpacing: -0.35,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      helper,
+                      maxLines: dense ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AdminUi.bodyText.copyWith(
+                        fontSize: dense ? 11 : 11.5,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
+            ],
+          );
+
+          if (onTap != null) {
+            return AdminInteractiveCard(
+              onTap: onTap!,
+              padding: contentPadding,
+              color: cardColor,
+              accentColor: effectiveAccentColor,
+              semanticLabel: 'Open $label',
+              child: content,
+            );
+          }
+
+          return AdminSurfaceCard(
+            padding: contentPadding,
+            color: cardColor,
+            child: content,
           );
         },
       ),
@@ -382,84 +355,100 @@ class AdminUserCard extends StatelessWidget {
       if (user.isDriver && user.driversLicenseUrl != null) 'License',
     ];
 
-    return MouseRegion(
-      cursor: onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: AdminSurfaceCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: AdminUi.soft(AdminUi.accent),
+              child: _AdminUserAvatar(user: user, radius: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: AdminUi.soft(AdminUi.accent),
-                    child: _AdminUserAvatar(user: user, radius: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(user.fullName, style: AdminUi.cardTitle),
-                        const SizedBox(height: 2),
-                        Text(user.email, style: AdminUi.bodyText),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _buildChip(
-                              user.roleLabel,
-                              AdminUi.soft(AdminUi.neutral),
-                              AdminUi.neutral,
-                            ),
-                            _buildChip(
-                              user.statusLabel,
-                              user.statusBackgroundColor,
-                              user.statusColor,
-                            ),
-                            ...documents.map(
-                              (document) => _buildChip(
-                                document,
-                                AdminUi.mutedSurface,
-                                AdminUi.body,
-                              ),
-                            ),
-                          ],
+                  Text(user.fullName, style: AdminUi.cardTitle),
+                  const SizedBox(height: 2),
+                  Text(user.email, style: AdminUi.bodyText),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildChip(
+                        user.roleLabel,
+                        AdminUi.soft(AdminUi.neutral),
+                        AdminUi.neutral,
+                      ),
+                      _buildChip(
+                        user.statusLabel,
+                        user.statusBackgroundColor,
+                        user.statusColor,
+                      ),
+                      ...documents.map(
+                        (document) => _buildChip(
+                          document,
+                          AdminUi.mutedSurface,
+                          AdminUi.body,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              if (hintLabel != null && hintLabel!.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        hintLabel!,
-                        style: AdminUi.bodyText.copyWith(fontSize: 12.5),
-                      ),
-                    ),
-                    if (onTap != null)
-                      Icon(Icons.arrow_forward_rounded, color: AdminUi.accent),
-                  ],
+            ),
+            if (onTap != null) ...[
+              const SizedBox(width: 12),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AdminUi.soft(AdminUi.accent, alpha: 0.08),
+                  shape: BoxShape.circle,
                 ),
-              ],
-              if (actions.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Wrap(spacing: 10, runSpacing: 10, children: actions),
-              ],
+                child: Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 17,
+                  color: AdminUi.accent,
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (hintLabel != null && hintLabel!.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  hintLabel!,
+                  style: AdminUi.bodyText.copyWith(fontSize: 12.5),
+                ),
+              ),
             ],
           ),
-        ),
-      ),
+        ],
+        if (actions.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Wrap(spacing: 10, runSpacing: 10, children: actions),
+        ],
+      ],
     );
+
+    if (onTap != null) {
+      return AdminInteractiveCard(
+        onTap: onTap!,
+        accentColor: AdminUi.accent,
+        semanticLabel: 'Open ${user.fullName}',
+        child: content,
+      );
+    }
+
+    return AdminSurfaceCard(child: content);
   }
 
   static Widget _buildChip(String label, Color bg, Color fg) {

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../models/fare_settings.dart';
-import '../../../services/fare_service.dart';
 import '../admin_service.dart';
 import 'admin_shared.dart';
 
@@ -30,100 +29,83 @@ class FareSettingsEditor extends StatelessWidget {
 
         final settings = snapshot.data!;
 
-        return AdminSurfaceCard(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AdminUi.accentBlue.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    'Current configuration',
+                    style: AdminUi.cardTitle.copyWith(fontSize: 14),
+                  ),
+                ),
+                AdminStatusChip(
+                  label: 'Live',
+                  textColor: AdminUi.success,
+                  backgroundColor: AdminUi.successBackground,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _FareSummaryGrid(settings: settings),
+            const SizedBox(height: 12),
+            _FarePolicyNotice(
+              icon: Icons.route_rounded,
+              title: 'Driver pickup pricing',
+              description: settings.driverPickupSurchargeDescription,
+            ),
+            const SizedBox(height: 16),
+            Divider(height: 1, color: AdminUi.border),
+            const SizedBox(height: 14),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 430;
+                final updateText = settings.updatedAt == null
+                    ? 'Default fare guide is currently active.'
+                    : 'Updated ${formatDateTime(settings.updatedAt)}';
+                final status = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(Icons.history_rounded, size: 17, color: AdminUi.muted),
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: Text(
+                        updateText,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AdminUi.bodyText.copyWith(fontSize: 12),
+                      ),
                     ),
-                    child: Icon(
-                      Icons.price_change_rounded,
-                      color: AdminUi.accentBlue,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text('Editable Fare System', style: AdminUi.cardTitle),
-                        const SizedBox(height: 5),
-                        Text(
-                          'These values control passenger fares and the commission locked into a booking when a driver accepts it.',
-                          style: AdminUi.bodyText,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: <Widget>[
-                  _FareValueTile(
-                    label: '1 barangay',
-                    value: settings.oneBarangayFareLabel,
-                  ),
-                  _FareValueTile(
-                    label: 'Up to 5 barangays',
-                    value: settings.buenavistaFiveBarangayFareLabel,
-                  ),
-                  _FareValueTile(
-                    label: 'Outside route range',
-                    value: settings.outsideBuenavistaRangeLabel,
-                  ),
-                  _FareValueTile(
-                    label: 'Student discount',
-                    value: settings.studentDiscountLabel,
-                  ),
-                  _FareValueTile(
-                    label: 'Platform commission',
-                    value: settings.commissionLabel,
-                  ),
-                  _FareValueTile(
-                    label: 'Pickup add-on',
-                    value: _driverPickupSurchargeRangeLabel,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _FarePolicyNotice(
-                icon: Icons.two_wheeler_rounded,
-                title: 'Driver pickup add-on',
-                description: _driverPickupSurchargePolicyText,
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      settings.updatedAt == null
-                          ? 'Using the current fare guide until an admin saves changes.'
-                          : 'Last updated ${formatDateTime(settings.updatedAt)}',
-                      style: AdminUi.bodyText.copyWith(fontSize: 12.5),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  ElevatedButton.icon(
-                    onPressed: () => _openEditor(context, settings),
-                    icon: const Icon(Icons.edit_rounded, size: 18),
-                    label: const Text('Edit'),
-                  ),
-                ],
-              ),
-            ],
-          ),
+                  ],
+                );
+                final button = ElevatedButton.icon(
+                  onPressed: () => _openEditor(context, settings),
+                  icon: const Icon(Icons.tune_rounded, size: 18),
+                  label: const Text('Edit fare rules'),
+                );
+
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      status,
+                      const SizedBox(height: 12),
+                      button,
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: <Widget>[
+                    Expanded(child: status),
+                    const SizedBox(width: 14),
+                    button,
+                  ],
+                );
+              },
+            ),
+          ],
         );
       },
     );
@@ -141,45 +123,133 @@ class FareSettingsEditor extends StatelessWidget {
       ).showSnackBar(const SnackBar(content: Text('Fare settings updated.')));
     }
   }
+}
 
-  static String get _driverPickupSurchargeRangeLabel =>
-      '${FareSettings.defaultCurrency} 0-${FareSettings.defaultCurrency} ${FareService.maxDriverPickupSurcharge}';
+class _FareSummaryGrid extends StatelessWidget {
+  final FareSettings settings;
 
-  static String get _driverPickupSurchargePolicyText =>
-      'Within barangay range adds ${FareSettings.defaultCurrency} 0. More than 1 barangay adds ${FareSettings.defaultCurrency} ${FareService.driverPickupSurchargePerExtraBarangay}, capped at ${FareSettings.defaultCurrency} ${FareService.maxDriverPickupSurcharge}.';
+  const _FareSummaryGrid({required this.settings});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <({String label, String value, IconData icon})>[
+      (
+        label: '1 barangay',
+        value: settings.oneBarangayFareLabel,
+        icon: Icons.location_on_outlined,
+      ),
+      (
+        label: 'Up to 5 barangays',
+        value: settings.buenavistaFiveBarangayFareLabel,
+        icon: Icons.holiday_village_outlined,
+      ),
+      (
+        label: 'Extended routes',
+        value: settings.outsideBuenavistaRangeLabel,
+        icon: Icons.route_outlined,
+      ),
+      (
+        label: 'Regular discount',
+        value: settings.regularPassengerDiscountLabel,
+        icon: Icons.person_outline_rounded,
+      ),
+      (
+        label: 'Student discount',
+        value: settings.studentDiscountLabel,
+        icon: Icons.school_outlined,
+      ),
+      (
+        label: 'Senior discount',
+        value: settings.seniorCitizenDiscountLabel,
+        icon: Icons.elderly_outlined,
+      ),
+      (
+        label: 'Platform commission',
+        value: settings.commissionLabel,
+        icon: Icons.percent_rounded,
+      ),
+      (
+        label: 'Pickup add-on',
+        value: settings.driverPickupSurchargeRangeLabel,
+        icon: Icons.two_wheeler_outlined,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 10.0;
+        final columns = constraints.maxWidth >= 620
+            ? 3
+            : constraints.maxWidth >= 330
+            ? 2
+            : 1;
+        final width =
+            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: items
+              .map(
+                (item) => SizedBox(
+                  width: width,
+                  child: _FareValueTile(
+                    label: item.label,
+                    value: item.value,
+                    icon: item.icon,
+                  ),
+                ),
+              )
+              .toList(growable: false),
+        );
+      },
+    );
+  }
 }
 
 class _FareValueTile extends StatelessWidget {
   final String label;
   final String value;
+  final IconData icon;
 
-  const _FareValueTile({required this.label, required this.value});
+  const _FareValueTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 150,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AdminUi.mutedSurface,
-        borderRadius: BorderRadius.circular(12),
+        color: AdminUi.subtleSurface,
+        borderRadius: AdminUi.radius,
         border: Border.all(color: AdminUi.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: AdminUi.bodyText.copyWith(fontSize: 12),
+          Row(
+            children: <Widget>[
+              Icon(icon, size: 16, color: AdminUi.accentBlue),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AdminUi.labelText.copyWith(fontSize: 10.5),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 9),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AdminUi.valueText,
+            style: AdminUi.valueText.copyWith(fontSize: 14.5),
           ),
         ],
       ),
@@ -248,7 +318,11 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
   late final TextEditingController _twelveKmFareController;
   late final TextEditingController _sixteenKmFareController;
   late final TextEditingController _maxFareController;
+  late final TextEditingController _regularDiscountController;
   late final TextEditingController _studentDiscountController;
+  late final TextEditingController _seniorDiscountController;
+  late final TextEditingController _pickupPerBarangayController;
+  late final TextEditingController _maxPickupSurchargeController;
   late final TextEditingController _commissionController;
   bool _isSaving = false;
   String? _errorMessage;
@@ -278,8 +352,20 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
     _maxFareController = TextEditingController(
       text: settings.outsideBuenavistaMaxFare.toString(),
     );
+    _regularDiscountController = TextEditingController(
+      text: _percentText(settings.regularPassengerDiscountRate),
+    );
     _studentDiscountController = TextEditingController(
-      text: (settings.studentDiscountRate * 100).toStringAsFixed(0),
+      text: _percentText(settings.studentDiscountRate),
+    );
+    _seniorDiscountController = TextEditingController(
+      text: _percentText(settings.seniorCitizenDiscountRate),
+    );
+    _pickupPerBarangayController = TextEditingController(
+      text: settings.driverPickupSurchargePerExtraBarangay.toString(),
+    );
+    _maxPickupSurchargeController = TextEditingController(
+      text: settings.maxDriverPickupSurcharge.toString(),
     );
     _commissionController = TextEditingController(
       text: (settings.commissionRate * 100).toStringAsFixed(1),
@@ -295,131 +381,297 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
     _twelveKmFareController.dispose();
     _sixteenKmFareController.dispose();
     _maxFareController.dispose();
+    _regularDiscountController.dispose();
     _studentDiscountController.dispose();
+    _seniorDiscountController.dispose();
+    _pickupPerBarangayController.dispose();
+    _maxPickupSurchargeController.dispose();
     _commissionController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Edit Fare System'),
-      content: SizedBox(
-        width: 520,
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text('Buenavista fares', style: AdminUi.cardTitle),
-                const SizedBox(height: 10),
-                _FareAmountField(
-                  controller: _oneBarangayController,
-                  label: '1 barangay fare',
-                ),
-                const SizedBox(height: 10),
-                _FareAmountField(
-                  controller: _fiveBarangayController,
-                  label: 'Up to 5 barangays fare',
-                ),
-                const SizedBox(height: 16),
-                Text('Distance fares', style: AdminUi.cardTitle),
-                const SizedBox(height: 10),
-                _FareAmountField(
-                  controller: _minFareController,
-                  label: '0-6 km / minimum route fare',
-                ),
-                const SizedBox(height: 10),
-                _FareAmountField(
-                  controller: _nineKmFareController,
-                  label: '6-9 km fare',
-                ),
-                const SizedBox(height: 10),
-                _FareAmountField(
-                  controller: _twelveKmFareController,
-                  label: '9-12 km fare',
-                ),
-                const SizedBox(height: 10),
-                _FareAmountField(
-                  controller: _sixteenKmFareController,
-                  label: '12-16 km fare',
-                ),
-                const SizedBox(height: 10),
-                _FareAmountField(
-                  controller: _maxFareController,
-                  label: 'Over 16 km / maximum route fare',
-                ),
-                const SizedBox(height: 16),
-                Text('Discount', style: AdminUi.cardTitle),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _studentDiscountController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Verified student discount percent',
-                    prefixText: '',
-                    suffixText: '%',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: _validateDiscountPercent,
-                ),
-                const SizedBox(height: 16),
-                Text('Commission', style: AdminUi.cardTitle),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _commissionController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Platform commission percent',
-                    suffixText: '%',
-                    helperText:
-                        'Defaults to 0%. New rates apply when a driver accepts a booking.',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: _validateCommissionPercent,
-                ),
-                const SizedBox(height: 16),
-                Text('Driver pickup add-on', style: AdminUi.cardTitle),
-                const SizedBox(height: 10),
-                const _DriverPickupSurchargePolicy(),
-                if (_errorMessage != null) ...<Widget>[
-                  const SizedBox(height: 12),
-                  Text(
-                    _errorMessage!,
-                    style: AdminUi.bodyText.copyWith(
-                      color: AdminUi.primary,
-                      fontWeight: FontWeight.w700,
+    final screenSize = MediaQuery.sizeOf(context);
+    final maxHeight = (screenSize.height - 32).clamp(360.0, 820.0).toDouble();
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      backgroundColor: AdminUi.surface,
+      shape: RoundedRectangleBorder(borderRadius: AdminUi.cardRadius),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 720, maxHeight: maxHeight),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 12, 18),
+              child: Row(
+                children: <Widget>[
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AdminUi.blueSoft,
+                      borderRadius: AdminUi.radius,
+                    ),
+                    child: Icon(
+                      Icons.price_change_rounded,
+                      color: AdminUi.accentBlue,
+                      size: 22,
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text('Edit fare system', style: AdminUi.sectionTitle),
+                        const SizedBox(height: 3),
+                        Text(
+                          'Configure pricing for new and newly accepted bookings.',
+                          style: AdminUi.bodyText.copyWith(fontSize: 12.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: _isSaving
+                        ? null
+                        : () => Navigator.of(context).pop(false),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
                 ],
-              ],
+              ),
             ),
-          ),
+            Divider(height: 1, color: AdminUi.border),
+            Flexible(
+              child: ColoredBox(
+                color: AdminUi.background,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        _FareEditorSection(
+                          icon: Icons.location_city_outlined,
+                          title: 'Buenavista base fares',
+                          description:
+                              'Set the standard rates for trips within the municipality.',
+                          child: _FareEditorGrid(
+                            children: <Widget>[
+                              _FareAmountField(
+                                controller: _oneBarangayController,
+                                label: '1 barangay',
+                              ),
+                              _FareAmountField(
+                                controller: _fiveBarangayController,
+                                label: 'Up to 5 barangays',
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _FareEditorSection(
+                          icon: Icons.route_outlined,
+                          title: 'Distance-based fares',
+                          description:
+                              'Keep each tier equal to or higher than the tier before it.',
+                          child: _FareEditorGrid(
+                            children: <Widget>[
+                              _FareAmountField(
+                                controller: _minFareController,
+                                label: '0-6 km · minimum',
+                              ),
+                              _FareAmountField(
+                                controller: _nineKmFareController,
+                                label: '6-9 km',
+                              ),
+                              _FareAmountField(
+                                controller: _twelveKmFareController,
+                                label: '9-12 km',
+                              ),
+                              _FareAmountField(
+                                controller: _sixteenKmFareController,
+                                label: '12-16 km',
+                              ),
+                              _FareAmountField(
+                                controller: _maxFareController,
+                                label: 'Over 16 km · maximum',
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _FareEditorSection(
+                          icon: Icons.tune_rounded,
+                          title: 'Passenger discounts and commission',
+                          description:
+                              'Regular discounts apply automatically. Student and senior discounts require a verified account.',
+                          child: _FareEditorGrid(
+                            children: <Widget>[
+                              _PercentageField(
+                                controller: _regularDiscountController,
+                                label: 'Regular passenger discount',
+                                validator: _validateDiscountPercent,
+                              ),
+                              _PercentageField(
+                                controller: _studentDiscountController,
+                                label: 'Student discount',
+                                validator: _validateDiscountPercent,
+                              ),
+                              _PercentageField(
+                                controller: _seniorDiscountController,
+                                label: 'Senior citizen discount',
+                                validator: _validateDiscountPercent,
+                              ),
+                              _PercentageField(
+                                controller: _commissionController,
+                                label: 'Platform commission',
+                                validator: _validateCommissionPercent,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _FareEditorSection(
+                          icon: Icons.two_wheeler_outlined,
+                          title: 'Driver pickup add-on',
+                          description:
+                              'Charge per extra barangay between the selected driver and pickup. Set both values to 0 to disable it.',
+                          child: _FareEditorGrid(
+                            children: <Widget>[
+                              _FareAmountField(
+                                controller: _pickupPerBarangayController,
+                                label: 'Per extra barangay',
+                                allowZero: true,
+                              ),
+                              _FareAmountField(
+                                controller: _maxPickupSurchargeController,
+                                label: 'Maximum pickup add-on',
+                                allowZero: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_errorMessage != null) ...<Widget>[
+                          const SizedBox(height: 14),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AdminUi.dangerSoft,
+                              borderRadius: AdminUi.radius,
+                              border: Border.all(
+                                color: AdminUi.danger.withValues(alpha: 0.22),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Icon(
+                                  Icons.error_outline_rounded,
+                                  color: AdminUi.danger,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 9),
+                                Expanded(
+                                  child: Text(
+                                    _errorMessage!,
+                                    style: AdminUi.bodyText.copyWith(
+                                      color: AdminUi.danger,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Divider(height: 1, color: AdminUi.border),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 520;
+                  final notice = Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 17,
+                        color: AdminUi.muted,
+                      ),
+                      const SizedBox(width: 7),
+                      Flexible(
+                        child: Text(
+                          'Changes apply to future fare calculations.',
+                          style: AdminUi.bodyText.copyWith(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  );
+                  final actions = Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: <Widget>[
+                      OutlinedButton(
+                        onPressed: _isSaving
+                            ? null
+                            : () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _isSaving ? null : _save,
+                        icon: _isSaving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded, size: 18),
+                        label: Text(_isSaving ? 'Saving...' : 'Save changes'),
+                      ),
+                    ],
+                  );
+
+                  if (compact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        notice,
+                        const SizedBox(height: 12),
+                        actions,
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: <Widget>[
+                      Expanded(child: notice),
+                      const SizedBox(width: 16),
+                      actions,
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton.icon(
-          onPressed: _isSaving ? null : _save,
-          icon: _isSaving
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.save_rounded, size: 18),
-          label: Text(_isSaving ? 'Saving...' : 'Save'),
-        ),
-      ],
     );
   }
 
@@ -435,7 +687,15 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
     final twelveKmFare = _readAmount(_twelveKmFareController);
     final sixteenKmFare = _readAmount(_sixteenKmFareController);
     final maxFare = _readAmount(_maxFareController);
-    final discountPercent = double.parse(_studentDiscountController.text);
+    final regularDiscountPercent = double.parse(
+      _regularDiscountController.text,
+    );
+    final studentDiscountPercent = double.parse(
+      _studentDiscountController.text,
+    );
+    final seniorDiscountPercent = double.parse(_seniorDiscountController.text);
+    final pickupPerBarangay = _readAmount(_pickupPerBarangayController);
+    final maxPickupSurcharge = _readAmount(_maxPickupSurchargeController);
     final commissionPercent = double.parse(_commissionController.text);
 
     final orderingError = _tierOrderingError(
@@ -449,6 +709,20 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
     );
     if (orderingError != null) {
       setState(() => _errorMessage = orderingError);
+      return;
+    }
+    if (pickupPerBarangay == 0 && maxPickupSurcharge != 0) {
+      setState(() {
+        _errorMessage =
+            'Set the maximum pickup add-on to 0 when the per-barangay add-on is disabled.';
+      });
+      return;
+    }
+    if (maxPickupSurcharge < pickupPerBarangay) {
+      setState(() {
+        _errorMessage =
+            'Maximum pickup add-on must be at least the per-barangay add-on.';
+      });
       return;
     }
 
@@ -466,7 +740,11 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
         outsideBuenavistaTwelveKmFare: twelveKmFare,
         outsideBuenavistaSixteenKmFare: sixteenKmFare,
         outsideBuenavistaMaxFare: maxFare,
-        studentDiscountRate: discountPercent / 100,
+        regularPassengerDiscountRate: regularDiscountPercent / 100,
+        studentDiscountRate: studentDiscountPercent / 100,
+        seniorCitizenDiscountRate: seniorDiscountPercent / 100,
+        driverPickupSurchargePerExtraBarangay: pickupPerBarangay,
+        maxDriverPickupSurcharge: maxPickupSurcharge,
         commissionRate: commissionPercent / 100,
       );
 
@@ -492,6 +770,13 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
     return int.parse(controller.text.trim());
   }
 
+  static String _percentText(double rate) {
+    final percent = rate * 100;
+    return percent % 1 == 0
+        ? percent.toStringAsFixed(0)
+        : percent.toStringAsFixed(1);
+  }
+
   static String? _validateFareAmount(String? value) {
     final amount = int.tryParse(value?.trim() ?? '');
     if (amount == null) {
@@ -500,6 +785,19 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
 
     if (amount <= 0) {
       return 'Fare must be greater than 0.';
+    }
+
+    return null;
+  }
+
+  static String? _validateNonNegativeAmount(String? value) {
+    final amount = int.tryParse(value?.trim() ?? '');
+    if (amount == null) {
+      return 'Enter a valid peso amount.';
+    }
+
+    if (amount < 0) {
+      return 'Amount cannot be negative.';
     }
 
     return null;
@@ -555,72 +853,162 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
   }
 }
 
-class _DriverPickupSurchargePolicy extends StatelessWidget {
-  const _DriverPickupSurchargePolicy();
+class _FareEditorSection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final Widget child;
+
+  const _FareEditorSection({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AdminUi.mutedSurface,
-        borderRadius: BorderRadius.circular(12),
+        color: AdminUi.surface,
+        borderRadius: AdminUi.cardRadius,
         border: Border.all(color: AdminUi.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const _ReadOnlyFareRuleRow(
-            label: 'Within barangay range',
-            value: '${FareSettings.defaultCurrency} 0',
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AdminUi.blueSoft,
+                  borderRadius: AdminUi.radius,
+                ),
+                child: Icon(icon, color: AdminUi.accentBlue, size: 18),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(title, style: AdminUi.cardTitle),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      style: AdminUi.bodyText.copyWith(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          _ReadOnlyFareRuleRow(
-            label: 'More than 1 barangay',
-            value:
-                '+${FareSettings.defaultCurrency} ${FareService.driverPickupSurchargePerExtraBarangay}',
-          ),
-          const SizedBox(height: 8),
-          _ReadOnlyFareRuleRow(
-            label: 'Maximum pickup add-on',
-            value:
-                '${FareSettings.defaultCurrency} ${FareService.maxDriverPickupSurcharge}',
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Applied automatically from the selected driver distance to pickup.',
-            style: AdminUi.bodyText.copyWith(fontSize: 12.5),
-          ),
+          const SizedBox(height: 16),
+          child,
         ],
       ),
     );
   }
 }
 
-class _ReadOnlyFareRuleRow extends StatelessWidget {
-  final String label;
-  final String value;
+class _FareEditorGrid extends StatelessWidget {
+  final List<Widget> children;
 
-  const _ReadOnlyFareRuleRow({required this.label, required this.value});
+  const _FareEditorGrid({required this.children});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(child: Text(label, style: AdminUi.bodyText)),
-        const SizedBox(width: 12),
-        Text(value, style: AdminUi.valueText.copyWith(fontSize: 13)),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 12.0;
+        final columns = constraints.maxWidth >= 480 ? 2 : 1;
+        final fieldWidth =
+            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: 12,
+          children: children
+              .map((child) => SizedBox(width: fieldWidth, child: child))
+              .toList(growable: false),
+        );
+      },
     );
   }
+}
+
+class _PercentageField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final FormFieldValidator<String> validator;
+
+  const _PercentageField({
+    required this.controller,
+    required this.label,
+    required this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: <TextInputFormatter>[
+        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+      ],
+      style: AdminUi.valueText.copyWith(fontSize: 14),
+      decoration: _fareFieldDecoration(label: label, suffixText: '%'),
+      validator: validator,
+    );
+  }
+}
+
+InputDecoration _fareFieldDecoration({
+  required String label,
+  String? prefixText,
+  String? suffixText,
+}) {
+  final baseBorder = OutlineInputBorder(
+    borderRadius: AdminUi.radius,
+    borderSide: BorderSide(color: AdminUi.border),
+  );
+
+  return InputDecoration(
+    labelText: label,
+    hintText: '0',
+    prefixText: prefixText,
+    suffixText: suffixText,
+    filled: true,
+    fillColor: AdminUi.subtleSurface,
+    labelStyle: AdminUi.bodyText.copyWith(color: AdminUi.muted),
+    floatingLabelStyle: AdminUi.labelText.copyWith(color: AdminUi.accent),
+    hintStyle: AdminUi.bodyText.copyWith(color: AdminUi.muted),
+    prefixStyle: AdminUi.valueText.copyWith(fontSize: 14),
+    suffixStyle: AdminUi.valueText.copyWith(color: AdminUi.muted, fontSize: 13),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+    border: baseBorder,
+    enabledBorder: baseBorder,
+    focusedBorder: OutlineInputBorder(
+      borderRadius: AdminUi.radius,
+      borderSide: BorderSide(color: AdminUi.accent, width: 1.5),
+    ),
+  );
 }
 
 class _FareAmountField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
+  final bool allowZero;
 
-  const _FareAmountField({required this.controller, required this.label});
+  const _FareAmountField({
+    required this.controller,
+    required this.label,
+    this.allowZero = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -630,12 +1018,14 @@ class _FareAmountField extends StatelessWidget {
       inputFormatters: <TextInputFormatter>[
         FilteringTextInputFormatter.digitsOnly,
       ],
-      decoration: InputDecoration(
-        labelText: label,
+      style: AdminUi.valueText.copyWith(fontSize: 14),
+      decoration: _fareFieldDecoration(
+        label: label,
         prefixText: '${FareSettings.defaultCurrency} ',
-        border: const OutlineInputBorder(),
       ),
-      validator: _FareSettingsDialogState._validateFareAmount,
+      validator: allowZero
+          ? _FareSettingsDialogState._validateNonNegativeAmount
+          : _FareSettingsDialogState._validateFareAmount,
     );
   }
 }

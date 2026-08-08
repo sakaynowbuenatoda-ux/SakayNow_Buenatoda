@@ -9,7 +9,11 @@ class FareSettings {
   static const int defaultOutsideBuenavistaTwelveKmFare = 60;
   static const int defaultOutsideBuenavistaSixteenKmFare = 80;
   static const int defaultOutsideBuenavistaMaxFare = 100;
+  static const double defaultRegularPassengerDiscountRate = 0;
   static const double defaultStudentDiscountRate = 0.15;
+  static const double defaultSeniorCitizenDiscountRate = 0.15;
+  static const int defaultDriverPickupSurchargePerExtraBarangay = 5;
+  static const int defaultMaxDriverPickupSurcharge = 10;
   static const double defaultCommissionRate = 0;
 
   static const FareSettings defaults = FareSettings(
@@ -21,7 +25,12 @@ class FareSettings {
     outsideBuenavistaTwelveKmFare: defaultOutsideBuenavistaTwelveKmFare,
     outsideBuenavistaSixteenKmFare: defaultOutsideBuenavistaSixteenKmFare,
     outsideBuenavistaMaxFare: defaultOutsideBuenavistaMaxFare,
+    regularPassengerDiscountRate: defaultRegularPassengerDiscountRate,
     studentDiscountRate: defaultStudentDiscountRate,
+    seniorCitizenDiscountRate: defaultSeniorCitizenDiscountRate,
+    driverPickupSurchargePerExtraBarangay:
+        defaultDriverPickupSurchargePerExtraBarangay,
+    maxDriverPickupSurcharge: defaultMaxDriverPickupSurcharge,
     commissionRate: defaultCommissionRate,
   );
 
@@ -33,7 +42,11 @@ class FareSettings {
   final int outsideBuenavistaTwelveKmFare;
   final int outsideBuenavistaSixteenKmFare;
   final int outsideBuenavistaMaxFare;
+  final double regularPassengerDiscountRate;
   final double studentDiscountRate;
+  final double seniorCitizenDiscountRate;
+  final int driverPickupSurchargePerExtraBarangay;
+  final int maxDriverPickupSurcharge;
   final double commissionRate;
   final DateTime? updatedAt;
   final String? updatedBy;
@@ -47,7 +60,12 @@ class FareSettings {
     required this.outsideBuenavistaTwelveKmFare,
     required this.outsideBuenavistaSixteenKmFare,
     required this.outsideBuenavistaMaxFare,
+    this.regularPassengerDiscountRate = defaultRegularPassengerDiscountRate,
     required this.studentDiscountRate,
+    this.seniorCitizenDiscountRate = defaultSeniorCitizenDiscountRate,
+    this.driverPickupSurchargePerExtraBarangay =
+        defaultDriverPickupSurchargePerExtraBarangay,
+    this.maxDriverPickupSurcharge = defaultMaxDriverPickupSurcharge,
     this.commissionRate = defaultCommissionRate,
     this.updatedAt,
     this.updatedBy,
@@ -94,9 +112,25 @@ class FareSettings {
         data['outside_buenavista_max_fare'],
         defaultOutsideBuenavistaMaxFare,
       ),
+      regularPassengerDiscountRate: _readDouble(
+        data['regular_passenger_discount_rate'],
+        defaultRegularPassengerDiscountRate,
+      ),
       studentDiscountRate: _readDouble(
         data['student_discount_rate'],
         defaultStudentDiscountRate,
+      ),
+      seniorCitizenDiscountRate: _readDouble(
+        data['senior_citizen_discount_rate'],
+        defaultSeniorCitizenDiscountRate,
+      ),
+      driverPickupSurchargePerExtraBarangay: _readInt(
+        data['driver_pickup_surcharge_per_extra_barangay'],
+        defaultDriverPickupSurchargePerExtraBarangay,
+      ),
+      maxDriverPickupSurcharge: _readInt(
+        data['max_driver_pickup_surcharge'],
+        defaultMaxDriverPickupSurcharge,
       ),
       commissionRate: _readDouble(
         data['commission_rate'],
@@ -116,7 +150,11 @@ class FareSettings {
     int? outsideBuenavistaTwelveKmFare,
     int? outsideBuenavistaSixteenKmFare,
     int? outsideBuenavistaMaxFare,
+    double? regularPassengerDiscountRate,
     double? studentDiscountRate,
+    double? seniorCitizenDiscountRate,
+    int? driverPickupSurchargePerExtraBarangay,
+    int? maxDriverPickupSurcharge,
     double? commissionRate,
     DateTime? updatedAt,
     String? updatedBy,
@@ -136,7 +174,16 @@ class FareSettings {
           outsideBuenavistaSixteenKmFare ?? this.outsideBuenavistaSixteenKmFare,
       outsideBuenavistaMaxFare:
           outsideBuenavistaMaxFare ?? this.outsideBuenavistaMaxFare,
+      regularPassengerDiscountRate:
+          regularPassengerDiscountRate ?? this.regularPassengerDiscountRate,
       studentDiscountRate: studentDiscountRate ?? this.studentDiscountRate,
+      seniorCitizenDiscountRate:
+          seniorCitizenDiscountRate ?? this.seniorCitizenDiscountRate,
+      driverPickupSurchargePerExtraBarangay:
+          driverPickupSurchargePerExtraBarangay ??
+          this.driverPickupSurchargePerExtraBarangay,
+      maxDriverPickupSurcharge:
+          maxDriverPickupSurcharge ?? this.maxDriverPickupSurcharge,
       commissionRate: commissionRate ?? this.commissionRate,
       updatedAt: updatedAt ?? this.updatedAt,
       updatedBy: updatedBy ?? this.updatedBy,
@@ -187,6 +234,19 @@ class FareSettings {
       ),
       sixteenKmFare,
     );
+    final pickupSurchargePerExtraBarangay = _nonNegativeOrDefault(
+      driverPickupSurchargePerExtraBarangay,
+      defaultDriverPickupSurchargePerExtraBarangay,
+    );
+    final pickupSurchargeCap = pickupSurchargePerExtraBarangay == 0
+        ? 0
+        : _atLeast(
+            _nonNegativeOrDefault(
+              maxDriverPickupSurcharge,
+              defaultMaxDriverPickupSurcharge,
+            ),
+            pickupSurchargePerExtraBarangay,
+          );
 
     return FareSettings(
       currency: currency.trim().isEmpty ? defaultCurrency : currency.trim(),
@@ -197,7 +257,15 @@ class FareSettings {
       outsideBuenavistaTwelveKmFare: twelveKmFare,
       outsideBuenavistaSixteenKmFare: sixteenKmFare,
       outsideBuenavistaMaxFare: maxFare,
+      regularPassengerDiscountRate: regularPassengerDiscountRate
+          .clamp(0.0, 1.0)
+          .toDouble(),
       studentDiscountRate: studentDiscountRate.clamp(0.0, 1.0).toDouble(),
+      seniorCitizenDiscountRate: seniorCitizenDiscountRate
+          .clamp(0.0, 1.0)
+          .toDouble(),
+      driverPickupSurchargePerExtraBarangay: pickupSurchargePerExtraBarangay,
+      maxDriverPickupSurcharge: pickupSurchargeCap,
       commissionRate: commissionRate.clamp(0.0, 1.0).toDouble(),
       updatedAt: updatedAt,
       updatedBy: updatedBy,
@@ -228,13 +296,25 @@ class FareSettings {
   String get outsideBuenavistaRangeLabel =>
       '${amountLabel(outsideBuenavistaMinFare)}-${amountLabel(outsideBuenavistaMaxFare)}';
   String get studentDiscountLabel =>
-      '${(studentDiscountRate * 100).round()}% student discount';
+      '${_formatPercent(studentDiscountRate * 100)}% student discount';
+  String get regularPassengerDiscountLabel =>
+      '${_formatPercent(regularPassengerDiscountRate * 100)}% regular discount';
+  String get seniorCitizenDiscountLabel =>
+      '${_formatPercent(seniorCitizenDiscountRate * 100)}% senior discount';
+  String get driverPickupSurchargeRangeLabel =>
+      '$currency 0-$currency $maxDriverPickupSurcharge';
   String get commissionLabel =>
       '${_formatPercent(commissionRate * 100)}% commission';
   String get passengerFareGuideDescription =>
       'Base fare starts at $oneBarangayFareLabel, up to 5 barangays is $buenavistaFiveBarangayFareLabel, and extended routes are $outsideBuenavistaRangeLabel.';
   String get passengerStudentDiscountDescription =>
-      'Verified students receive ${(studentDiscountRate * 100).round()}% off eligible rides.';
+      'Verified students receive ${_formatPercent(studentDiscountRate * 100)}% off eligible rides.';
+  String get passengerSeniorCitizenDiscountDescription =>
+      'Verified senior citizens receive ${_formatPercent(seniorCitizenDiscountRate * 100)}% off eligible rides.';
+  String get passengerRegularDiscountDescription =>
+      'Regular passengers receive ${_formatPercent(regularPassengerDiscountRate * 100)}% off eligible rides.';
+  String get driverPickupSurchargeDescription =>
+      'More than 1 barangay adds $currency $driverPickupSurchargePerExtraBarangay per extra barangay, capped at $currency $maxDriverPickupSurcharge.';
 
   String amountLabel(int amount) => '$currency $amount';
 
@@ -249,7 +329,12 @@ class FareSettings {
       'outside_buenavista_12km_fare': settings.outsideBuenavistaTwelveKmFare,
       'outside_buenavista_16km_fare': settings.outsideBuenavistaSixteenKmFare,
       'outside_buenavista_max_fare': settings.outsideBuenavistaMaxFare,
+      'regular_passenger_discount_rate': settings.regularPassengerDiscountRate,
       'student_discount_rate': settings.studentDiscountRate,
+      'senior_citizen_discount_rate': settings.seniorCitizenDiscountRate,
+      'driver_pickup_surcharge_per_extra_barangay':
+          settings.driverPickupSurchargePerExtraBarangay,
+      'max_driver_pickup_surcharge': settings.maxDriverPickupSurcharge,
       'commission_rate': settings.commissionRate,
       'updated_by': updatedBy,
       'updated_at': FieldValue.serverTimestamp(),
@@ -296,6 +381,10 @@ class FareSettings {
 
   static int _positiveOrDefault(int value, int fallback) {
     return value > 0 ? value : fallback;
+  }
+
+  static int _nonNegativeOrDefault(int value, int fallback) {
+    return value >= 0 ? value : fallback;
   }
 
   static int _atLeast(int value, int minimum) {

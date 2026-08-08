@@ -432,24 +432,34 @@ class _PassengerFrequency {
       bool Function(AdminUserRecord?) predicate,
     ) {
       return source
-          .where(
-            (booking) =>
-                predicate(usersById[booking.passengerId]),
-          )
+          .where((booking) => predicate(usersById[booking.passengerId]))
           .length;
     }
 
-    final students = countByCondition(bookings, (u) => u?.isStudentPassenger == true);
-    final previousStudents = countByCondition(previousBookings, (u) => u?.isStudentPassenger == true);
-    final seniors = countByCondition(bookings, (u) => u?.isSeniorCitizenPassenger == true);
-    final previousSeniors = countByCondition(previousBookings, (u) => u?.isSeniorCitizenPassenger == true);
+    final students = countByCondition(
+      bookings,
+      (u) => u?.isStudentPassenger == true,
+    );
+    final previousStudents = countByCondition(
+      previousBookings,
+      (u) => u?.isStudentPassenger == true,
+    );
+    final seniors = countByCondition(
+      bookings,
+      (u) => u?.isSeniorCitizenPassenger == true,
+    );
+    final previousSeniors = countByCondition(
+      previousBookings,
+      (u) => u?.isSeniorCitizenPassenger == true,
+    );
 
     return _PassengerFrequency(
       label: label,
       regular: bookings.length - students - seniors,
       student: students,
       senior: seniors,
-      previousRegular: previousBookings.length - previousStudents - previousSeniors,
+      previousRegular:
+          previousBookings.length - previousStudents - previousSeniors,
       previousStudent: previousStudents,
       previousSenior: previousSeniors,
       previousLabel: previousLabel,
@@ -1043,7 +1053,8 @@ class _PassengerPeriodRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return _InsightRowShell(
       label: data.label,
-      value: '${data.regular} regular / ${data.student} student / ${data.senior} senior',
+      value:
+          '${data.regular} regular / ${data.student} student / ${data.senior} senior',
       trailing: _ComparisonChip(
         difference: data.difference,
         previousLabel: data.previousLabel,
@@ -1453,78 +1464,69 @@ class _CompactInsightMetricCard extends StatelessWidget {
       AdminUi.isDarkMode ? 0.08 : 0.035,
     );
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AdminUi.radius,
-        child: Ink(
+    final content = Row(
+      children: [
+        Container(
+          width: 30,
+          height: 30,
           decoration: BoxDecoration(
-            color: background,
+            color: AdminUi.soft(accentColor, alpha: 0.12),
             borderRadius: AdminUi.radius,
-            border: Border.all(color: accentColor.withValues(alpha: 0.14)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: AdminUi.isDarkMode ? 0.18 : 0.045,
+            border: Border.all(color: accentColor.withValues(alpha: 0.10)),
+          ),
+          child: Icon(icon, color: accentColor, size: 16),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AdminUi.labelText.copyWith(
+                  color: AdminUi.body,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
                 ),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AdminUi.valueText.copyWith(
+                  color: AdminUi.title,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
               ),
             ],
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Row(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: AdminUi.soft(accentColor, alpha: 0.12),
-                    borderRadius: AdminUi.radius,
-                    border: Border.all(
-                      color: accentColor.withValues(alpha: 0.10),
-                    ),
-                  ),
-                  child: Icon(icon, color: accentColor, size: 16),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AdminUi.labelText.copyWith(
-                          color: AdminUi.body,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AdminUi.valueText.copyWith(
-                          color: AdminUi.title,
-                          fontSize: 21,
-                          fontWeight: FontWeight.w800,
-                          height: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
-      ),
+        if (onTap != null)
+          Icon(Icons.north_east_rounded, size: 14, color: AdminUi.muted),
+      ],
+    );
+
+    if (onTap != null) {
+      return AdminInteractiveCard(
+        onTap: onTap!,
+        padding: const EdgeInsets.all(10),
+        color: background,
+        accentColor: accentColor,
+        semanticLabel: 'Open $label insight',
+        child: content,
+      );
+    }
+
+    return AdminSurfaceCard(
+      padding: const EdgeInsets.all(10),
+      color: background,
+      child: content,
     );
   }
 }

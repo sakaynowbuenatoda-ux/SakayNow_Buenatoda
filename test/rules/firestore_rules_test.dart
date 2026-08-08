@@ -312,6 +312,17 @@ void main() {
     });
 
     test('protect commission settings and driver earnings visibility', () {
+      expect(rules, contains("'regular_passenger_discount_rate'"));
+      expect(rules, contains("'senior_citizen_discount_rate'"));
+      expect(rules, contains("'driver_pickup_surcharge_per_extra_barangay'"));
+      expect(rules, contains("'max_driver_pickup_surcharge'"));
+      expect(rules, contains('settingsData.senior_citizen_discount_rate <= 1'));
+      expect(
+        rules,
+        contains(
+          'settingsData.max_driver_pickup_surcharge >= settingsData.driver_pickup_surcharge_per_extra_barangay',
+        ),
+      );
       expect(rules, contains("'commission_rate'"));
       expect(rules, contains('settingsData.commission_rate is number'));
       expect(rules, contains('settingsData.commission_rate >= 0'));

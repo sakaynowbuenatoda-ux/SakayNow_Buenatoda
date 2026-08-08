@@ -904,7 +904,11 @@ service cloud.firestore {
         'outside_buenavista_12km_fare',
         'outside_buenavista_16km_fare',
         'outside_buenavista_max_fare',
+        'regular_passenger_discount_rate',
         'student_discount_rate',
+        'senior_citizen_discount_rate',
+        'driver_pickup_surcharge_per_extra_barangay',
+        'max_driver_pickup_surcharge',
         'commission_rate',
         'updated_by',
         'updated_at'
@@ -928,9 +932,24 @@ service cloud.firestore {
         && settingsData.outside_buenavista_16km_fare >= settingsData.outside_buenavista_12km_fare
         && settingsData.outside_buenavista_max_fare is int
         && settingsData.outside_buenavista_max_fare >= settingsData.outside_buenavista_16km_fare
+        && settingsData.regular_passenger_discount_rate is number
+        && settingsData.regular_passenger_discount_rate >= 0
+        && settingsData.regular_passenger_discount_rate <= 1
         && settingsData.student_discount_rate is number
         && settingsData.student_discount_rate >= 0
         && settingsData.student_discount_rate <= 1
+        && settingsData.senior_citizen_discount_rate is number
+        && settingsData.senior_citizen_discount_rate >= 0
+        && settingsData.senior_citizen_discount_rate <= 1
+        && settingsData.driver_pickup_surcharge_per_extra_barangay is int
+        && settingsData.driver_pickup_surcharge_per_extra_barangay >= 0
+        && settingsData.max_driver_pickup_surcharge is int
+        && (
+          (settingsData.driver_pickup_surcharge_per_extra_barangay == 0
+            && settingsData.max_driver_pickup_surcharge == 0)
+          || (settingsData.driver_pickup_surcharge_per_extra_barangay > 0
+            && settingsData.max_driver_pickup_surcharge >= settingsData.driver_pickup_surcharge_per_extra_barangay)
+        )
         && settingsData.commission_rate is number
         && settingsData.commission_rate >= 0
         && settingsData.commission_rate <= 1

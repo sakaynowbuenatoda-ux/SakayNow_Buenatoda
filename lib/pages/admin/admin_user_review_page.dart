@@ -857,67 +857,62 @@ class _VerificationDocumentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AdminSurfaceCard(
-      padding: EdgeInsets.zero,
-      child: InkWell(
-        borderRadius: AdminUi.radius,
-        onTap: onPreview,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return AdminInteractiveCard(
+      onTap: onPreview,
+      padding: const EdgeInsets.all(14),
+      semanticLabel: 'Preview ${document.label}',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: AdminUi.mutedSurface,
-                      borderRadius: AdminUi.radius,
-                    ),
-                    child: Icon(document.icon, color: AdminUi.accent, size: 19),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      document.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AdminUi.cardTitle,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Preview',
-                    onPressed: onPreview,
-                    icon: const Icon(Icons.open_in_full_rounded, size: 19),
-                  ),
-                ],
-              ),
-              SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: AspectRatio(
-                  aspectRatio: 16 / 10,
-                  child: FirebaseStorageImage(
-                    imageUrl: document.url,
-                    fit: BoxFit.cover,
-                    fallback: Container(
-                      color: AdminUi.mutedSurface,
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'Preview unavailable',
-                        style: AdminUi.bodyText,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AdminUi.mutedSurface,
+                  borderRadius: AdminUi.radius,
                 ),
+                child: Icon(document.icon, color: AdminUi.accent, size: 19),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  document.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AdminUi.cardTitle,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Preview',
+                onPressed: onPreview,
+                icon: const Icon(Icons.open_in_full_rounded, size: 19),
               ),
             ],
           ),
-        ),
+          SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: AspectRatio(
+              aspectRatio: 16 / 10,
+              child: FirebaseStorageImage(
+                imageUrl: document.url,
+                fit: BoxFit.cover,
+                fallback: Container(
+                  color: AdminUi.mutedSurface,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Preview unavailable',
+                    style: AdminUi.bodyText,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

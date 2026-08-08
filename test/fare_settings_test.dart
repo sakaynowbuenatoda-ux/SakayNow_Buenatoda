@@ -40,4 +40,29 @@ void main() {
       0.125,
     );
   });
+
+  test('passenger discounts and pickup add-on have backward-safe defaults', () {
+    final settings = FareSettings.fromMap(const <String, dynamic>{});
+
+    expect(settings.regularPassengerDiscountRate, 0);
+    expect(settings.studentDiscountRate, 0.15);
+    expect(settings.seniorCitizenDiscountRate, 0.15);
+    expect(settings.driverPickupSurchargePerExtraBarangay, 5);
+    expect(settings.maxDriverPickupSurcharge, 10);
+  });
+
+  test('new editable fare settings are persisted', () {
+    final settings = FareSettings.defaults.copyWith(
+      regularPassengerDiscountRate: 0.05,
+      seniorCitizenDiscountRate: 0.2,
+      driverPickupSurchargePerExtraBarangay: 7,
+      maxDriverPickupSurcharge: 21,
+    );
+    final data = settings.toFirestore(updatedBy: 'admin-1');
+
+    expect(data['regular_passenger_discount_rate'], 0.05);
+    expect(data['senior_citizen_discount_rate'], 0.2);
+    expect(data['driver_pickup_surcharge_per_extra_barangay'], 7);
+    expect(data['max_driver_pickup_surcharge'], 21);
+  });
 }

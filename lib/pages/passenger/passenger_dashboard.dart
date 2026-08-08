@@ -289,7 +289,7 @@ class _PassengerSafetyCard extends StatelessWidget {
                 ),
               if (_isSeniorCitizen)
                 PassengerStatusChip(
-                  label: '20% senior citizen discount',
+                  label: '15% senior citizen discount',
                   textColor: PassengerUi.successText,
                   backgroundColor: PassengerUi.successBackground,
                 ),

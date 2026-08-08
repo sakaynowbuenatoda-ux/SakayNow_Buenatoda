@@ -83,7 +83,8 @@ class RideTrackingService {
       pickupLocation: pickupLocation,
       dropoffLocation: dropoffLocation,
       distanceMeters: estimate?.distanceMeters ?? route.distanceMeters,
-      studentDiscountEligible: passengerFareProfile.isVerifiedStudent,
+      passengerType: passengerFareProfile.passengerType,
+      passengerIsVerified: passengerFareProfile.isVerified,
       settings: fareSettings,
       driverToPickupDistanceMeters: driverToPickupDistanceMeters,
     );
@@ -309,7 +310,8 @@ class RideTrackingService {
       pickupLocation: pickupLocation,
       dropoffLocation: dropoffLocation,
       distanceMeters: distanceMeters,
-      studentDiscountEligible: _isStudentFareEligible(bookingData),
+      passengerType: _passengerTypeForFare(bookingData),
+      passengerIsVerified: bookingData['passenger_is_verified'] == true,
       settings: fareSettings,
       driverToPickupDistanceMeters: driverToPickupDistanceMeters,
     );
@@ -329,14 +331,15 @@ class RideTrackingService {
     return null;
   }
 
-  bool _isStudentFareEligible(Map<String, dynamic> bookingData) {
-    final passengerType =
-        (bookingData['passenger_type'] ?? bookingData['role'] ?? '')
-            .toString()
-            .trim()
-            .toLowerCase();
-    return passengerType == 'student' &&
-        bookingData['passenger_is_verified'] == true;
+  String _passengerTypeForFare(Map<String, dynamic> bookingData) {
+    return switch ((bookingData['passenger_type'] ?? bookingData['role'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase()) {
+      'student' => 'student',
+      'senior_citizen' => 'senior_citizen',
+      _ => 'regular',
+    };
   }
 
   Future<PassengerFareProfile> loadPassengerFareProfile(
@@ -1920,6 +1923,7 @@ class PassengerFareProfile {
   bool get isStudent => passengerType == 'student';
   bool get isSeniorCitizen => passengerType == 'senior_citizen';
   bool get isVerifiedStudent => isStudent && isVerified;
+  bool get isVerifiedSeniorCitizen => isSeniorCitizen && isVerified;
 }
 
 class PassengerRecentTrip {

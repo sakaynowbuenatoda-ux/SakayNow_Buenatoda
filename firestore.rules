@@ -905,6 +905,7 @@ service cloud.firestore {
         'outside_buenavista_16km_fare',
         'outside_buenavista_max_fare',
         'student_discount_rate',
+        'commission_rate',
         'updated_by',
         'updated_at'
       ];
@@ -930,6 +931,9 @@ service cloud.firestore {
         && settingsData.student_discount_rate is number
         && settingsData.student_discount_rate >= 0
         && settingsData.student_discount_rate <= 1
+        && settingsData.commission_rate is number
+        && settingsData.commission_rate >= 0
+        && settingsData.commission_rate <= 1
         && settingsData.updated_by == request.auth.uid
         && settingsData.updated_at == request.time;
     }

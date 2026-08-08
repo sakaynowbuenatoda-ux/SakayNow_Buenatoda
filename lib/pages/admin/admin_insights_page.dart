@@ -178,6 +178,10 @@ class _InsightsAnalyticsGrid extends StatelessWidget {
               width: itemWidth,
               child: _FareTotalCard(analytics: analytics),
             ),
+            SizedBox(
+              width: itemWidth,
+              child: _CommissionTotalCard(analytics: analytics),
+            ),
           ],
         );
       },
@@ -198,6 +202,9 @@ class _InsightsAnalytics {
   final _PeriodMoney dailyFare;
   final _PeriodMoney weeklyFare;
   final _PeriodMoney monthlyFare;
+  final _PeriodMoney dailyCommission;
+  final _PeriodMoney weeklyCommission;
+  final _PeriodMoney monthlyCommission;
 
   const _InsightsAnalytics({
     required this.dailyRides,
@@ -212,6 +219,9 @@ class _InsightsAnalytics {
     required this.dailyFare,
     required this.weeklyFare,
     required this.monthlyFare,
+    required this.dailyCommission,
+    required this.weeklyCommission,
+    required this.monthlyCommission,
   });
 
   factory _InsightsAnalytics.fromData(
@@ -325,6 +335,33 @@ class _InsightsAnalytics {
         label: 'This month',
         bookings: monthBookings,
         previousBookings: previousMonthBookings,
+        previousLabel: 'last month',
+      ),
+      dailyCommission: _PeriodMoney.fromCommissionBookings(
+        label: 'Today',
+        bookings: bookings,
+        start: today,
+        end: tomorrow,
+        previousStart: yesterday,
+        previousEnd: today,
+        previousLabel: 'yesterday',
+      ),
+      weeklyCommission: _PeriodMoney.fromCommissionBookings(
+        label: 'This week',
+        bookings: bookings,
+        start: weekStart,
+        end: nextWeekStart,
+        previousStart: previousWeekStart,
+        previousEnd: weekStart,
+        previousLabel: 'last week',
+      ),
+      monthlyCommission: _PeriodMoney.fromCommissionBookings(
+        label: 'This month',
+        bookings: bookings,
+        start: monthStart,
+        end: nextMonthStart,
+        previousStart: previousMonthStart,
+        previousEnd: monthStart,
         previousLabel: 'last month',
       ),
     );
@@ -539,6 +576,23 @@ class _PeriodMoney {
     );
   }
 
+  factory _PeriodMoney.fromCommissionBookings({
+    required String label,
+    required List<AdminBookingRecord> bookings,
+    required DateTime start,
+    required DateTime end,
+    required DateTime previousStart,
+    required DateTime previousEnd,
+    required String previousLabel,
+  }) {
+    return _PeriodMoney(
+      label: label,
+      value: _sumCommissions(bookings, start, end),
+      previousValue: _sumCommissions(bookings, previousStart, previousEnd),
+      previousLabel: previousLabel,
+    );
+  }
+
   double get difference => value - previousValue;
 
   static double _sumFares(List<AdminBookingRecord> bookings) {
@@ -546,6 +600,22 @@ class _PeriodMoney {
       0,
       (total, booking) => total + _readFareAmount(booking.fareLabel),
     );
+  }
+
+  static double _sumCommissions(
+    List<AdminBookingRecord> bookings,
+    DateTime start,
+    DateTime end,
+  ) {
+    return bookings
+        .where((booking) {
+          final completedAt = booking.completedAt ?? booking.timestamp;
+          return booking.isCompleted &&
+              completedAt != null &&
+              !completedAt.isBefore(start) &&
+              completedAt.isBefore(end);
+        })
+        .fold<double>(0, (total, booking) => total + booking.commissionAmount);
   }
 
   static double _readFareAmount(String? fareLabel) {
@@ -662,6 +732,45 @@ class _FareTotalCard extends StatelessWidget {
           _PeriodComparisonRow.money(data: analytics.dailyFare),
           _PeriodComparisonRow.money(data: analytics.weeklyFare),
           _PeriodComparisonRow.money(data: analytics.monthlyFare),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommissionTotalCard extends StatelessWidget {
+  final _InsightsAnalytics analytics;
+
+  const _CommissionTotalCard({required this.analytics});
+
+  @override
+  Widget build(BuildContext context) {
+    return _InsightsSurfacePanel(
+      icon: Icons.savings_rounded,
+      title: 'System Commission Totals',
+      subtitle: 'Commission earned from completed rides only.',
+      accentColor: AdminUi.secondary,
+      child: Column(
+        children: [
+          _MiniBarChart(
+            values: [
+              _ChartValue(label: 'Day', value: analytics.dailyCommission.value),
+              _ChartValue(
+                label: 'Week',
+                value: analytics.weeklyCommission.value,
+              ),
+              _ChartValue(
+                label: 'Month',
+                value: analytics.monthlyCommission.value,
+              ),
+            ],
+            color: AdminUi.secondary,
+            money: true,
+          ),
+          SizedBox(height: 14),
+          _PeriodComparisonRow.money(data: analytics.dailyCommission),
+          _PeriodComparisonRow.money(data: analytics.weeklyCommission),
+          _PeriodComparisonRow.money(data: analytics.monthlyCommission),
         ],
       ),
     );

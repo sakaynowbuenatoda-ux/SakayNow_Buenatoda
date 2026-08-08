@@ -58,7 +58,7 @@ class FareSettingsEditor extends StatelessWidget {
                         Text('Editable Fare System', style: AdminUi.cardTitle),
                         const SizedBox(height: 5),
                         Text(
-                          'These values are used when passengers preview fares and when bookings save the final fare shown to drivers.',
+                          'These values control passenger fares and the commission locked into a booking when a driver accepts it.',
                           style: AdminUi.bodyText,
                         ),
                       ],
@@ -86,6 +86,10 @@ class FareSettingsEditor extends StatelessWidget {
                   _FareValueTile(
                     label: 'Student discount',
                     value: settings.studentDiscountLabel,
+                  ),
+                  _FareValueTile(
+                    label: 'Platform commission',
+                    value: settings.commissionLabel,
                   ),
                   _FareValueTile(
                     label: 'Pickup add-on',
@@ -245,6 +249,7 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
   late final TextEditingController _sixteenKmFareController;
   late final TextEditingController _maxFareController;
   late final TextEditingController _studentDiscountController;
+  late final TextEditingController _commissionController;
   bool _isSaving = false;
   String? _errorMessage;
 
@@ -276,6 +281,9 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
     _studentDiscountController = TextEditingController(
       text: (settings.studentDiscountRate * 100).toStringAsFixed(0),
     );
+    _commissionController = TextEditingController(
+      text: (settings.commissionRate * 100).toStringAsFixed(1),
+    );
   }
 
   @override
@@ -288,6 +296,7 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
     _sixteenKmFareController.dispose();
     _maxFareController.dispose();
     _studentDiscountController.dispose();
+    _commissionController.dispose();
     super.dispose();
   }
 
@@ -359,6 +368,23 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
                   validator: _validateDiscountPercent,
                 ),
                 const SizedBox(height: 16),
+                Text('Commission', style: AdminUi.cardTitle),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _commissionController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Platform commission percent',
+                    suffixText: '%',
+                    helperText:
+                        'Defaults to 0%. New rates apply when a driver accepts a booking.',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: _validateCommissionPercent,
+                ),
+                const SizedBox(height: 16),
                 Text('Driver pickup add-on', style: AdminUi.cardTitle),
                 const SizedBox(height: 10),
                 const _DriverPickupSurchargePolicy(),
@@ -410,6 +436,7 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
     final sixteenKmFare = _readAmount(_sixteenKmFareController);
     final maxFare = _readAmount(_maxFareController);
     final discountPercent = double.parse(_studentDiscountController.text);
+    final commissionPercent = double.parse(_commissionController.text);
 
     final orderingError = _tierOrderingError(
       oneBarangay: oneBarangay,
@@ -440,6 +467,7 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
         outsideBuenavistaSixteenKmFare: sixteenKmFare,
         outsideBuenavistaMaxFare: maxFare,
         studentDiscountRate: discountPercent / 100,
+        commissionRate: commissionPercent / 100,
       );
 
       await AdminService.updateFareSettings(
@@ -485,6 +513,19 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
 
     if (percent < 0 || percent > 100) {
       return 'Discount must be between 0 and 100.';
+    }
+
+    return null;
+  }
+
+  static String? _validateCommissionPercent(String? value) {
+    final percent = double.tryParse(value?.trim() ?? '');
+    if (percent == null) {
+      return 'Enter a valid commission percent.';
+    }
+
+    if (percent < 0 || percent > 100) {
+      return 'Commission must be between 0 and 100.';
     }
 
     return null;

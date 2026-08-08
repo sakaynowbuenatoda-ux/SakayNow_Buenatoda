@@ -62,6 +62,12 @@ class AdminManagementPage extends StatelessWidget {
                     (booking) => booking.isCompleted || booking.isCancelled,
                   )
                   .length;
+              final systemCommissionTotal = bookings
+                  .where((booking) => booking.isCompleted)
+                  .fold<int>(
+                    0,
+                    (total, booking) => total + booking.commissionAmount,
+                  );
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -96,6 +102,7 @@ class AdminManagementPage extends StatelessWidget {
                       cashlessTrips: cashlessTrips,
                       pendingPaymentTrips: pendingPaymentTrips,
                       closedTripRecords: closedTripRecords,
+                      systemCommissionTotal: systemCommissionTotal,
                     ),
                     fareEditor: _ManagementSurfacePanel(
                       icon: Icons.tune_rounded,
@@ -791,12 +798,14 @@ class _ManagementMetricsPanel extends StatelessWidget {
   final int cashlessTrips;
   final int pendingPaymentTrips;
   final int closedTripRecords;
+  final int systemCommissionTotal;
 
   const _ManagementMetricsPanel({
     required this.fareTaggedTrips,
     required this.cashlessTrips,
     required this.pendingPaymentTrips,
     required this.closedTripRecords,
+    required this.systemCommissionTotal,
   });
 
   @override
@@ -819,6 +828,16 @@ class _ManagementMetricsPanel extends StatelessWidget {
             spacing: spacing,
             runSpacing: spacing,
             children: <Widget>[
+              _MetricFrame(
+                width: cardWidth,
+                child: AdminMetricCard(
+                  label: 'System commission',
+                  value: 'PHP $systemCommissionTotal',
+                  helper: 'Completed ride deductions',
+                  icon: Icons.savings_rounded,
+                  accentColor: AdminUi.secondary,
+                ),
+              ),
               _MetricFrame(
                 width: cardWidth,
                 child: AdminMetricCard(

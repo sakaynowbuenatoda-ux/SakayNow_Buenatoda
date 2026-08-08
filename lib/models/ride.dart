@@ -27,11 +27,17 @@ class Ride {
   final int? remainingRideDurationSeconds;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final DateTime? completedAt;
   final String? cancelledBy;
   final DateTime? cancelledAt;
   final String? fareLabel;
   final int? fareAmount;
   final String? fareRuleLabel;
+  final int? grossFare;
+  final double? commissionRate;
+  final int? commissionAmount;
+  final int? driverNetEarnings;
+  final String? driverPayoutStatus;
   final String paymentMethod;
   final String? paymentMethodLabel;
   final String? paymentMethodId;
@@ -63,11 +69,17 @@ class Ride {
     required this.remainingRideDurationSeconds,
     required this.createdAt,
     required this.updatedAt,
+    required this.completedAt,
     required this.cancelledBy,
     required this.cancelledAt,
     required this.fareLabel,
     required this.fareAmount,
     required this.fareRuleLabel,
+    required this.grossFare,
+    required this.commissionRate,
+    required this.commissionAmount,
+    required this.driverNetEarnings,
+    required this.driverPayoutStatus,
     required this.paymentMethod,
     required this.paymentMethodLabel,
     required this.paymentMethodId,
@@ -192,6 +204,7 @@ class Ride {
       ),
       createdAt: _readDate(data['created_at'] ?? data['timestamp']),
       updatedAt: _readDate(data['updated_at']),
+      completedAt: _readDate(data['completed_at']),
       cancelledBy: _readNullableString(data['cancelled_by']),
       cancelledAt: _readDate(data['cancelled_at']),
       fareLabel: _readFare(data),
@@ -199,6 +212,11 @@ class Ride {
       fareRuleLabel: _readNullableString(
         data['fare_rule'] ?? data['fare_rule_label'],
       ),
+      grossFare: _readNullableInt(data['gross_fare']),
+      commissionRate: _readNullableDouble(data['commission_rate']),
+      commissionAmount: _readNullableInt(data['commission_amount']),
+      driverNetEarnings: _readNullableInt(data['driver_net_earnings']),
+      driverPayoutStatus: _readNullableString(data['driver_payout_status']),
       paymentMethod: _readNullableString(data['payment_method']) ?? 'cash',
       paymentMethodLabel: _readNullableString(data['payment_method_label']),
       paymentMethodId: _readNullableString(data['payment_method_id']),
@@ -246,6 +264,14 @@ class Ride {
     }
 
     return int.tryParse(value?.toString() ?? '');
+  }
+
+  static double? _readNullableDouble(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '');
   }
 
   static int? _readReviewRating(Object? value) {
@@ -374,6 +400,61 @@ class Ride {
   bool get usesOnlineCheckout => paymentProvider == 'xendit';
   bool get isPaymentPaid =>
       paymentStatus == 'paid' || paymentStatus == 'cash_collected';
+
+  int get grossEarningsAmount => grossFare ?? fareAmount ?? 0;
+
+  double get appliedCommissionRate =>
+      (commissionRate ?? 0).clamp(0.0, 1.0).toDouble();
+
+  int get commissionDeductionAmount {
+    final stored = commissionAmount;
+    if (stored != null) {
+      return stored.clamp(0, grossEarningsAmount);
+    }
+
+    return (grossEarningsAmount * appliedCommissionRate).round().clamp(
+      0,
+      grossEarningsAmount,
+    );
+  }
+
+  int get netEarningsAmount =>
+      driverNetEarnings ?? grossEarningsAmount - commissionDeductionAmount;
+
+  String get grossEarningsLabel => 'PHP $grossEarningsAmount';
+  String get commissionDeductionLabel => 'PHP $commissionDeductionAmount';
+  String get netEarningsLabel => 'PHP $netEarningsAmount';
+
+  String get commissionRateLabel {
+    final percent = appliedCommissionRate * 100;
+    final value = percent % 1 == 0
+        ? percent.toStringAsFixed(0)
+        : percent.toStringAsFixed(1);
+    return '$value%';
+  }
+
+  String get driverPayoutStatusLabel {
+    final normalized = driverPayoutStatus?.trim().toLowerCase() ?? '';
+    return switch (normalized) {
+      'awaiting_payment' => 'Awaiting passenger payment',
+      'awaiting_driver' => 'Awaiting driver assignment',
+      'pending' => 'Payout pending',
+      'processing' => 'Payout processing',
+      'paid_out' || 'completed' => 'Paid out',
+      'cash_collection_pending' => 'Collect cash from passenger',
+      'cash_collected' => 'Cash collected',
+      'cancelled' => 'No payout',
+      'review_required' => 'Payout review required',
+      _ when usesOnlineCheckout => 'Payout status unavailable',
+      _ => isPaymentPaid ? 'Cash collected' : 'Cash ride',
+    };
+  }
+
+  bool get isCashlessPayoutPending =>
+      usesOnlineCheckout &&
+      driverPayoutStatus != 'paid_out' &&
+      driverPayoutStatus != 'completed' &&
+      driverPayoutStatus != 'cancelled';
 
   bool wasCancelledBy(String userId) {
     final normalizedUserId = userId.trim();

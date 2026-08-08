@@ -311,6 +311,19 @@ void main() {
       expect(rules, contains('allow update: if isValidDriverEtaUpdate();'));
     });
 
+    test('protect commission settings and driver earnings visibility', () {
+      expect(rules, contains("'commission_rate'"));
+      expect(rules, contains('settingsData.commission_rate is number'));
+      expect(rules, contains('settingsData.commission_rate >= 0'));
+      expect(rules, contains('settingsData.commission_rate <= 1'));
+      expect(
+        rules,
+        contains("allow create, update: if settingId == 'current'"),
+      );
+      expect(rules, contains('&& isAdmin()'));
+      expect(rules, contains('bookingData.driver_id == request.auth.uid'));
+    });
+
     test('allow report duplicate checks without opening report reads', () {
       expect(rules, contains('function isMissingDailyReportProbe(reportId)'));
       expect(

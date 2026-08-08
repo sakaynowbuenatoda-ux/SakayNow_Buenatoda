@@ -1244,6 +1244,7 @@ export const logFareSettingsUpdated = onDocumentWritten(
           settings.buenavista_five_barangay_fare,
         outside_buenavista_min_fare: settings.outside_buenavista_min_fare,
         outside_buenavista_max_fare: settings.outside_buenavista_max_fare,
+        commission_rate: settings.commission_rate ?? 0,
       },
     });
   },

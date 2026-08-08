@@ -5,6 +5,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:sakaynow_buenatoda/models/passenger_payment_method.dart';
+import 'package:sakaynow_buenatoda/models/fare_settings.dart';
 import 'package:sakaynow_buenatoda/models/ride_location.dart';
 import 'package:sakaynow_buenatoda/models/ride_status.dart';
 import 'package:sakaynow_buenatoda/models/route_result.dart';
@@ -461,6 +462,81 @@ void main() {
         expect(booking['final_fare'], 30);
         expect(booking['driver_pickup_surcharge'], 5);
         expect(fareDetails['driver_pickup_surcharge'], 5);
+      },
+    );
+
+    test(
+      'accepting a booking locks commission and earnings breakdown',
+      () async {
+        const passengerId = 'passenger-1';
+        const driverId = 'driver-1';
+        await firestore
+            .collection('users')
+            .doc(passengerId)
+            .set(<String, dynamic>{
+              'user_id': passengerId,
+              'role': 'passenger',
+              'passenger_type': 'regular',
+              'is_verified': true,
+            });
+        await _seedVerifiedDriver(firestore, driverId);
+        await _seedDriverLocation(
+          firestore,
+          driverId: driverId,
+          isAvailable: true,
+        );
+        await firestore
+            .collection('fare_settings')
+            .doc('current')
+            .set(
+              FareSettings.defaults
+                  .copyWith(commissionRate: 0.10)
+                  .toFirestore(updatedBy: 'admin-1'),
+            );
+
+        final bookingId = await service.createBooking(
+          passengerId: passengerId,
+          pickupLocation: const RideLocation(
+            address: 'Poblacion, Buenavista, Bohol',
+            latitude: 10.083,
+            longitude: 124.178,
+          ),
+          dropoffLocation: const RideLocation(
+            address: 'Poblacion, Buenavista, Bohol',
+            latitude: 10.084,
+            longitude: 124.179,
+          ),
+          route: const RouteResult(
+            encodedPolyline: '',
+            polylinePoints: <LatLng>[],
+            distanceMeters: 1200,
+            durationSeconds: 360,
+            distanceText: '1.2 km',
+            durationText: '6 mins',
+          ),
+        );
+
+        await service.acceptBooking(bookingId: bookingId, driverId: driverId);
+
+        final accepted =
+            (await firestore.collection('bookings').doc(bookingId).get())
+                .data()!;
+        expect(accepted['gross_fare'], 25);
+        expect(accepted['commission_rate'], 0.10);
+        expect(accepted['commission_amount'], 3);
+        expect(accepted['driver_net_earnings'], 22);
+        expect(accepted['payment_method'], 'cash');
+        expect(accepted['driver_payout_status'], 'cash_collection_pending');
+
+        await service.updateRideStatus(
+          bookingId: bookingId,
+          status: RideStatus.completed,
+          changedBy: driverId,
+        );
+        final completed =
+            (await firestore.collection('bookings').doc(bookingId).get())
+                .data()!;
+        expect(completed['driver_payout_status'], 'cash_collected');
       },
     );
 

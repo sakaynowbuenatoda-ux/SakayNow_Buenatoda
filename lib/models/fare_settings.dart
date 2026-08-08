@@ -10,6 +10,7 @@ class FareSettings {
   static const int defaultOutsideBuenavistaSixteenKmFare = 80;
   static const int defaultOutsideBuenavistaMaxFare = 100;
   static const double defaultStudentDiscountRate = 0.15;
+  static const double defaultCommissionRate = 0;
 
   static const FareSettings defaults = FareSettings(
     currency: defaultCurrency,
@@ -21,6 +22,7 @@ class FareSettings {
     outsideBuenavistaSixteenKmFare: defaultOutsideBuenavistaSixteenKmFare,
     outsideBuenavistaMaxFare: defaultOutsideBuenavistaMaxFare,
     studentDiscountRate: defaultStudentDiscountRate,
+    commissionRate: defaultCommissionRate,
   );
 
   final String currency;
@@ -32,6 +34,7 @@ class FareSettings {
   final int outsideBuenavistaSixteenKmFare;
   final int outsideBuenavistaMaxFare;
   final double studentDiscountRate;
+  final double commissionRate;
   final DateTime? updatedAt;
   final String? updatedBy;
 
@@ -45,6 +48,7 @@ class FareSettings {
     required this.outsideBuenavistaSixteenKmFare,
     required this.outsideBuenavistaMaxFare,
     required this.studentDiscountRate,
+    this.commissionRate = defaultCommissionRate,
     this.updatedAt,
     this.updatedBy,
   });
@@ -94,6 +98,10 @@ class FareSettings {
         data['student_discount_rate'],
         defaultStudentDiscountRate,
       ),
+      commissionRate: _readDouble(
+        data['commission_rate'],
+        defaultCommissionRate,
+      ),
       updatedAt: _readDate(data['updated_at']),
       updatedBy: _readNullableString(data['updated_by']),
     ).normalized();
@@ -109,6 +117,7 @@ class FareSettings {
     int? outsideBuenavistaSixteenKmFare,
     int? outsideBuenavistaMaxFare,
     double? studentDiscountRate,
+    double? commissionRate,
     DateTime? updatedAt,
     String? updatedBy,
   }) {
@@ -128,6 +137,7 @@ class FareSettings {
       outsideBuenavistaMaxFare:
           outsideBuenavistaMaxFare ?? this.outsideBuenavistaMaxFare,
       studentDiscountRate: studentDiscountRate ?? this.studentDiscountRate,
+      commissionRate: commissionRate ?? this.commissionRate,
       updatedAt: updatedAt ?? this.updatedAt,
       updatedBy: updatedBy ?? this.updatedBy,
     );
@@ -188,6 +198,7 @@ class FareSettings {
       outsideBuenavistaSixteenKmFare: sixteenKmFare,
       outsideBuenavistaMaxFare: maxFare,
       studentDiscountRate: studentDiscountRate.clamp(0.0, 1.0).toDouble(),
+      commissionRate: commissionRate.clamp(0.0, 1.0).toDouble(),
       updatedAt: updatedAt,
       updatedBy: updatedBy,
     );
@@ -218,6 +229,8 @@ class FareSettings {
       '${amountLabel(outsideBuenavistaMinFare)}-${amountLabel(outsideBuenavistaMaxFare)}';
   String get studentDiscountLabel =>
       '${(studentDiscountRate * 100).round()}% student discount';
+  String get commissionLabel =>
+      '${_formatPercent(commissionRate * 100)}% commission';
   String get passengerFareGuideDescription =>
       'Base fare starts at $oneBarangayFareLabel, up to 5 barangays is $buenavistaFiveBarangayFareLabel, and extended routes are $outsideBuenavistaRangeLabel.';
   String get passengerStudentDiscountDescription =>
@@ -237,6 +250,7 @@ class FareSettings {
       'outside_buenavista_16km_fare': settings.outsideBuenavistaSixteenKmFare,
       'outside_buenavista_max_fare': settings.outsideBuenavistaMaxFare,
       'student_discount_rate': settings.studentDiscountRate,
+      'commission_rate': settings.commissionRate,
       'updated_by': updatedBy,
       'updated_at': FieldValue.serverTimestamp(),
     };
@@ -286,5 +300,11 @@ class FareSettings {
 
   static int _atLeast(int value, int minimum) {
     return value < minimum ? minimum : value;
+  }
+
+  static String _formatPercent(double percent) {
+    return percent % 1 == 0
+        ? percent.toStringAsFixed(0)
+        : percent.toStringAsFixed(1);
   }
 }

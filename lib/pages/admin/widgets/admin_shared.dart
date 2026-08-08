@@ -640,6 +640,24 @@ class AdminBookingCard extends StatelessWidget {
             value: booking.paymentStatusLabel,
           ),
           _DetailRow(label: 'Fare', value: booking.fareLabel ?? 'Pending'),
+          if (booking.isCompleted) ...[
+            _DetailRow(
+              label: 'Gross fare',
+              value: 'PHP ${booking.grossFareAmount}',
+            ),
+            _DetailRow(
+              label: 'Commission (${booking.commissionRateLabel})',
+              value: 'PHP ${booking.commissionAmount}',
+            ),
+            _DetailRow(
+              label: 'Driver net earnings',
+              value: 'PHP ${booking.driverNetEarnings}',
+            ),
+            _DetailRow(
+              label: 'Payout status',
+              value: booking.driverPayoutStatusLabel,
+            ),
+          ],
           _DetailTimeRow(label: 'Time', value: booking.timestamp),
         ],
       ),

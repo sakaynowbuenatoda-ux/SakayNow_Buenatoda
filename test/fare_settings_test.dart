@@ -27,4 +27,17 @@ void main() {
       );
     },
   );
+
+  test('commission defaults to zero and supports an admin configured rate', () {
+    expect(FareSettings.defaults.commissionRate, 0);
+    expect(FareSettings.defaults.commissionLabel, '0% commission');
+
+    final configured = FareSettings.defaults.copyWith(commissionRate: 0.125);
+
+    expect(configured.commissionLabel, '12.5% commission');
+    expect(
+      configured.toFirestore(updatedBy: 'admin-1')['commission_rate'],
+      0.125,
+    );
+  });
 }

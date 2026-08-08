@@ -381,9 +381,15 @@ class AdminBookingRecord {
   final RideLocation? dropoffRideLocation;
   final String status;
   final DateTime? timestamp;
+  final DateTime? completedAt;
   final String? paymentMethod;
   final String? paymentStatus;
   final String? fareLabel;
+  final int grossFareAmount;
+  final double commissionRate;
+  final int commissionAmount;
+  final int driverNetEarnings;
+  final String? driverPayoutStatus;
 
   AdminBookingRecord({
     required this.bookingId,
@@ -395,9 +401,15 @@ class AdminBookingRecord {
     required this.dropoffRideLocation,
     required this.status,
     required this.timestamp,
+    required this.completedAt,
     required this.paymentMethod,
     required this.paymentStatus,
     required this.fareLabel,
+    required this.grossFareAmount,
+    required this.commissionRate,
+    required this.commissionAmount,
+    required this.driverNetEarnings,
+    required this.driverPayoutStatus,
   });
 
   factory AdminBookingRecord.fromDocument(
@@ -406,6 +418,15 @@ class AdminBookingRecord {
     final data = document.data() ?? <String, dynamic>{};
     final pickupRideLocation = _readRideLocation(data['pickup_location']);
     final dropoffRideLocation = _readRideLocation(data['dropoff_location']);
+    final grossFare = _readAmount(<Object?>[
+      data['gross_fare'],
+      data['final_fare'],
+      data['estimated_fare_amount'],
+      data['fare'],
+    ]);
+    final commission = _readAmount(<Object?>[data['commission_amount']]);
+    final normalizedCommission = commission.clamp(0, grossFare);
+    final netEarnings = _readAmount(<Object?>[data['driver_net_earnings']]);
 
     return AdminBookingRecord(
       bookingId: (data['booking_id'] ?? document.id).toString(),
@@ -423,6 +444,7 @@ class AdminBookingRecord {
       dropoffRideLocation: dropoffRideLocation,
       status: (data['status'] ?? 'pending').toString().trim().toLowerCase(),
       timestamp: AdminUserRecord._readDate(data['timestamp']),
+      completedAt: AdminUserRecord._readDate(data['completed_at']),
       paymentMethod: _readNullableString(
         data['payment_method_label'] ??
             data['payment_method'] ??
@@ -430,6 +452,13 @@ class AdminBookingRecord {
       ),
       paymentStatus: _readNullableString(data['payment_status']),
       fareLabel: _readFare(data),
+      grossFareAmount: grossFare,
+      commissionRate: _readDouble(data['commission_rate']),
+      commissionAmount: normalizedCommission,
+      driverNetEarnings: netEarnings > 0
+          ? netEarnings
+          : grossFare - normalizedCommission,
+      driverPayoutStatus: _readNullableString(data['driver_payout_status']),
     );
   }
 
@@ -470,6 +499,29 @@ class AdminBookingRecord {
       '' => 'Pending',
       _ => _titleCase(normalized.replaceAll('_', ' ')),
     };
+  }
+
+  String get driverPayoutStatusLabel {
+    final normalized = driverPayoutStatus?.toLowerCase().trim() ?? '';
+    return switch (normalized) {
+      'awaiting_payment' => 'Awaiting payment',
+      'awaiting_driver' => 'Awaiting driver',
+      'pending' => 'Payout pending',
+      'processing' => 'Payout processing',
+      'paid_out' || 'completed' => 'Paid out',
+      'cash_collection_pending' => 'Cash collection pending',
+      'cash_collected' => 'Cash collected',
+      'cancelled' => 'No payout',
+      'review_required' => 'Review required',
+      _ => 'Not available',
+    };
+  }
+
+  String get commissionRateLabel {
+    final percent = commissionRate * 100;
+    return percent % 1 == 0
+        ? '${percent.toStringAsFixed(0)}%'
+        : '${percent.toStringAsFixed(1)}%';
   }
 
   String get statusLabel {
@@ -516,6 +568,28 @@ class AdminBookingRecord {
   static String? _readNullableString(Object? value) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? null : text;
+  }
+
+  static int _readAmount(List<Object?> candidates) {
+    for (final candidate in candidates) {
+      if (candidate is num) {
+        return candidate.round().clamp(0, 1 << 31);
+      }
+
+      final text = candidate?.toString().trim() ?? '';
+      final parsed = int.tryParse(text.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+    return 0;
+  }
+
+  static double _readDouble(Object? value) {
+    final parsed = value is num
+        ? value.toDouble()
+        : double.tryParse(value?.toString() ?? '') ?? 0;
+    return parsed.clamp(0.0, 1.0).toDouble();
   }
 
   static String? _readFare(Map<String, dynamic> data) {

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
 import '../../models/driver_payout_account.dart';
+import '../../models/driver_earnings_summary.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../services/driver_payout_account_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/driver_widgets/driver_payout_account_card.dart';
+import '../../widgets/driver_widgets/driver_earnings_card.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../driver_ratings/driver_leaderboard_page.dart';
 import 'driver_payout_accounts_page.dart';
@@ -101,13 +103,15 @@ class _DriverRideSummary extends StatelessWidget {
           children: <Widget>[
             _DriverInsightCard(data: data),
             SizedBox(height: 14),
+            DriverEarningsCard(summary: data.earnings),
+            SizedBox(height: 14),
             _DashboardMetricGrid(
               metrics: <_DashboardMetric>[
                 _DashboardMetric(
                   icon: Icons.payments_rounded,
-                  label: 'Today earnings',
+                  label: 'Today net earnings',
                   value: data.todayEarningsLabel,
-                  helper: 'Completed today',
+                  helper: 'After commission',
                 ),
                 _DashboardMetric(
                   icon: Icons.route_rounded,
@@ -123,9 +127,11 @@ class _DriverRideSummary extends StatelessWidget {
                 ),
                 _DashboardMetric(
                   icon: Icons.account_balance_wallet_rounded,
-                  label: 'Cashless trips',
-                  value: data.cashlessTrips.toString(),
-                  helper: 'Online payment rides',
+                  label: 'Cashless payouts',
+                  value: data.earnings.cashlessCompletedTrips.toString(),
+                  helper: data.earnings.pendingCashlessPayouts > 0
+                      ? '${data.earnings.pendingCashlessPayouts} pending'
+                      : 'Completed online rides',
                 ),
               ],
             ),
@@ -233,14 +239,32 @@ class _DriverLatestRideCard extends StatelessWidget {
           SizedBox(height: 10),
           _DashboardDetailRow(
             icon: Icons.payments_rounded,
-            label: 'Fare',
-            value: ride.fareLabel ?? 'Pending fare',
+            label: 'Gross fare',
+            value: ride.grossEarningsLabel,
+          ),
+          SizedBox(height: 10),
+          _DashboardDetailRow(
+            icon: Icons.remove_circle_outline_rounded,
+            label: 'Commission (${ride.commissionRateLabel})',
+            value: '-${ride.commissionDeductionLabel}',
+          ),
+          SizedBox(height: 10),
+          _DashboardDetailRow(
+            icon: Icons.savings_rounded,
+            label: 'Net earnings',
+            value: ride.netEarningsLabel,
           ),
           SizedBox(height: 10),
           _DashboardDetailRow(
             icon: Icons.account_balance_wallet_rounded,
             label: 'Payment',
             value: ride.paymentMethodDisplayLabel,
+          ),
+          SizedBox(height: 10),
+          _DashboardDetailRow(
+            icon: Icons.payments_outlined,
+            label: 'Payout status',
+            value: ride.driverPayoutStatusLabel,
           ),
         ],
       ),
@@ -651,61 +675,38 @@ class _DashboardMetric {
 class _DriverDashboardData {
   final int completedTrips;
   final int activeTrips;
-  final int todayEarnings;
-  final int totalEarnings;
-  final int cashlessTrips;
+  final DriverEarningsSummary earnings;
   final Ride? latestRide;
 
   const _DriverDashboardData({
     required this.completedTrips,
     required this.activeTrips,
-    required this.todayEarnings,
-    required this.totalEarnings,
-    required this.cashlessTrips,
+    required this.earnings,
     required this.latestRide,
   });
 
   factory _DriverDashboardData.fromRides(List<Ride> rides) {
-    final now = DateTime.now();
     final completed = rides
         .where((ride) => ride.status == RideStatus.completed)
         .toList();
-    final todayCompleted = completed.where((ride) {
-      final date = ride.updatedAt ?? ride.createdAt;
-      return date != null &&
-          date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day;
-    });
+    final earnings = DriverEarningsSummary.fromRides(rides);
 
     return _DriverDashboardData(
       completedTrips: completed.length,
       activeTrips: rides.where((ride) => ride.isActive).length,
-      todayEarnings: todayCompleted.fold<int>(
-        0,
-        (sum, ride) => sum + (ride.fareAmount ?? 0),
-      ),
-      totalEarnings: completed.fold<int>(
-        0,
-        (sum, ride) => sum + (ride.fareAmount ?? 0),
-      ),
-      cashlessTrips: rides
-          .where(
-            (ride) => ride.usesOnlineCheckout || ride.paymentMethod != 'cash',
-          )
-          .length,
+      earnings: earnings,
       latestRide: rides.isEmpty ? null : rides.first,
     );
   }
 
-  String get todayEarningsLabel => _peso(todayEarnings);
+  String get todayEarningsLabel => _peso(earnings.todayNet);
 
   String get headline {
     if (activeTrips > 0) {
       return '$activeTrips active trip${activeTrips == 1 ? '' : 's'}';
     }
 
-    if (todayEarnings > 0) {
+    if (earnings.todayNet > 0) {
       return '$todayEarningsLabel earned today';
     }
 
@@ -722,7 +723,7 @@ class _DriverDashboardData {
     }
 
     if (completedTrips > 0) {
-      return 'Lifetime fare total from completed rides is ${_peso(totalEarnings)}.';
+      return 'Lifetime net earnings are ${_peso(earnings.lifetimeNet)} after ${_peso(earnings.lifetimeCommission)} in commission.';
     }
 
     return 'Accept bookings from the queue to start tracking earnings and trip performance.';

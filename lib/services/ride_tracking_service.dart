@@ -12,6 +12,7 @@ import '../models/fare_settings.dart';
 import '../models/passenger_payment_method.dart';
 import '../models/ride.dart';
 import '../models/ride_driver_location.dart';
+import '../models/ride_earnings.dart';
 import '../models/ride_location.dart';
 import '../models/ride_status.dart';
 import '../models/route_result.dart';
@@ -181,7 +182,7 @@ class RideTrackingService {
         });
       } else if (!paymentMethod.usesOnlineCheckout) {
         updates.addAll(<String, dynamic>{
-          'driver_payout_status': null,
+          'driver_payout_status': 'cash_collection_pending',
           'driver_payout_account_id': null,
           'driver_accepts_online_payments': null,
         });
@@ -1297,6 +1298,17 @@ class RideTrackingService {
         );
       }
 
+      final grossFare =
+          acceptedFareEstimate?.amount ?? _readBookingFareAmount(data);
+      if (grossFare != null) {
+        bookingUpdates.addAll(
+          RideEarningsBreakdown.calculate(
+            grossFare: grossFare,
+            commissionRate: fareSettings.commissionRate,
+          ).toFirestore(),
+        );
+      }
+
       if (paymentProvider == 'xendit') {
         bookingUpdates.addAll(<String, dynamic>{
           'driver_payout_status': paymentStatus == 'paid'
@@ -1304,6 +1316,11 @@ class RideTrackingService {
               : 'awaiting_payment',
           'driver_payout_account_id': driverData['default_payout_account_id'],
           'driver_accepts_online_payments': true,
+        });
+      } else {
+        bookingUpdates.addAll(<String, dynamic>{
+          'driver_payout_status': 'cash_collection_pending',
+          'driver_payout_account_id': null,
         });
       }
 
@@ -1414,20 +1431,26 @@ class RideTrackingService {
         ]),
       };
 
-      if (status == RideStatus.completed &&
-          paymentProvider == 'cash' &&
-          paymentStatus != 'cash_collected') {
-        updates.addAll(<String, dynamic>{
-          'payment_status': 'cash_collected',
-          'payment_confirmed_by': changedBy,
-          'payment_confirmed_at': FieldValue.serverTimestamp(),
-        });
+      if (status == RideStatus.completed && paymentProvider == 'cash') {
+        updates['driver_payout_status'] = 'cash_collected';
+        if (paymentStatus != 'cash_collected') {
+          updates.addAll(<String, dynamic>{
+            'payment_status': 'cash_collected',
+            'payment_confirmed_by': changedBy,
+            'payment_confirmed_at': FieldValue.serverTimestamp(),
+          });
+        }
+      } else if (status == RideStatus.completed && paymentProvider != 'cash') {
+        updates['driver_payout_status'] = 'pending';
       }
 
       if (status == RideStatus.cancelled) {
         updates.addAll(<String, dynamic>{
           'cancelled_by': changedBy,
           'cancelled_at': FieldValue.serverTimestamp(),
+          'driver_payout_status': isPaymentSettled && paymentProvider != 'cash'
+              ? 'review_required'
+              : 'cancelled',
         });
 
         if (!isPaymentSettled) {
@@ -1460,6 +1483,35 @@ class RideTrackingService {
 
   bool _isPaymentSettled(String paymentStatus) {
     return paymentStatus == 'paid' || paymentStatus == 'cash_collected';
+  }
+
+  int? _readBookingFareAmount(Map<String, dynamic> data) {
+    final candidates = <Object?>[
+      data['gross_fare'],
+      data['final_fare'],
+      data['estimated_fare_amount'],
+      data['estimated_fare'],
+      data['fare_amount'],
+      data['fare'],
+    ];
+
+    for (final candidate in candidates) {
+      if (candidate is num) {
+        return candidate.round();
+      }
+
+      final text = candidate?.toString().trim() ?? '';
+      if (text.isEmpty) {
+        continue;
+      }
+
+      final amount = int.tryParse(text.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (amount != null) {
+        return amount;
+      }
+    }
+
+    return null;
   }
 
   Future<void> updateDriverAvailability({

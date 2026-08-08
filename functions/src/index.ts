@@ -809,6 +809,7 @@ export const notifyNewChatMessage = onDocumentCreated(
     const title = notificationTitle({conversation, senderId, senderRole});
     const body = truncateNotificationBody(text);
     const tokens = targets.map((target) => target.token);
+    const soundProfile = notificationSoundProfile("chat_message", "message");
 
     for (const tokenChunk of chunk(tokens, 500)) {
       const response = await messaging.sendEachForMulticast({
@@ -817,14 +818,14 @@ export const notifyNewChatMessage = onDocumentCreated(
         android: {
           priority: "high",
           notification: {
-            channelId: "sakaynow_messages",
-            sound: "default",
+            channelId: soundProfile.androidChannelId,
+            sound: soundProfile.androidSound,
           },
         },
         apns: {
           payload: {
             aps: {
-              sound: "default",
+              sound: soundProfile.appleSound,
             },
           },
         },
@@ -835,6 +836,7 @@ export const notifyNewChatMessage = onDocumentCreated(
             readOptionalString(conversation.type) ?? "support",
           sender_id: senderId,
           sender_role: senderRole,
+          notification_sound: soundProfile.key,
         },
       });
 
@@ -1858,11 +1860,13 @@ async function createAppNotification(params: AppNotificationParams) {
     return;
   }
 
+  const soundProfile = notificationSoundProfile(params.type, params.channel);
   const data = notificationData({
     ...params.data,
     notification_id: notificationId,
     type: params.type,
     channel: params.channel,
+    notification_sound: soundProfile.key,
     title: params.title,
     body: params.body,
   });
@@ -1921,6 +1925,10 @@ async function sendPushToUser(params: {
     return false;
   }
 
+  const soundProfile = notificationSoundProfile(
+    params.data.type,
+    params.channel,
+  );
   const tokens = targets.map((target) => target.token);
   let successCount = 0;
   for (const tokenChunk of chunk(tokens, 500)) {
@@ -1933,14 +1941,14 @@ async function sendPushToUser(params: {
       android: {
         priority: "high",
         notification: {
-          channelId: notificationChannelId(params.channel),
-          sound: "default",
+          channelId: soundProfile.androidChannelId,
+          sound: soundProfile.androidSound,
         },
       },
       apns: {
         payload: {
           aps: {
-            sound: "default",
+            sound: soundProfile.appleSound,
           },
         },
       },
@@ -2006,6 +2014,49 @@ function notificationChannelId(channel: AppNotificationChannel) {
       return "sakaynow_system";
     case "system":
       return "sakaynow_system";
+  }
+}
+
+function notificationSoundProfile(
+  type: string | undefined,
+  channel: AppNotificationChannel,
+) {
+  switch (type) {
+    case "chat_message":
+      return {
+        key: "message",
+        androidChannelId: "sakaynow_messages_sound_v1",
+        androidSound: "sakaynow_message",
+        appleSound: "sakaynow_message.wav",
+      };
+    case "booking_accepted":
+      return {
+        key: "booking_accepted",
+        androidChannelId: "sakaynow_booking_accepted_sound_v1",
+        androidSound: "sakaynow_booking_accepted",
+        appleSound: "sakaynow_booking_accepted.wav",
+      };
+    case "driver_arrived":
+      return {
+        key: "driver_arrived",
+        androidChannelId: "sakaynow_driver_arrived_sound_v1",
+        androidSound: "sakaynow_driver_arrived",
+        appleSound: "sakaynow_driver_arrived.wav",
+      };
+    case "booking_request":
+      return {
+        key: "booking_request",
+        androidChannelId: "sakaynow_booking_request_sound_v1",
+        androidSound: "sakaynow_booking_request",
+        appleSound: "sakaynow_booking_request.wav",
+      };
+    default:
+      return {
+        key: "standard",
+        androidChannelId: notificationChannelId(channel),
+        androidSound: "default",
+        appleSound: "default",
+      };
   }
 }
 

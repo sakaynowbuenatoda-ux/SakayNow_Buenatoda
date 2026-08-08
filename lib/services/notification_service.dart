@@ -14,6 +14,7 @@ import '../controllers/ride_tracking_controller.dart';
 import '../firebase_options.dart';
 import '../models/app_notification.dart';
 import '../models/notification_preferences.dart';
+import '../models/notification_sound_profile.dart';
 import '../pages/admin/admin_user_review_page.dart';
 import '../pages/driver/driver_queue.dart';
 import '../pages/messages/chat_page.dart';
@@ -71,6 +72,44 @@ class NotificationService {
           'System updates',
           description: 'Reviews, admin, and general app notifications',
           importance: Importance.defaultImportance,
+        ),
+        AndroidNotificationChannel(
+          NotificationSoundProfile.messageChannelId,
+          'Messages with sound',
+          description:
+              'Ride chat and support messages with the SakayNow message sound',
+          importance: Importance.high,
+          sound: RawResourceAndroidNotificationSound(
+            NotificationSoundProfile.messageSoundResource,
+          ),
+        ),
+        AndroidNotificationChannel(
+          NotificationSoundProfile.bookingAcceptedChannelId,
+          'Booking accepted alerts',
+          description: 'Passenger alerts when a driver accepts a booking',
+          importance: Importance.high,
+          sound: RawResourceAndroidNotificationSound(
+            NotificationSoundProfile.bookingAcceptedSoundResource,
+          ),
+        ),
+        AndroidNotificationChannel(
+          NotificationSoundProfile.driverArrivedChannelId,
+          'Driver arrival alerts',
+          description:
+              'Passenger alerts when the assigned driver reaches pickup',
+          importance: Importance.high,
+          sound: RawResourceAndroidNotificationSound(
+            NotificationSoundProfile.driverArrivedSoundResource,
+          ),
+        ),
+        AndroidNotificationChannel(
+          NotificationSoundProfile.bookingRequestChannelId,
+          'Driver booking requests',
+          description: 'New ride requests sent to available drivers',
+          importance: Importance.high,
+          sound: RawResourceAndroidNotificationSound(
+            NotificationSoundProfile.bookingRequestSoundResource,
+          ),
         ),
       ];
 
@@ -420,10 +459,14 @@ class NotificationService {
       'body': body,
     };
     final channel = _channelForPayload(payloadData);
+    final soundProfile = NotificationSoundProfile.fromPayload(payloadData);
     final preferences = await loadNotificationPreferences(preferRemote: false);
     if (!preferences.allowsChannel(channel)) {
       return;
     }
+
+    final customAndroidChannelId = soundProfile.androidChannelId;
+    final customAndroidSound = soundProfile.androidSoundResource;
 
     await _localNotifications.show(
       id: _notificationId(message),
@@ -431,16 +474,24 @@ class NotificationService {
       body: body,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
-          _androidChannelId(channel),
-          _androidChannelName(channel),
-          channelDescription: _androidChannelDescription(channel),
+          customAndroidChannelId ?? _androidChannelId(channel),
+          soundProfile.usesCustomSound
+              ? soundProfile.androidChannelName
+              : _androidChannelName(channel),
+          channelDescription: soundProfile.usesCustomSound
+              ? soundProfile.androidChannelDescription
+              : _androidChannelDescription(channel),
           importance: Importance.high,
           priority: Priority.high,
+          sound: customAndroidSound == null
+              ? null
+              : RawResourceAndroidNotificationSound(customAndroidSound),
         ),
-        iOS: const DarwinNotificationDetails(
+        iOS: DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
           presentSound: true,
+          sound: soundProfile.appleSoundFile,
         ),
         macOS: const DarwinNotificationDetails(
           presentAlert: true,

@@ -5,10 +5,22 @@ import '../../services/notification_service.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 
+typedef NotificationPreferencesLoader =
+    Future<NotificationPreferences> Function(String? userId);
+typedef NotificationPreferencesSaver =
+    Future<void> Function(NotificationPreferences preferences, String? userId);
+
 class NotificationSettingsPage extends StatefulWidget {
   final String? userId;
+  final NotificationPreferencesLoader? loadPreferences;
+  final NotificationPreferencesSaver? savePreferences;
 
-  const NotificationSettingsPage({super.key, this.userId});
+  const NotificationSettingsPage({
+    super.key,
+    this.userId,
+    this.loadPreferences,
+    this.savePreferences,
+  });
 
   @override
   State<NotificationSettingsPage> createState() =>
@@ -16,8 +28,6 @@ class NotificationSettingsPage extends StatefulWidget {
 }
 
 class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
-  final NotificationService _notificationService = NotificationService.instance;
-
   NotificationPreferences _preferences = const NotificationPreferences();
   bool _isLoading = true;
   bool _isSaving = false;
@@ -36,8 +46,11 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     });
 
     try {
-      final preferences = await _notificationService
-          .loadNotificationPreferences(userId: widget.userId);
+      final preferences = widget.loadPreferences == null
+          ? await NotificationService.instance.loadNotificationPreferences(
+              userId: widget.userId,
+            )
+          : await widget.loadPreferences!(widget.userId);
       if (!mounted) {
         return;
       }
@@ -71,10 +84,14 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     });
 
     try {
-      await _notificationService.saveNotificationPreferences(
-        preferences,
-        userId: widget.userId,
-      );
+      if (widget.savePreferences == null) {
+        await NotificationService.instance.saveNotificationPreferences(
+          preferences,
+          userId: widget.userId,
+        );
+      } else {
+        await widget.savePreferences!(preferences, widget.userId);
+      }
     } on Exception catch (error) {
       if (!mounted) {
         return;

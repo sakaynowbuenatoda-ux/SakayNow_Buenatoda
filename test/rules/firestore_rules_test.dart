@@ -324,6 +324,24 @@ void main() {
       expect(rules, contains('bookingData.driver_id == request.auth.uid'));
     });
 
+    test('keep notification documents server-created and owner-readable', () {
+      expect(rules, contains('match /notifications/{notificationId}'));
+      expect(
+        rules,
+        contains(
+          'allow read: if isAdmin()\n        || (signedIn() && resource.data.user_id == request.auth.uid);',
+        ),
+      );
+      expect(rules, contains('allow create: if false;'));
+      expect(
+        rules,
+        contains(
+          "request.resource.data.diff(resource.data).affectedKeys().hasOnly([\n          'is_read',\n          'read_at'",
+        ),
+      );
+      expect(rules, contains('allow update, delete: if isAdmin();'));
+    });
+
     test('allow report duplicate checks without opening report reads', () {
       expect(rules, contains('function isMissingDailyReportProbe(reportId)'));
       expect(

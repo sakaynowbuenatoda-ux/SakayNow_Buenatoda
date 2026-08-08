@@ -48,5 +48,13 @@ void main() {
       expect(rules, contains('&& isImage()'));
       expect(rules, contains('request.resource.size < 10 * 1024 * 1024'));
     });
+
+    test('keep credential uploads private and owner scoped', () {
+      expect(rules, contains('match /users/{userId}/credentials/{fileName}'));
+      expect(rules, contains('allow read: if isSelf(userId) || isAdmin();'));
+      expect(rules, contains('allow create: if isSelf(userId)'));
+      expect(rules, contains('&& isImage()'));
+      expect(rules, contains('request.resource.size < 10 * 1024 * 1024'));
+    });
   });
 }

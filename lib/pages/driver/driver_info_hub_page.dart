@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/auth/registration_service.dart';
 import '../../models/driver_document_status.dart';
 import '../../models/driver_payout_account.dart';
+import '../../services/driver_credential_service.dart';
 import '../../services/driver_payout_account_service.dart';
 import '../../services/driver_renewal_service.dart';
 import '../../utils/user_facing_error_message.dart';
@@ -16,14 +17,17 @@ import 'driver_payout_accounts_page.dart';
 class DriverInfoHubPage extends StatefulWidget {
   final String driverId;
   final DriverRenewalService renewalService;
+  final DriverCredentialService credentialService;
   final DriverPayoutAccountService payoutAccountService;
 
   DriverInfoHubPage({
     super.key,
     required this.driverId,
     DriverRenewalService? renewalService,
+    DriverCredentialService? credentialService,
     DriverPayoutAccountService? payoutAccountService,
   }) : renewalService = renewalService ?? DriverRenewalService(),
+       credentialService = credentialService ?? DriverCredentialService(),
        payoutAccountService =
            payoutAccountService ?? DriverPayoutAccountService();
 
@@ -99,7 +103,11 @@ class _DriverInfoHubPageState extends State<DriverInfoHubPage> {
             return TabBarView(
               children: <Widget>[
                 _BasicInfoTab(profile: profile),
-                _RequirementsTab(profile: profile),
+                _RequirementsTab(
+                  driverId: widget.driverId,
+                  profile: profile,
+                  service: widget.credentialService,
+                ),
                 _VehicleDetailsTab(profile: profile),
                 _PayoutReferenceTab(
                   driverId: widget.driverId,
@@ -434,21 +442,31 @@ class _BasicInfoTab extends StatelessWidget {
 }
 
 class _RequirementsTab extends StatelessWidget {
+  final String driverId;
   final _DriverHubProfile profile;
+  final DriverCredentialService service;
 
-  const _RequirementsTab({required this.profile});
+  const _RequirementsTab({
+    required this.driverId,
+    required this.profile,
+    required this.service,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final documents = <(String, String?, DateTime?)>[
+    final documents = <(DriverCredentialType, String?, DateTime?)>[
       (
-        'Driver\'s License',
+        DriverCredentialType.driversLicense,
         profile.driversLicenseUrl,
         profile.documentStatus.driversLicenseExpiry,
       ),
-      ('OR/CR', profile.orCrUrl, profile.documentStatus.orCrExpiry),
-      ('NBI Clearance', profile.nbiClearanceUrl, null),
-      ('Driver Selfie', profile.selfieUrl, null),
+      (
+        DriverCredentialType.orCr,
+        profile.orCrUrl,
+        profile.documentStatus.orCrExpiry,
+      ),
+      (DriverCredentialType.nbiClearance, profile.nbiClearanceUrl, null),
+      (DriverCredentialType.selfie, profile.selfieUrl, null),
     ];
 
     return _HubTabPage(
@@ -457,7 +475,8 @@ class _RequirementsTab extends StatelessWidget {
         children: <Widget>[
           PassengerPageHeader(
             title: 'Requirements & Documents',
-            subtitle: 'Private credentials visible only to you and admins.',
+            subtitle:
+                'Add missing credentials or replace an existing image. Changes are sent to admins for verification.',
             icon: Icons.description_rounded,
             accentColor: PassengerUi.accentBlue,
           ),
@@ -465,16 +484,330 @@ class _RequirementsTab extends StatelessWidget {
           ...documents.map(
             (document) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _HubDocumentCard(
-                label: document.$1,
+              child: _EditableCredentialCard(
+                key: ValueKey<DriverCredentialType>(document.$1),
+                driverId: driverId,
+                type: document.$1,
                 imageUrl: document.$2,
                 expiry: document.$3,
+                service: service,
               ),
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _EditableCredentialCard extends StatefulWidget {
+  final String driverId;
+  final DriverCredentialType type;
+  final String? imageUrl;
+  final DateTime? expiry;
+  final DriverCredentialService service;
+
+  const _EditableCredentialCard({
+    super.key,
+    required this.driverId,
+    required this.type,
+    required this.imageUrl,
+    required this.expiry,
+    required this.service,
+  });
+
+  @override
+  State<_EditableCredentialCard> createState() =>
+      _EditableCredentialCardState();
+}
+
+class _EditableCredentialCardState extends State<_EditableCredentialCard> {
+  final ImagePicker _imagePicker = ImagePicker();
+  RegistrationImageSelection? _selectedFile;
+  DateTime? _expiry;
+  bool _isEditing = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _expiry = _futureExpiryOrNull(widget.expiry);
+  }
+
+  @override
+  void didUpdateWidget(covariant _EditableCredentialCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_isEditing && oldWidget.expiry != widget.expiry) {
+      _expiry = _futureExpiryOrNull(widget.expiry);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCredential = widget.imageUrl?.trim().isNotEmpty == true;
+    final actionLabel = hasCredential ? 'Update credential' : 'Add credential';
+
+    return PassengerSurfaceCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(widget.type.label, style: PassengerUi.cardTitle),
+                ),
+                if (widget.expiry != null)
+                  Text(
+                    _formatDate(widget.expiry!),
+                    style: PassengerUi.bodyText,
+                  ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 180,
+            width: double.infinity,
+            child: FirebaseStorageImage(
+              imageUrl: widget.imageUrl,
+              fit: BoxFit.cover,
+              fallback: Container(
+                color: PassengerUi.mutedSurface,
+                alignment: Alignment.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      Icons.add_photo_alternate_outlined,
+                      color: PassengerUi.body,
+                    ),
+                    const SizedBox(height: 6),
+                    Text('No credential uploaded', style: PassengerUi.bodyText),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: _isEditing
+                ? _buildEditor(hasCredential)
+                : SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      key: Key('credential-action-${widget.type.storageName}'),
+                      onPressed: _isSaving
+                          ? null
+                          : () => setState(() => _isEditing = true),
+                      icon: Icon(
+                        hasCredential
+                            ? Icons.edit_outlined
+                            : Icons.add_photo_alternate_outlined,
+                      ),
+                      label: Text(actionLabel),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditor(bool hasCredential) {
+    final type = widget.type;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          type.requiresExpiry
+              ? 'Enter a valid expiry date. You can also choose a new image to replace the current credential.'
+              : type == DriverCredentialType.selfie
+              ? 'Capture a clear, current selfie using your camera.'
+              : 'Choose a clear and readable image.',
+          style: PassengerUi.bodyText,
+        ),
+        if (type.requiresExpiry) ...<Widget>[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              key: Key('credential-expiry-${type.storageName}'),
+              onPressed: _isSaving ? null : _pickExpiry,
+              icon: const Icon(Icons.event_outlined),
+              label: Text(
+                _expiry == null
+                    ? 'Choose expiry date'
+                    : 'Expiry: ${_formatDate(_expiry!)}',
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            key: Key('credential-picker-${type.storageName}'),
+            onPressed: _isSaving ? null : _pickCredential,
+            icon: Icon(
+              type == DriverCredentialType.selfie
+                  ? Icons.camera_alt_outlined
+                  : Icons.upload_file_rounded,
+            ),
+            label: Text(
+              _selectedFile == null
+                  ? type == DriverCredentialType.selfie
+                        ? 'Capture selfie'
+                        : 'Choose image'
+                  : type == DriverCredentialType.selfie
+                  ? 'Recapture selfie'
+                  : 'Change selected image',
+            ),
+          ),
+        ),
+        if (_selectedFile != null) ...<Widget>[
+          const SizedBox(height: 12),
+          RegistrationImagePreview(selection: _selectedFile!, height: 180),
+        ],
+        const SizedBox(height: 14),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _isSaving ? null : _cancelEditing,
+                child: const Text('Cancel'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton.icon(
+                key: Key('credential-submit-${type.storageName}'),
+                onPressed:
+                    !_isSaving &&
+                        (_selectedFile != null ||
+                            (hasCredential &&
+                                type.requiresExpiry &&
+                                !_isSameDate(_expiry, widget.expiry))) &&
+                        (!type.requiresExpiry || _expiry != null)
+                    ? _saveCredential
+                    : null,
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: Text(_isSaving ? 'Saving' : 'Save'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickCredential() async {
+    try {
+      final source = widget.type == DriverCredentialType.selfie
+          ? ImageSource.camera
+          : ImageSource.gallery;
+      final file = await _imagePicker.pickImage(source: source);
+      if (file == null) return;
+      final selection = await RegistrationImageSelection.fromXFile(file);
+      if (mounted) setState(() => _selectedFile = selection);
+    } on PlatformException {
+      _showMessage(
+        widget.type == DriverCredentialType.selfie
+            ? 'Unable to open the camera. Check app permissions.'
+            : 'Unable to open the gallery. Check app permissions.',
+      );
+    } on RegistrationImageSelectionException catch (error) {
+      _showMessage(error.message);
+    } catch (_) {
+      _showMessage('Unable to read that image. Please choose another file.');
+    }
+  }
+
+  Future<void> _pickExpiry() async {
+    final now = DateTime.now();
+    final firstDate = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).add(const Duration(days: 1));
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _expiry ?? firstDate.add(const Duration(days: 364)),
+      firstDate: firstDate,
+      lastDate: DateTime(now.year + 10, 12, 31),
+      helpText: 'Select ${widget.type.label} expiry',
+    );
+    if (selected != null && mounted) setState(() => _expiry = selected);
+  }
+
+  Future<void> _saveCredential() async {
+    final file = _selectedFile;
+    if (_isSaving) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await widget.service.saveCredential(
+        driverId: widget.driverId,
+        type: widget.type,
+        document: file,
+        expiry: _expiry,
+      );
+      if (!mounted) return;
+      setState(() {
+        _selectedFile = null;
+        _isEditing = false;
+      });
+      _showMessage(
+        '${widget.type.label} saved and sent for admin verification.',
+      );
+    } on DriverCredentialUpdateException catch (error) {
+      _showMessage(error.message);
+    } catch (error) {
+      _showMessage(
+        userFacingErrorMessage(
+          error,
+          fallback: 'Unable to save the credential. Please try again.',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _isEditing = false;
+      _selectedFile = null;
+      _expiry = _futureExpiryOrNull(widget.expiry);
+    });
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  static DateTime? _futureExpiryOrNull(DateTime? value) {
+    return value != null && value.isAfter(DateTime.now()) ? value : null;
+  }
+
+  static bool _isSameDate(DateTime? first, DateTime? second) {
+    if (first == null || second == null) return first == second;
+    return first.year == second.year &&
+        first.month == second.month &&
+        first.day == second.day;
   }
 }
 
@@ -629,9 +962,8 @@ class _HubTabPage extends StatelessWidget {
 class _HubDocumentCard extends StatelessWidget {
   final String label;
   final String? imageUrl;
-  final DateTime? expiry;
 
-  const _HubDocumentCard({required this.label, this.imageUrl, this.expiry});
+  const _HubDocumentCard({required this.label, this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -645,8 +977,6 @@ class _HubDocumentCard extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 Expanded(child: Text(label, style: PassengerUi.cardTitle)),
-                if (expiry != null)
-                  Text(_formatDate(expiry!), style: PassengerUi.bodyText),
               ],
             ),
           ),

@@ -81,6 +81,25 @@ void main() {
       expect(rules, contains('&& isValidDriverRenewalSubmission(userId);'));
     });
 
+    test('allow narrow owner credential additions and replacements', () {
+      expect(rules, contains('function isValidDriverCredentialUpdate(userId)'));
+      expect(rules, contains('function driverCredentialUpdateFields()'));
+      expect(rules, contains('function isValidCredentialImageChange('));
+      expect(rules, contains('function isValidExpiringCredentialChange('));
+      expect(rules, contains("'nbi_clearance_path'"));
+      expect(rules, contains("'drivers_license_path'"));
+      expect(rules, contains("'selfie_path'"));
+      expect(rules, contains("'or_cr_path'"));
+      expect(
+        rules,
+        contains("request.resource.data.document_upload_status == 'uploaded'"),
+      );
+      expect(rules, contains('request.resource.data.credential_updated_at'));
+      expect(rules, contains('request.resource.data.is_verified == false'));
+      expect(rules, contains('request.resource.data.is_active == false'));
+      expect(rules, contains('&& isValidDriverCredentialUpdate(userId);'));
+    });
+
     test('keep renewal decisions and approved documents admin-controlled', () {
       expect(rules, contains('function driverDocumentAdminFields()'));
       expect(rules, contains('function hasNoProtectedDriverDocumentChanges()'));

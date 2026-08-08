@@ -448,12 +448,21 @@ service cloud.firestore {
 
     function driverDocumentAdminFields() {
       return [
+        'nbi_clearance_url',
+        'nbi_clearance_path',
         'drivers_license_url',
+        'drivers_license_path',
         'drivers_license_expiry',
+        'selfie_url',
+        'selfie_path',
         'or_cr_url',
+        'or_cr_path',
         'or_cr_expiry',
         'document_status',
         'document_status_updated_at',
+        'document_upload_status',
+        'document_upload_error',
+        'credential_updated_at',
         'renewal_status',
         'renewal_document_type',
         'renewal_document_url',
@@ -495,6 +504,156 @@ service cloud.firestore {
         && request.resource.data.renewal_expiry > request.time
         && request.resource.data.renewal_submitted_at == request.time
         && request.resource.data.updated_at == request.time
+        && hasNoRatingAggregateChanges();
+    }
+
+    function driverCredentialUpdateFields() {
+      return [
+        'nbi_clearance_url',
+        'nbi_clearance_path',
+        'drivers_license_url',
+        'drivers_license_path',
+        'drivers_license_expiry',
+        'selfie_url',
+        'selfie_path',
+        'or_cr_url',
+        'or_cr_path',
+        'or_cr_expiry',
+        'document_status',
+        'document_status_updated_at',
+        'document_upload_status',
+        'document_upload_error',
+        'credential_updated_at',
+        'is_verified',
+        'is_active',
+        'updated_at'
+      ];
+    }
+
+    function isValidCredentialImageChange(
+      userId,
+      affectedKeys,
+      urlField,
+      pathField,
+      storageName
+    ) {
+      return !affectedKeys.hasAny([urlField, pathField])
+        || (
+          affectedKeys.hasAll([urlField, pathField])
+          && request.resource.data[urlField] is string
+          && request.resource.data[urlField].size() > 0
+          && request.resource.data[urlField].size() <= 2048
+          && request.resource.data[pathField] is string
+          && request.resource.data[pathField].matches(
+            'users/' + userId + '/credentials/' + storageName + '_[^/]+'
+          )
+        );
+    }
+
+    function isValidExpiringCredentialChange(
+      userId,
+      affectedKeys,
+      urlField,
+      pathField,
+      expiryField,
+      storageName
+    ) {
+      return !affectedKeys.hasAny([urlField, pathField, expiryField])
+        || (
+          request.resource.data[expiryField] is timestamp
+          && request.resource.data[expiryField] > request.time
+          && (
+            (
+              affectedKeys.hasAny([urlField, pathField])
+              && isValidCredentialImageChange(
+                userId,
+                affectedKeys,
+                urlField,
+                pathField,
+                storageName
+              )
+            )
+            || (
+              !affectedKeys.hasAny([urlField, pathField])
+              && affectedKeys.hasAny([expiryField])
+              && request.resource.data[urlField] is string
+              && request.resource.data[urlField].size() > 0
+            )
+          )
+        );
+    }
+
+    function isValidDriverCredentialUpdate(userId) {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let updatesExpiringDocument = affectedKeys.hasAny([
+        'drivers_license_url',
+        'drivers_license_path',
+        'drivers_license_expiry',
+        'or_cr_url',
+        'or_cr_path',
+        'or_cr_expiry'
+      ]);
+      return isSelf(userId)
+        && isDriverRole(resource.data)
+        && affectedKeys.hasOnly(driverCredentialUpdateFields())
+        && affectedKeys.hasAny([
+          'nbi_clearance_url',
+          'drivers_license_url',
+          'drivers_license_expiry',
+          'selfie_url',
+          'or_cr_url',
+          'or_cr_expiry'
+        ])
+        && isValidCredentialImageChange(
+          userId,
+          affectedKeys,
+          'nbi_clearance_url',
+          'nbi_clearance_path',
+          'nbi_clearance'
+        )
+        && isValidExpiringCredentialChange(
+          userId,
+          affectedKeys,
+          'drivers_license_url',
+          'drivers_license_path',
+          'drivers_license_expiry',
+          'drivers_license'
+        )
+        && isValidCredentialImageChange(
+          userId,
+          affectedKeys,
+          'selfie_url',
+          'selfie_path',
+          'selfie'
+        )
+        && isValidExpiringCredentialChange(
+          userId,
+          affectedKeys,
+          'or_cr_url',
+          'or_cr_path',
+          'or_cr_expiry',
+          'or_cr'
+        )
+        && request.resource.data.document_upload_status == 'uploaded'
+        && !request.resource.data.keys().hasAny(['document_upload_error'])
+        && request.resource.data.credential_updated_at == request.time
+        && request.resource.data.is_verified == false
+        && request.resource.data.is_active == false
+        && request.resource.data.updated_at == request.time
+        && (
+          (
+            updatesExpiringDocument
+            && request.resource.data.document_status == 'valid'
+            && request.resource.data.document_status_updated_at == request.time
+          )
+          || (
+            !updatesExpiringDocument
+            && !affectedKeys.hasAny([
+              'document_status',
+              'document_status_updated_at'
+            ])
+          )
+        )
         && hasNoRatingAggregateChanges();
     }
 
@@ -986,6 +1145,8 @@ service cloud.firestore {
         && isValidDriverPayoutSyncUpdate(userId);
       allow update: if !isAdminRole(resource.data)
         && isValidDriverRenewalSubmission(userId);
+      allow update: if !isAdminRole(resource.data)
+        && isValidDriverCredentialUpdate(userId);
       allow update: if !isAdminRole(resource.data)
         && isValidInitialDriverDocumentUpload(userId);
       allow update: if !isAdminRole(resource.data)

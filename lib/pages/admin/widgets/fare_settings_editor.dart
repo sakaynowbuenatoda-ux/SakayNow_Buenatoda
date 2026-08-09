@@ -268,7 +268,9 @@ class _FarePolicyNotice extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AdminUi.soft(AdminUi.accentBlue, alpha: 0.10),
+        color: AdminUi.isDarkMode
+            ? AdminUi.soft(AdminUi.accentBlue, alpha: 0.10)
+            : AdminUi.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AdminUi.border),
       ),

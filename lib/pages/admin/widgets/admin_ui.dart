@@ -20,7 +20,7 @@ class AdminUi {
   static bool get isDarkMode => AppPreferencesController.instance.isDarkMode;
 
   static Color get background =>
-      isDarkMode ? const Color(0xFF0B1018) : const Color(0xFFF6F8FB);
+      isDarkMode ? const Color(0xFF0B1018) : const Color(0xFFFFFFFF);
   static Color get surface =>
       isDarkMode ? const Color(0xFF121923) : const Color(0xFFFFFFFF);
   static Color get elevatedSurface =>
@@ -30,9 +30,9 @@ class AdminUi {
   static Color get subtleSurface =>
       isDarkMode ? const Color(0xFF0F1620) : const Color(0xFFF8FAFC);
   static Color get border =>
-      isDarkMode ? const Color(0xFF273548) : const Color(0xFFE2E8F0);
+      isDarkMode ? const Color(0xFF273548) : const Color(0xFFD9DDE2);
   static Color get strongBorder =>
-      isDarkMode ? const Color(0xFF3A4A61) : const Color(0xFFCBD5E1);
+      isDarkMode ? const Color(0xFF3A4A61) : const Color(0xFFC9CED5);
 
   static Color get title =>
       isDarkMode ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A);

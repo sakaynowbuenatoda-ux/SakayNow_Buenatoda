@@ -100,7 +100,7 @@ class AdminMetricCard extends StatelessWidget {
               lowerText.contains('pending') ||
               lowerText.contains('queue') ||
               lowerText.contains('waiting');
-          final cardColor = isPendingOrQueueMetric
+          final cardColor = AdminUi.isDarkMode && isPendingOrQueueMetric
               ? AdminUi.soft(AdminUi.danger, alpha: 0.025)
               : AdminUi.surface;
           final effectiveAccentColor = isPendingOrQueueMetric

@@ -639,11 +639,9 @@ class _ModernOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = Color.lerp(
-      AdminUi.surface,
-      accentColor,
-      AdminUi.isDarkMode ? 0.10 : 0.035,
-    );
+    final background = AdminUi.isDarkMode
+        ? Color.lerp(AdminUi.surface, accentColor, 0.10)
+        : AdminUi.surface;
 
     return AdminSurfaceCard(
       color: background,

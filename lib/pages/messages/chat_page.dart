@@ -20,6 +20,8 @@ class ChatPage extends StatefulWidget {
   final String currentUserRole;
   final String title;
   final String subtitle;
+  final bool embedded;
+  final VoidCallback? onClose;
 
   const ChatPage({
     super.key,
@@ -28,6 +30,8 @@ class ChatPage extends StatefulWidget {
     required this.currentUserRole,
     required this.title,
     required this.subtitle,
+    this.embedded = false,
+    this.onClose,
   });
 
   @override
@@ -98,6 +102,75 @@ class _ChatPageState extends State<ChatPage> {
     required ChatConversation? conversation,
     required _ChatTarget target,
   }) {
+    final chatContent = Column(
+      children: <Widget>[
+        Expanded(
+          child: _MessageList(
+            chatService: _chatService,
+            conversationId: widget.conversationId,
+            currentUserId: widget.currentUserId,
+            conversation: conversation,
+            target: target,
+            pendingMessages: List<_PendingChatMessage>.unmodifiable(
+              _pendingMessages,
+            ),
+            onPendingMessagesConfirmed: _removeConfirmedPendingMessages,
+            scrollController: _scrollController,
+            onMessagesRendered: () {
+              _scrollToBottom();
+              unawaited(_markConversationRead());
+            },
+          ),
+        ),
+        _MessageComposer(
+          controller: _messageController,
+          isSending: _isSending,
+          canSend: _hasText && !_isSending,
+          onSend: _sendMessage,
+          embedded: widget.embedded,
+        ),
+      ],
+    );
+
+    if (widget.embedded) {
+      return ColoredBox(
+        color: PassengerUi.background,
+        child: Column(
+          children: <Widget>[
+            Container(
+              constraints: const BoxConstraints(minHeight: 68),
+              padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+              decoration: BoxDecoration(
+                color: PassengerUi.surface,
+                border: Border(bottom: BorderSide(color: PassengerUi.border)),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _ChatHeader(
+                      target: target,
+                      onTap: _profileTapFor(target),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: widget.onClose,
+                    tooltip: 'Close conversation',
+                    style: IconButton.styleFrom(
+                      foregroundColor: PassengerUi.body,
+                      hoverColor: PassengerUi.mutedSurface,
+                    ),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(child: chatContent),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: isAdminStaffRole(widget.currentUserRole)
@@ -116,34 +189,7 @@ class _ChatPageState extends State<ChatPage> {
           maxContentWidth: isAdminStaffRole(widget.currentUserRole)
               ? PassengerUi.settingsContentWidth
               : null,
-          child: Column(
-            children: <Widget>[
-              Expanded(
-                child: _MessageList(
-                  chatService: _chatService,
-                  conversationId: widget.conversationId,
-                  currentUserId: widget.currentUserId,
-                  conversation: conversation,
-                  target: target,
-                  pendingMessages: List<_PendingChatMessage>.unmodifiable(
-                    _pendingMessages,
-                  ),
-                  onPendingMessagesConfirmed: _removeConfirmedPendingMessages,
-                  scrollController: _scrollController,
-                  onMessagesRendered: () {
-                    _scrollToBottom();
-                    unawaited(_markConversationRead());
-                  },
-                ),
-              ),
-              _MessageComposer(
-                controller: _messageController,
-                isSending: _isSending,
-                canSend: _hasText && !_isSending,
-                onSend: _sendMessage,
-              ),
-            ],
-          ),
+          child: chatContent,
         ),
       ),
     );
@@ -865,19 +911,23 @@ class _MessageComposer extends StatelessWidget {
   final bool isSending;
   final bool canSend;
   final VoidCallback onSend;
+  final bool embedded;
 
   const _MessageComposer({
     required this.controller,
     required this.isSending,
     required this.canSend,
     required this.onSend,
+    required this.embedded,
   });
 
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final keyboardOpen = mediaQuery.viewInsets.bottom > 0;
-    final bottomPadding = keyboardOpen
+    final bottomPadding = embedded
+        ? 12.0
+        : keyboardOpen
         ? 12.0
         : mediaQuery.viewPadding.bottom + 14;
 

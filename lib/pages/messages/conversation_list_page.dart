@@ -145,27 +145,37 @@ class _ConversationListPageState extends State<ConversationListPage> {
                     ...filteredConversations.asMap().entries.map((entry) {
                       final conversation = entry.value;
                       final targetUserId = _targetUserIdFor(conversation);
+                      final isLast =
+                          entry.key == filteredConversations.length - 1;
 
-                      return Padding(
+                      return Column(
                         key: ValueKey<String>(
                           'conversation_${conversation.conversationId}',
                         ),
-                        padding: EdgeInsets.only(
-                          bottom: entry.key == filteredConversations.length - 1
-                              ? 0
-                              : 12,
-                        ),
-                        child: _ConversationCard(
-                          conversation: conversation,
-                          currentUserId: widget.currentUserId,
-                          currentUserRole: widget.currentUserRole,
-                          avatarIdentity:
-                              targetUserId ?? conversation.conversationId,
-                          targetProfileFuture: _profileFutureForTarget(
-                            targetUserId,
+                        children: <Widget>[
+                          _ConversationTile(
+                            conversation: conversation,
+                            currentUserId: widget.currentUserId,
+                            currentUserRole: widget.currentUserRole,
+                            avatarIdentity:
+                                targetUserId ?? conversation.conversationId,
+                            targetProfileFuture: _profileFutureForTarget(
+                              targetUserId,
+                            ),
+                            onTap: () => _openConversation(conversation),
                           ),
-                          onTap: () => _openConversation(conversation),
-                        ),
+                          if (!isLast)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 68),
+                              child: Divider(
+                                height: 1,
+                                thickness: 1,
+                                color: PassengerUi.border.withValues(
+                                  alpha: 0.72,
+                                ),
+                              ),
+                            ),
+                        ],
                       );
                     }),
                 ],
@@ -484,7 +494,7 @@ class _ConversationSearchField extends StatelessWidget {
   }
 }
 
-class _ConversationCard extends StatelessWidget {
+class _ConversationTile extends StatelessWidget {
   final ChatConversation conversation;
   final String currentUserId;
   final String currentUserRole;
@@ -492,7 +502,7 @@ class _ConversationCard extends StatelessWidget {
   final Future<ChatParticipantProfile?>? targetProfileFuture;
   final VoidCallback onTap;
 
-  const _ConversationCard({
+  const _ConversationTile({
     required this.conversation,
     required this.currentUserId,
     required this.currentUserRole,
@@ -517,134 +527,152 @@ class _ConversationCard extends StatelessWidget {
       currentUserRole: currentUserRole,
     );
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: PassengerUi.cardRadius,
-        border: hasUnread
-            ? Border.all(color: PassengerUi.accentBlue, width: 1.4)
-            : null,
-        boxShadow: hasUnread
-            ? <BoxShadow>[
-                BoxShadow(
-                  color: PassengerUi.accentBlue.withValues(alpha: 0.10),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ]
-            : null,
-      ),
-      child: PassengerSurfaceCard(
-        padding: EdgeInsets.zero,
-        child: InkWell(
-          borderRadius: PassengerUi.cardRadius,
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
+    return _ConversationTapTarget(
+      semanticLabel: 'Open conversation with $title',
+      highlighted: hasUnread,
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 42,
+            height: 42,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: hasUnread
+                  ? PassengerUi.mutedSurface
+                  : PassengerUi.mutedSurface,
+              shape: BoxShape.circle,
+            ),
+            child: _ConversationAvatar(
+              key: ValueKey<String>('conversation_avatar_$avatarIdentity'),
+              title: title,
+              isSupport: conversation.isSupport,
+              avatarIdentity: avatarIdentity,
+              profileFuture: targetProfileFuture,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Container(
-                  width: 42,
-                  height: 42,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: hasUnread
-                        ? PassengerUi.mutedSurface
-                        : PassengerUi.mutedSurface,
-                    shape: BoxShape.circle,
-                  ),
-                  child: _ConversationAvatar(
-                    key: ValueKey<String>(
-                      'conversation_avatar_$avatarIdentity',
-                    ),
-                    title: title,
-                    isSupport: conversation.isSupport,
-                    avatarIdentity: avatarIdentity,
-                    profileFuture: targetProfileFuture,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Row(
                         children: <Widget>[
-                          Expanded(
-                            child: Row(
-                              children: <Widget>[
-                                Flexible(
-                                  child: Text(
-                                    title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: PassengerUi.cardTitle.copyWith(
-                                      color: PassengerUi.title,
-                                      fontSize: 15,
-                                      fontWeight: hasUnread
-                                          ? FontWeight.w800
-                                          : FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                _ConversationRoleLabel(label: roleLabel),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          TimeAgoText(
-                            dateTime: conversation.latestActivityAt,
-                            style: PassengerUi.bodyText.copyWith(
-                              fontSize: 12,
-                              color: hasUnread
-                                  ? PassengerUi.title
-                                  : PassengerUi.body,
-                              fontWeight: hasUnread
-                                  ? FontWeight.w700
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Row(
-                        children: <Widget>[
-                          Icon(
-                            Icons.chat_bubble_outline_rounded,
-                            color: hasUnread
-                                ? PassengerUi.title
-                                : PassengerUi.body,
-                            size: 15,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
+                          Flexible(
                             child: Text(
-                              conversation.previewFor(currentUserId),
+                              title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: PassengerUi.bodyText.copyWith(
-                                color: hasUnread
-                                    ? PassengerUi.title
-                                    : PassengerUi.body,
-                                fontSize: 13,
+                              style: PassengerUi.cardTitle.copyWith(
+                                color: PassengerUi.title,
+                                fontSize: 15,
                                 fontWeight: hasUnread
-                                    ? FontWeight.w700
-                                    : FontWeight.w400,
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
                               ),
                             ),
                           ),
-                          if (hasUnread) ...<Widget>[
-                            const SizedBox(width: 8),
-                            _UnreadCountBadge(unreadCount: unreadCount),
-                          ],
+                          const SizedBox(width: 8),
+                          _ConversationRoleLabel(label: roleLabel),
                         ],
                       ),
+                    ),
+                    const SizedBox(width: 10),
+                    TimeAgoText(
+                      dateTime: conversation.latestActivityAt,
+                      style: PassengerUi.bodyText.copyWith(
+                        fontSize: 12,
+                        color: hasUnread ? PassengerUi.title : PassengerUi.body,
+                        fontWeight: hasUnread
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      color: hasUnread ? PassengerUi.title : PassengerUi.body,
+                      size: 15,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        conversation.previewFor(currentUserId),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: PassengerUi.bodyText.copyWith(
+                          color: hasUnread
+                              ? PassengerUi.title
+                              : PassengerUi.body,
+                          fontSize: 13,
+                          fontWeight: hasUnread
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                    if (hasUnread) ...<Widget>[
+                      const SizedBox(width: 8),
+                      _UnreadCountBadge(unreadCount: unreadCount),
                     ],
-                  ),
+                  ],
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConversationTapTarget extends StatelessWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  final EdgeInsetsGeometry padding;
+  final String semanticLabel;
+  final bool highlighted;
+
+  const _ConversationTapTarget({
+    required this.child,
+    required this.onTap,
+    required this.padding,
+    required this.semanticLabel,
+    required this.highlighted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: Material(
+        color: highlighted
+            ? PassengerUi.accentBlue.withValues(
+                alpha: PassengerUi.isDarkMode ? 0.10 : 0.05,
+              )
+            : Colors.transparent,
+        borderRadius: PassengerUi.cardRadius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: PassengerUi.mutedSurface.withValues(alpha: 0.72),
+          focusColor: PassengerUi.blueSoft,
+          splashColor: PassengerUi.accentBlue.withValues(alpha: 0.08),
+          child: Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(minHeight: 70),
+            padding: padding,
+            child: child,
           ),
         ),
       ),

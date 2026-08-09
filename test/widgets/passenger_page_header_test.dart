@@ -56,4 +56,23 @@ void main() {
     expect(find.text('Payment Methods'), findsOneWidget);
     expect(find.byIcon(Icons.credit_card_rounded), findsOneWidget);
   });
+
+  testWidgets('page header can omit its decorative icon', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: PassengerPageHeader(
+            title: 'Settings',
+            subtitle: 'Manage the admin console preferences.',
+            icon: Icons.settings_suggest_rounded,
+            showIcon: false,
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.byIcon(Icons.settings_suggest_rounded), findsNothing);
+  });
 }

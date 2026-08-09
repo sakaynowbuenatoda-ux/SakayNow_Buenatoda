@@ -407,7 +407,6 @@ class _AdminRecordListLayout extends StatelessWidget {
           subtitle: listType.metricHelper,
           count: count.toString(),
           countLabel: listType.metricLabel,
-          icon: listType.icon,
           accentColor: listType.accentColor,
         ),
         SizedBox(height: 12),

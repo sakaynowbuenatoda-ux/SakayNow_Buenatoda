@@ -68,8 +68,6 @@ class AdminAccountManagementPage extends StatelessWidget {
                   title: 'Retention Policy',
                   description:
                       'Deactivated accounts can be restored by an admin within 60 days. After that, personal account identity is anonymized or deleted, while booking and transaction records may be retained for up to 5 years.',
-                  icon: Icons.privacy_tip_outlined,
-                  accentColor: AdminUi.accentBlue,
                 ),
               ),
               SizedBox(height: 18),
@@ -179,7 +177,6 @@ class _AccountMetricsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _AccountSurfacePanel(
-      icon: Icons.manage_accounts_rounded,
       title: 'Account Metrics',
       subtitle: 'Tap a card to open the related review page.',
       accentColor: AdminUi.accentBlue,
@@ -289,7 +286,6 @@ class _VerificationQueuesPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _AccountSurfacePanel(
-      icon: Icons.verified_user_outlined,
       title: 'Verification Queues',
       subtitle: pendingUsers == 0
           ? 'There are currently no accounts waiting for review.'
@@ -362,7 +358,6 @@ class _RestrictedReviewPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _AccountSurfacePanel(
-      icon: Icons.block_rounded,
       title: 'Restricted Account Review',
       subtitle: restrictedUsers == 0
           ? 'There are no restricted accounts that need follow-up right now.'
@@ -397,14 +392,12 @@ class _RestrictedReviewPanel extends StatelessWidget {
 }
 
 class _AccountSurfacePanel extends StatelessWidget {
-  final IconData icon;
   final String title;
   final String subtitle;
   final Color accentColor;
   final Widget child;
 
   const _AccountSurfacePanel({
-    required this.icon,
     required this.title,
     required this.subtitle,
     required this.accentColor,
@@ -428,19 +421,6 @@ class _AccountSurfacePanel extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AdminUi.soft(accentColor, alpha: 0.14),
-                  borderRadius: AdminUi.radius,
-                  border: Border.all(
-                    color: accentColor.withValues(alpha: 0.16),
-                  ),
-                ),
-                child: Icon(icon, color: accentColor, size: 20),
-              ),
-              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

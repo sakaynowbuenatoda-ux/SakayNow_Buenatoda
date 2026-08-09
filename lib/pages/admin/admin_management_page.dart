@@ -105,7 +105,6 @@ class AdminManagementPage extends StatelessWidget {
                       systemCommissionTotal: systemCommissionTotal,
                     ),
                     fareEditor: _ManagementSurfacePanel(
-                      icon: Icons.tune_rounded,
                       title: 'Fare Management',
                       subtitle:
                           'Update the service-wide fare rules admins control.',
@@ -124,7 +123,6 @@ class AdminManagementPage extends StatelessWidget {
                   const SizedBox(height: 20),
                   _ManagementBottomGrid(
                     payment: _ManagementSurfacePanel(
-                      icon: Icons.payments_rounded,
                       title: 'Payment Management',
                       subtitle:
                           'Review cashless readiness and settlement status.',
@@ -133,16 +131,12 @@ class AdminManagementPage extends StatelessWidget {
                         children: [
                           AdminInfoPanel(
                             title: 'Cashless readiness',
-                            icon: Icons.payments_rounded,
-                            accentColor: AdminUi.secondary,
                             description:
                                 '$cashlessTrips trip(s) use a cashless method such as GCash, Maya, or card checkout. Payment setup remains separate from account management.',
                           ),
                           const SizedBox(height: 12),
                           AdminInfoPanel(
                             title: 'Payment settlement',
-                            icon: Icons.fact_check_rounded,
-                            accentColor: AdminUi.highlightAmber,
                             description:
                                 '$settledPaymentTrips payment(s) are settled, while $pendingPaymentTrips still need checkout completion or cash collection.',
                           ),
@@ -150,14 +144,11 @@ class AdminManagementPage extends StatelessWidget {
                       ),
                     ),
                     records: _ManagementSurfacePanel(
-                      icon: Icons.folder_copy_rounded,
                       title: 'Ride History Management',
                       subtitle: 'Keep closed trips ready for review.',
                       accentColor: AdminUi.accentBlue,
                       child: AdminInfoPanel(
                         title: 'Trip history readiness',
-                        icon: Icons.folder_copy_rounded,
-                        accentColor: AdminUi.accentBlue,
                         description:
                             '$closedTripRecords closed trip(s) are available for reports, payment review, and fare transparency checks. Live dispatch stays in Monitoring.',
                       ),
@@ -223,7 +214,6 @@ class _AdminAccountsPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ManagementSurfacePanel(
-      icon: Icons.admin_panel_settings_rounded,
       title: 'Admin Accounts',
       subtitle: 'Message or deactivate secondary admin accounts.',
       accentColor: AdminUi.primary,
@@ -318,7 +308,6 @@ class _AdminLogsPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ManagementSurfacePanel(
-      icon: Icons.history_rounded,
       title: 'Admin Action Logs',
       subtitle: 'Recent admin account, fare, and moderation actions.',
       accentColor: AdminUi.accentBlue,
@@ -402,8 +391,6 @@ class _AdminLogPreviewRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.history_rounded, color: AdminUi.accentBlue, size: 20),
-          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -811,7 +798,6 @@ class _ManagementMetricsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ManagementSurfacePanel(
-      icon: Icons.analytics_rounded,
       title: 'Management Metrics',
       subtitle:
           'A quick snapshot of fare, payment, and ride history readiness.',
@@ -887,14 +873,12 @@ class _ManagementMetricsPanel extends StatelessWidget {
 }
 
 class _ManagementSurfacePanel extends StatelessWidget {
-  final IconData icon;
   final String title;
   final String subtitle;
   final Color accentColor;
   final Widget child;
 
   const _ManagementSurfacePanel({
-    required this.icon,
     required this.title,
     required this.subtitle,
     required this.accentColor,
@@ -918,19 +902,6 @@ class _ManagementSurfacePanel extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AdminUi.soft(accentColor, alpha: 0.14),
-                  borderRadius: AdminUi.radius,
-                  border: Border.all(
-                    color: accentColor.withValues(alpha: 0.16),
-                  ),
-                ),
-                child: Icon(icon, color: accentColor, size: 20),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

@@ -100,7 +100,6 @@ class _AdminRestrictedUsersPageState extends State<AdminRestrictedUsersPage> {
                       'Review accounts blocked by admin decisions and restore access when the review is complete.',
                   count: users.length.toString(),
                   countLabel: 'Accounts',
-                  icon: Icons.block_rounded,
                   accentColor: AdminUi.highlightAmber,
                 ),
                 SizedBox(height: 12),

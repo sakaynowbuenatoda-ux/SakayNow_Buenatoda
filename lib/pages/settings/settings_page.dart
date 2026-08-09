@@ -294,6 +294,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Personalize your account, alerts, security, and app display.',
             icon: Icons.settings_suggest_rounded,
             accentColor: PassengerUi.primary,
+            showIcon: !widget.embeddedInAdmin,
           ),
           SizedBox(height: 16),
           SettingsSectionCard(title: 'Account Settings', items: accountItems),

@@ -190,24 +190,18 @@ class AdminMonitoringPage extends StatelessWidget {
                       SizedBox(height: 12),
                       AdminInfoPanel(
                         title: 'Dispatch readiness',
-                        icon: Icons.health_and_safety_rounded,
-                        accentColor: AdminUi.secondary,
                         description:
                             '${monitoring.availableDrivers} online driver(s) are trackable while ${monitoring.queuedTrips} request(s) are queued. Monitor this during peak hours to avoid passenger wait times.',
                       ),
                       SizedBox(height: 12),
                       AdminInfoPanel(
                         title: 'Verification pressure',
-                        icon: Icons.fact_check_rounded,
-                        accentColor: AdminUi.highlightAmber,
                         description:
                             '${monitoring.pendingVerification} account(s) still need approval before they can fully use the platform.',
                       ),
                       SizedBox(height: 12),
                       AdminInfoPanel(
                         title: 'Completed service volume',
-                        icon: Icons.task_alt_rounded,
-                        accentColor: AdminUi.successText,
                         description:
                             '${monitoring.completedTrips} completed trip(s) are available for admin review and service tracking.',
                       ),

@@ -96,20 +96,6 @@ class _AdminLiveDriverMapContentState
         children: [
           Row(
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AdminUi.soft(AdminUi.secondary),
-                  borderRadius: AdminUi.radius,
-                ),
-                child: Icon(
-                  Icons.map_rounded,
-                  color: AdminUi.secondary,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

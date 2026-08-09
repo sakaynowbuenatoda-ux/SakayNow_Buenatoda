@@ -11,6 +11,7 @@ class AdminUi {
   static const double detailContentWidth = 760;
   static const double formContentWidth = 860;
   static const double sidebarWidth = 272;
+  static const double collapsedSidebarWidth = 80;
   static const double appBarHeight = 72;
   static const double metricCardMinWidth = 144;
   static const double metricCardMaxWidth = 220;
@@ -369,23 +370,17 @@ class _AdminInteractiveCardState extends State<AdminInteractiveCard> {
 class AdminPageHeader extends StatelessWidget {
   final String title;
   final String subtitle;
-  final IconData icon;
-  final Color? accentColor;
   final bool dense;
 
   const AdminPageHeader({
     super.key,
     required this.title,
     required this.subtitle,
-    required this.icon,
-    this.accentColor,
     this.dense = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = accentColor ?? AdminUi.accent;
-
     return AdminSurfaceCard(
       padding: EdgeInsets.symmetric(
         horizontal: dense ? 16 : 20,
@@ -393,16 +388,6 @@ class AdminPageHeader extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          Container(
-            width: dense ? 34 : 38,
-            height: dense ? 34 : 38,
-            decoration: BoxDecoration(
-              color: AdminUi.soft(color),
-              borderRadius: AdminUi.radius,
-            ),
-            child: Icon(icon, color: color, size: dense ? 18 : 20),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -436,7 +421,6 @@ class AdminCountPageHeader extends StatelessWidget {
   final String subtitle;
   final String count;
   final String countLabel;
-  final IconData icon;
   final Color accentColor;
 
   const AdminCountPageHeader({
@@ -445,7 +429,6 @@ class AdminCountPageHeader extends StatelessWidget {
     required this.subtitle,
     required this.count,
     required this.countLabel,
-    required this.icon,
     required this.accentColor,
   });
 
@@ -455,17 +438,6 @@ class AdminCountPageHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       child: Row(
         children: <Widget>[
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: AdminUi.soft(accentColor, alpha: 0.14),
-              borderRadius: AdminUi.radius,
-              border: Border.all(color: accentColor.withValues(alpha: 0.12)),
-            ),
-            child: Icon(icon, color: accentColor, size: 21),
-          ),
-          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

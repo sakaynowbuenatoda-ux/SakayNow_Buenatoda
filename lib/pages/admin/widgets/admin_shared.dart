@@ -36,20 +36,6 @@ class AdminSectionIntro extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AdminUi.soft(AdminUi.accent),
-                    borderRadius: AdminUi.radius,
-                  ),
-                  child: Icon(
-                    Icons.admin_panel_settings_rounded,
-                    color: AdminUi.accent,
-                    size: 19,
-                  ),
-                ),
-                const SizedBox(width: 12),
                 Expanded(child: Text(title, style: AdminUi.pageTitle)),
                 if (actions.isNotEmpty && !stackActions) ...[
                   const SizedBox(width: 12),
@@ -276,7 +262,6 @@ class AdminQueueUserTile extends StatelessWidget {
 }
 
 class AdminCapabilityTile extends StatelessWidget {
-  final IconData icon;
   final String title;
   final String description;
   final String status;
@@ -284,7 +269,6 @@ class AdminCapabilityTile extends StatelessWidget {
 
   const AdminCapabilityTile({
     super.key,
-    required this.icon,
     required this.title,
     required this.description,
     required this.status,
@@ -298,16 +282,6 @@ class AdminCapabilityTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AdminUi.soft(accentColor),
-              borderRadius: AdminUi.radius,
-            ),
-            child: Icon(icon, color: accentColor, size: 19),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -723,15 +697,11 @@ class AdminErrorCard extends StatelessWidget {
 class AdminInfoPanel extends StatelessWidget {
   final String title;
   final String description;
-  final IconData icon;
-  final Color accentColor;
 
   const AdminInfoPanel({
     super.key,
     required this.title,
     required this.description,
-    required this.icon,
-    required this.accentColor,
   });
 
   @override
@@ -740,16 +710,6 @@ class AdminInfoPanel extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AdminUi.soft(accentColor),
-              borderRadius: AdminUi.radius,
-            ),
-            child: Icon(icon, color: accentColor),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -51,7 +51,6 @@ class FareSettingsEditor extends StatelessWidget {
             _FareSummaryGrid(settings: settings),
             const SizedBox(height: 12),
             _FarePolicyNotice(
-              icon: Icons.route_rounded,
               title: 'Driver pickup pricing',
               description: settings.driverPickupSurchargeDescription,
             ),
@@ -258,15 +257,10 @@ class _FareValueTile extends StatelessWidget {
 }
 
 class _FarePolicyNotice extends StatelessWidget {
-  final IconData icon;
   final String title;
   final String description;
 
-  const _FarePolicyNotice({
-    required this.icon,
-    required this.title,
-    required this.description,
-  });
+  const _FarePolicyNotice({required this.title, required this.description});
 
   @override
   Widget build(BuildContext context) {
@@ -281,8 +275,6 @@ class _FarePolicyNotice extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(icon, size: 20, color: AdminUi.accentBlue),
-          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -409,20 +401,6 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
               padding: const EdgeInsets.fromLTRB(20, 18, 12, 18),
               child: Row(
                 children: <Widget>[
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: AdminUi.blueSoft,
-                      borderRadius: AdminUi.radius,
-                    ),
-                    child: Icon(
-                      Icons.price_change_rounded,
-                      color: AdminUi.accentBlue,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,7 +436,6 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         _FareEditorSection(
-                          icon: Icons.location_city_outlined,
                           title: 'Buenavista base fares',
                           description:
                               'Set the standard rates for trips within the municipality.',
@@ -477,7 +454,6 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
                         ),
                         const SizedBox(height: 14),
                         _FareEditorSection(
-                          icon: Icons.route_outlined,
                           title: 'Distance-based fares',
                           description:
                               'Keep each tier equal to or higher than the tier before it.',
@@ -508,7 +484,6 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
                         ),
                         const SizedBox(height: 14),
                         _FareEditorSection(
-                          icon: Icons.tune_rounded,
                           title: 'Passenger discounts and commission',
                           description:
                               'Regular discounts apply automatically. Student and senior discounts require a verified account.',
@@ -539,7 +514,6 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
                         ),
                         const SizedBox(height: 14),
                         _FareEditorSection(
-                          icon: Icons.two_wheeler_outlined,
                           title: 'Driver pickup add-on',
                           description:
                               'Charge per extra barangay between the selected driver and pickup. Set both values to 0 to disable it.',
@@ -854,13 +828,11 @@ class _FareSettingsDialogState extends State<_FareSettingsDialog> {
 }
 
 class _FareEditorSection extends StatelessWidget {
-  final IconData icon;
   final String title;
   final String description;
   final Widget child;
 
   const _FareEditorSection({
-    required this.icon,
     required this.title,
     required this.description,
     required this.child,
@@ -882,16 +854,6 @@ class _FareEditorSection extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: AdminUi.blueSoft,
-                  borderRadius: AdminUi.radius,
-                ),
-                child: Icon(icon, color: AdminUi.accentBlue, size: 18),
-              ),
-              const SizedBox(width: 11),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

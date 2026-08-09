@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../config/app_assets.dart';
 import '../../core/preferences/app_preferences_controller.dart';
 import '../../core/session/session_service.dart';
 import '../../services/chat_service.dart';
@@ -9,7 +10,6 @@ import '../../services/notification_service.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/animated_tab_switcher.dart';
 import '../../widgets/admin_widgets/admin_appbar.dart';
-import '../../widgets/firebase_storage_image.dart';
 import '../notifications/notifications_page.dart';
 import '../profile/profile_page.dart';
 import '../settings/settings_page.dart';
@@ -47,6 +47,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
   int _currentIndex = 0;
   int _notificationUnreadCount = 0;
   int _messageUnreadCount = 0;
+  bool _isSidebarCollapsed = false;
   _AdminUtilityDestination? _activeUtilityDestination;
 
   @override
@@ -168,7 +169,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       backgroundColor: AdminUi.background,
       appBar: AdminAppBar(
         adminName: widget.firstName.isEmpty ? 'Admin' : widget.firstName,
-        appName: 'SakayNow Admin',
+        appName: 'SakayNow Buenatoda',
         profileImageUrl: widget.profileImageUrl,
         showMenuButton: !useDesktopLayout,
         onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
@@ -182,7 +183,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
           ? null
           : _AdminDrawer(
               firstName: widget.firstName,
-              profileImageUrl: widget.profileImageUrl,
               currentIndex: _currentIndex,
               activeUtilityDestination: _activeUtilityDestination,
               messageUnreadCount: _messageUnreadCount,
@@ -207,8 +207,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
           ? Row(
               children: [
                 _AdminSidebar(
+                  collapsed: _isSidebarCollapsed,
                   firstName: widget.firstName,
-                  profileImageUrl: widget.profileImageUrl,
                   currentIndex: _currentIndex,
                   activeUtilityDestination: _activeUtilityDestination,
                   messageUnreadCount: _messageUnreadCount,
@@ -222,6 +222,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
                     _AdminUtilityDestination.settings,
                   ),
                   onLogout: _showLogoutConfirmation,
+                  onToggleCollapsed: () => setState(
+                    () => _isSidebarCollapsed = !_isSidebarCollapsed,
+                  ),
                 ),
                 Expanded(child: tabBody),
               ],
@@ -313,8 +316,8 @@ const List<_AdminDestination> _adminDestinations = <_AdminDestination>[
 ];
 
 class _AdminSidebar extends StatelessWidget {
+  final bool collapsed;
   final String firstName;
-  final String? profileImageUrl;
   final int currentIndex;
   final _AdminUtilityDestination? activeUtilityDestination;
   final int messageUnreadCount;
@@ -322,10 +325,11 @@ class _AdminSidebar extends StatelessWidget {
   final VoidCallback onOpenProfile;
   final VoidCallback onOpenSettings;
   final VoidCallback onLogout;
+  final VoidCallback onToggleCollapsed;
 
   const _AdminSidebar({
+    required this.collapsed,
     required this.firstName,
-    required this.profileImageUrl,
     required this.currentIndex,
     required this.activeUtilityDestination,
     required this.messageUnreadCount,
@@ -333,19 +337,22 @@ class _AdminSidebar extends StatelessWidget {
     required this.onOpenProfile,
     required this.onOpenSettings,
     required this.onLogout,
+    required this.onToggleCollapsed,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: AdminUi.sidebarWidth,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      width: collapsed ? AdminUi.collapsedSidebarWidth : AdminUi.sidebarWidth,
+      clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
         color: AdminUi.surface,
         border: Border(right: BorderSide(color: AdminUi.border)),
       ),
       child: _AdminNavigationContent(
         firstName: firstName,
-        profileImageUrl: profileImageUrl,
         currentIndex: currentIndex,
         activeUtilityDestination: activeUtilityDestination,
         messageUnreadCount: messageUnreadCount,
@@ -353,6 +360,8 @@ class _AdminSidebar extends StatelessWidget {
         onOpenProfile: onOpenProfile,
         onOpenSettings: onOpenSettings,
         onLogout: onLogout,
+        sidebarCollapsed: collapsed,
+        onToggleSidebar: onToggleCollapsed,
       ),
     );
   }
@@ -360,7 +369,6 @@ class _AdminSidebar extends StatelessWidget {
 
 class _AdminDrawer extends StatelessWidget {
   final String firstName;
-  final String? profileImageUrl;
   final int currentIndex;
   final _AdminUtilityDestination? activeUtilityDestination;
   final int messageUnreadCount;
@@ -371,7 +379,6 @@ class _AdminDrawer extends StatelessWidget {
 
   const _AdminDrawer({
     required this.firstName,
-    required this.profileImageUrl,
     required this.currentIndex,
     required this.activeUtilityDestination,
     required this.messageUnreadCount,
@@ -387,7 +394,6 @@ class _AdminDrawer extends StatelessWidget {
       backgroundColor: AdminUi.surface,
       child: _AdminNavigationContent(
         firstName: firstName,
-        profileImageUrl: profileImageUrl,
         currentIndex: currentIndex,
         activeUtilityDestination: activeUtilityDestination,
         messageUnreadCount: messageUnreadCount,
@@ -402,7 +408,6 @@ class _AdminDrawer extends StatelessWidget {
 
 class _AdminNavigationContent extends StatelessWidget {
   final String firstName;
-  final String? profileImageUrl;
   final int currentIndex;
   final _AdminUtilityDestination? activeUtilityDestination;
   final int messageUnreadCount;
@@ -410,10 +415,11 @@ class _AdminNavigationContent extends StatelessWidget {
   final VoidCallback onOpenProfile;
   final VoidCallback onOpenSettings;
   final VoidCallback onLogout;
+  final bool sidebarCollapsed;
+  final VoidCallback? onToggleSidebar;
 
   const _AdminNavigationContent({
     required this.firstName,
-    required this.profileImageUrl,
     required this.currentIndex,
     required this.activeUtilityDestination,
     required this.messageUnreadCount,
@@ -421,6 +427,8 @@ class _AdminNavigationContent extends StatelessWidget {
     required this.onOpenProfile,
     required this.onOpenSettings,
     required this.onLogout,
+    this.sidebarCollapsed = false,
+    this.onToggleSidebar,
   });
 
   @override
@@ -428,138 +436,192 @@ class _AdminNavigationContent extends StatelessWidget {
     final name = firstName.isEmpty ? 'Admin' : firstName;
 
     return SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: AdminUi.radius,
-              child: InkWell(
-                onTap: () => onDestinationSelected(0),
-                borderRadius: AdminUi.radius,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
-                  child: Row(
-                    children: [
-                      _AdminNavAvatar(
-                        name: name,
-                        profileImageUrl: profileImageUrl,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Admin Console', style: AdminUi.cardTitle),
-                            const SizedBox(height: 2),
-                            Text(name, style: AdminUi.bodyText),
-                          ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 180;
+
+          return Column(
+            children: [
+              _AdminSidebarHeader(
+                adminName: name,
+                compact: compact,
+                collapsed: sidebarCollapsed,
+                onHomeTap: () => onDestinationSelected(0),
+                onToggleSidebar: onToggleSidebar,
+              ),
+              Divider(height: 1, color: AdminUi.border),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    compact ? 10 : 12,
+                    compact ? 14 : 18,
+                    compact ? 10 : 12,
+                    14,
+                  ),
+                  children: [
+                    if (!compact)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                        child: Text(
+                          'WORKSPACE',
+                          style: AdminUi.labelText.copyWith(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.9,
+                          ),
                         ),
                       ),
-                    ],
-                  ),
+                    for (final entry in _adminDestinations.asMap().entries)
+                      _AdminNavItem(
+                        icon: entry.value.icon,
+                        label: entry.value.label,
+                        compact: compact,
+                        selected:
+                            activeUtilityDestination == null &&
+                            currentIndex == entry.key,
+                        unreadCount: entry.value.label == 'Messages'
+                            ? messageUnreadCount
+                            : 0,
+                        onTap: () => onDestinationSelected(entry.key),
+                      ),
+                  ],
                 ),
               ),
-            ),
-          ),
-          Divider(height: 1, color: AdminUi.border),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(12, 18, 12, 14),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                  child: Text(
-                    'WORKSPACE',
-                    style: AdminUi.labelText.copyWith(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.9,
+              Divider(height: 1, color: AdminUi.border),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
+                child: Column(
+                  children: [
+                    _AdminNavAction(
+                      icon: Icons.person_outline_rounded,
+                      label: 'Profile',
+                      compact: compact,
+                      selected:
+                          activeUtilityDestination ==
+                          _AdminUtilityDestination.profile,
+                      onTap: onOpenProfile,
                     ),
-                  ),
+                    _AdminNavAction(
+                      icon: Icons.settings_outlined,
+                      label: 'Settings',
+                      compact: compact,
+                      selected:
+                          activeUtilityDestination ==
+                          _AdminUtilityDestination.settings,
+                      onTap: onOpenSettings,
+                    ),
+                    _AdminNavAction(
+                      icon: Icons.logout_rounded,
+                      label: 'Logout',
+                      compact: compact,
+                      color: AdminUi.danger,
+                      onTap: onLogout,
+                    ),
+                  ],
                 ),
-                for (final entry in _adminDestinations.asMap().entries)
-                  _AdminNavItem(
-                    icon: entry.value.icon,
-                    label: entry.value.label,
-                    selected:
-                        activeUtilityDestination == null &&
-                        currentIndex == entry.key,
-                    unreadCount: entry.value.label == 'Messages'
-                        ? messageUnreadCount
-                        : 0,
-                    onTap: () => onDestinationSelected(entry.key),
-                  ),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: AdminUi.border),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
-            child: Column(
-              children: [
-                _AdminNavAction(
-                  icon: Icons.person_outline_rounded,
-                  label: 'Profile',
-                  selected:
-                      activeUtilityDestination ==
-                      _AdminUtilityDestination.profile,
-                  onTap: onOpenProfile,
-                ),
-                _AdminNavAction(
-                  icon: Icons.settings_outlined,
-                  label: 'Settings',
-                  selected:
-                      activeUtilityDestination ==
-                      _AdminUtilityDestination.settings,
-                  onTap: onOpenSettings,
-                ),
-                _AdminNavAction(
-                  icon: Icons.logout_rounded,
-                  label: 'Logout',
-                  color: AdminUi.danger,
-                  onTap: onLogout,
-                ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-class _AdminNavAvatar extends StatelessWidget {
-  final String name;
-  final String? profileImageUrl;
+class _AdminSidebarHeader extends StatelessWidget {
+  final String adminName;
+  final bool compact;
+  final bool collapsed;
+  final VoidCallback onHomeTap;
+  final VoidCallback? onToggleSidebar;
 
-  const _AdminNavAvatar({required this.name, required this.profileImageUrl});
+  const _AdminSidebarHeader({
+    required this.adminName,
+    required this.compact,
+    required this.collapsed,
+    required this.onHomeTap,
+    required this.onToggleSidebar,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 38,
-      height: 38,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AdminUi.soft(AdminUi.accent),
-        borderRadius: AdminUi.radius,
-        border: Border.all(color: AdminUi.border),
-      ),
-      child: ClipRRect(
-        borderRadius: AdminUi.radius,
-        child: FirebaseStorageImage(
-          imageUrl: profileImageUrl,
-          width: 38,
-          height: 38,
-          fit: BoxFit.cover,
-          fallback: Center(
-            child: Text(
-              name[0].toUpperCase(),
-              style: AdminUi.cardTitle.copyWith(color: AdminUi.accent),
-            ),
-          ),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(compact ? 6 : 12, 10, compact ? 6 : 10, 8),
+      child: SizedBox(
+        height: 44,
+        child: Row(
+          mainAxisAlignment: compact
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.start,
+          children: [
+            if (!compact) ...[
+              Tooltip(
+                message: 'Admin overview',
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    onTap: onHomeTap,
+                    borderRadius: BorderRadius.circular(8),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.asset(
+                        AppAssets.logo,
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Admin Console',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AdminUi.cardTitle,
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      adminName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AdminUi.labelText,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (onToggleSidebar != null) ...[
+              if (!compact) const SizedBox(width: 8),
+              Tooltip(
+                message: collapsed ? 'Open sidebar' : 'Close sidebar',
+                child: Material(
+                  color: AdminUi.mutedSurface,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    onTap: onToggleSidebar,
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: Icon(
+                        Icons.view_sidebar_outlined,
+                        size: 19,
+                        color: AdminUi.title,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -569,6 +631,7 @@ class _AdminNavAvatar extends StatelessWidget {
 class _AdminNavItem extends StatelessWidget {
   final IconData icon;
   final String label;
+  final bool compact;
   final bool selected;
   final int unreadCount;
   final VoidCallback onTap;
@@ -576,6 +639,7 @@ class _AdminNavItem extends StatelessWidget {
   const _AdminNavItem({
     required this.icon,
     required this.label,
+    this.compact = false,
     required this.selected,
     this.unreadCount = 0,
     required this.onTap,
@@ -584,68 +648,100 @@ class _AdminNavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final foreground = selected ? AdminUi.accent : AdminUi.body;
+    final control = Material(
+      color: selected ? AdminUi.soft(AdminUi.accent) : Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: AdminUi.radius,
+        side: BorderSide(
+          color: selected
+              ? AdminUi.accent.withValues(alpha: 0.16)
+              : Colors.transparent,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AdminUi.radius,
+        child: compact
+            ? SizedBox(
+                height: 48,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(icon, size: 21, color: foreground),
+                    if (unreadCount > 0)
+                      Positioned(
+                        top: 5,
+                        right: 5,
+                        child: _AdminNavUnreadBadge(
+                          count: unreadCount,
+                          compact: true,
+                        ),
+                      ),
+                  ],
+                ),
+              )
+            : Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 9,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AdminUi.surface.withValues(
+                                alpha: AdminUi.isDarkMode ? 0.10 : 0.72,
+                              )
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(icon, size: 19, color: foreground),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AdminUi.bodyText.copyWith(
+                          color: selected ? AdminUi.title : AdminUi.body,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (unreadCount > 0) ...[
+                      const SizedBox(width: 8),
+                      _AdminNavUnreadBadge(count: unreadCount),
+                    ],
+                  ],
+                ),
+              ),
+      ),
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: selected ? AdminUi.soft(AdminUi.accent) : Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: AdminUi.radius,
-          side: BorderSide(
-            color: selected
-                ? AdminUi.accent.withValues(alpha: 0.16)
-                : Colors.transparent,
-          ),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AdminUi.radius,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? AdminUi.surface.withValues(
-                            alpha: AdminUi.isDarkMode ? 0.10 : 0.72,
-                          )
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, size: 19, color: foreground),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AdminUi.bodyText.copyWith(
-                      color: selected ? AdminUi.title : AdminUi.body,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                  ),
-                ),
-                if (unreadCount > 0) ...[
-                  const SizedBox(width: 8),
-                  _AdminNavUnreadBadge(count: unreadCount),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
+      child: compact
+          ? Tooltip(
+              message: label,
+              waitDuration: const Duration(milliseconds: 350),
+              child: control,
+            )
+          : control,
     );
   }
 }
 
 class _AdminNavUnreadBadge extends StatelessWidget {
   final int count;
+  final bool compact;
 
-  const _AdminNavUnreadBadge({required this.count});
+  const _AdminNavUnreadBadge({required this.count, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -654,8 +750,14 @@ class _AdminNavUnreadBadge extends StatelessWidget {
     return Semantics(
       label: count == 1 ? '1 unread message' : '$count unread messages',
       child: Container(
-        constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        constraints: BoxConstraints(
+          minWidth: compact ? 16 : 22,
+          minHeight: compact ? 16 : 22,
+        ),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 3 : 7,
+          vertical: compact ? 2 : 3,
+        ),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: AdminUi.primary,
@@ -667,7 +769,7 @@ class _AdminNavUnreadBadge extends StatelessWidget {
           maxLines: 1,
           style: AdminUi.labelText.copyWith(
             color: AdminUi.onPrimary,
-            fontSize: 11,
+            fontSize: compact ? 8.5 : 11,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -679,6 +781,7 @@ class _AdminNavUnreadBadge extends StatelessWidget {
 class _AdminNavAction extends StatelessWidget {
   final IconData icon;
   final String label;
+  final bool compact;
   final Color? color;
   final bool selected;
   final VoidCallback onTap;
@@ -686,6 +789,7 @@ class _AdminNavAction extends StatelessWidget {
   const _AdminNavAction({
     required this.icon,
     required this.label,
+    this.compact = false,
     this.color,
     this.selected = false,
     required this.onTap,
@@ -694,32 +798,51 @@ class _AdminNavAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final foreground = selected ? AdminUi.accent : color ?? AdminUi.body;
-
-    return Material(
+    final control = Material(
       color: selected ? AdminUi.soft(AdminUi.accent) : Colors.transparent,
       borderRadius: AdminUi.radius,
       child: InkWell(
         onTap: onTap,
         borderRadius: AdminUi.radius,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Icon(icon, size: 19, color: foreground),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  label,
-                  style: AdminUi.bodyText.copyWith(
-                    color: selected ? AdminUi.title : color ?? AdminUi.title,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                  ),
+        child: compact
+            ? SizedBox(
+                height: 44,
+                child: Icon(icon, size: 20, color: foreground),
+              )
+            : Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 19, color: foreground),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: AdminUi.bodyText.copyWith(
+                          color: selected
+                              ? AdminUi.title
+                              : color ?? AdminUi.title,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
       ),
     );
+
+    return compact
+        ? Tooltip(
+            message: label,
+            waitDuration: const Duration(milliseconds: 350),
+            child: control,
+          )
+        : control;
   }
 }

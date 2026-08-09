@@ -246,58 +246,38 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
     if (user.isDriver) {
       return <_ReviewDocument>[
         if (user.selfieUrl != null)
-          _ReviewDocument(
-            label: 'Selfie',
-            url: user.selfieUrl!,
-            icon: Icons.portrait_outlined,
-          ),
+          _ReviewDocument(label: 'Selfie', url: user.selfieUrl!),
         if (user.nbiClearanceUrl != null)
-          _ReviewDocument(
-            label: 'NBI Clearance',
-            url: user.nbiClearanceUrl!,
-            icon: Icons.description_outlined,
-          ),
+          _ReviewDocument(label: 'NBI Clearance', url: user.nbiClearanceUrl!),
         if (user.driversLicenseUrl != null)
           _ReviewDocument(
             label: 'Driver\'s License',
             url: user.driversLicenseUrl!,
-            icon: Icons.credit_card_outlined,
           ),
         if (user.orCrUrl != null)
-          _ReviewDocument(
-            label: 'OR/CR Document',
-            url: user.orCrUrl!,
-            icon: Icons.article_outlined,
-          ),
+          _ReviewDocument(label: 'OR/CR Document', url: user.orCrUrl!),
         if (user.tricycleFrontUrl != null)
           _ReviewDocument(
             label: 'Front Tricycle Photo',
             url: user.tricycleFrontUrl!,
-            icon: Icons.directions_car_filled_outlined,
           ),
         if (user.tricycleBackUrl != null)
           _ReviewDocument(
             label: 'Back Tricycle Photo',
             url: user.tricycleBackUrl!,
-            icon: Icons.local_taxi_rounded,
           ),
         if (user.driverDocumentStatus.renewalDocumentUrl != null)
           _ReviewDocument(
             label:
                 'Renewal: ${user.driverDocumentStatus.renewalDocumentType?.label ?? 'Driver Document'}',
             url: user.driverDocumentStatus.renewalDocumentUrl!,
-            icon: Icons.autorenew_rounded,
           ),
       ];
     }
 
     return <_ReviewDocument>[
       if (user.selfieUrl != null)
-        _ReviewDocument(
-          label: 'Selfie',
-          url: user.selfieUrl!,
-          icon: Icons.portrait_outlined,
-        ),
+        _ReviewDocument(label: 'Selfie', url: user.selfieUrl!),
       if (user.idImageUrl != null)
         _ReviewDocument(
           label: user.isStudentPassenger
@@ -306,7 +286,6 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                     ? 'Senior Citizen ID'
                     : 'ID Image'),
           url: user.idImageUrl!,
-          icon: Icons.badge_outlined,
         ),
     ];
   }
@@ -599,8 +578,6 @@ class _RenewalReviewPanel extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Icon(Icons.autorenew_rounded, color: AdminUi.accentBlue),
-              const SizedBox(width: 10),
               Expanded(
                 child: Text('Pending Renewal Review', style: AdminUi.cardTitle),
               ),
@@ -866,16 +843,6 @@ class _VerificationDocumentCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AdminUi.mutedSurface,
-                  borderRadius: AdminUi.radius,
-                ),
-                child: Icon(document.icon, color: AdminUi.accent, size: 19),
-              ),
-              SizedBox(width: 10),
               Expanded(
                 child: Text(
                   document.label,
@@ -984,11 +951,6 @@ class _InfoTimeRow extends StatelessWidget {
 class _ReviewDocument {
   final String label;
   final String url;
-  final IconData icon;
 
-  const _ReviewDocument({
-    required this.label,
-    required this.url,
-    required this.icon,
-  });
+  const _ReviewDocument({required this.label, required this.url});
 }

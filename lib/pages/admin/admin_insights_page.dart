@@ -79,7 +79,6 @@ class AdminInsightsPage extends StatelessWidget {
                       adminId: adminId,
                     ),
                     leaderboard: _InsightsSurfacePanel(
-                      icon: Icons.workspace_premium_rounded,
                       title: 'Driver Leaderboard',
                       subtitle:
                           'Top-rated drivers ranked for service quality review.',
@@ -643,7 +642,6 @@ class _RideVolumeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _InsightsSurfacePanel(
-      icon: Icons.stacked_bar_chart_rounded,
       title: 'Ride Volume Analytics',
       subtitle: 'Daily, weekly, and monthly ride frequency.',
       accentColor: AdminUi.accentBlue,
@@ -675,7 +673,6 @@ class _PassengerFrequencyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _InsightsSurfacePanel(
-      icon: Icons.groups_rounded,
       title: 'Passenger Type Frequency',
       subtitle: 'Passenger type usage across active periods.',
       accentColor: AdminUi.secondary,
@@ -700,7 +697,6 @@ class _TopAreaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _InsightsSurfacePanel(
-      icon: Icons.location_on_rounded,
       title: 'Highest Pickup and Drop-off Areas',
       subtitle: 'Most frequent locations by period.',
       accentColor: AdminUi.highlightAmber,
@@ -723,7 +719,6 @@ class _FareTotalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _InsightsSurfacePanel(
-      icon: Icons.payments_rounded,
       title: 'Estimated Cash Generated / Spent',
       subtitle: 'Estimated fare totals from available booking fare labels.',
       accentColor: AdminUi.primary,
@@ -756,7 +751,6 @@ class _CommissionTotalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _InsightsSurfacePanel(
-      icon: Icons.savings_rounded,
       title: 'System Commission Totals',
       subtitle: 'Commission earned from completed rides only.',
       accentColor: AdminUi.secondary,
@@ -1286,7 +1280,6 @@ class _InsightsMetricsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _InsightsSurfacePanel(
-      icon: Icons.insights_rounded,
       title: 'Quality Metrics',
       subtitle: 'Verification and moderation indicators for service quality.',
       accentColor: AdminUi.accentBlue,
@@ -1369,14 +1362,12 @@ class _InsightsMetricsPanel extends StatelessWidget {
 }
 
 class _InsightsSurfacePanel extends StatelessWidget {
-  final IconData icon;
   final String title;
   final String subtitle;
   final Color accentColor;
   final Widget child;
 
   const _InsightsSurfacePanel({
-    required this.icon,
     required this.title,
     required this.subtitle,
     required this.accentColor,
@@ -1400,19 +1391,6 @@ class _InsightsSurfacePanel extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AdminUi.soft(accentColor, alpha: 0.14),
-                  borderRadius: AdminUi.radius,
-                  border: Border.all(
-                    color: accentColor.withValues(alpha: 0.16),
-                  ),
-                ),
-                child: Icon(icon, color: accentColor, size: 20),
-              ),
-              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

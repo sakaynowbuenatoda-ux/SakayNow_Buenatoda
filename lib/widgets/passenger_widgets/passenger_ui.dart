@@ -254,6 +254,7 @@ class PassengerPageHeader extends StatelessWidget {
   final IconData icon;
   final Color? accentColor;
   final bool dense;
+  final bool showIcon;
 
   const PassengerPageHeader({
     super.key,
@@ -262,6 +263,7 @@ class PassengerPageHeader extends StatelessWidget {
     required this.icon,
     this.accentColor,
     this.dense = false,
+    this.showIcon = true,
   });
 
   @override
@@ -320,26 +322,28 @@ class PassengerPageHeader extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(width: dense ? 10 : 12),
-            ExcludeSemantics(
-              child: Container(
-                width: iconExtent,
-                height: iconExtent,
-                decoration: BoxDecoration(
-                  color: color.withValues(
-                    alpha: PassengerUi.isDarkMode ? 0.16 : 0.08,
-                  ),
-                  borderRadius: BorderRadius.circular(dense ? 12 : 14),
-                  border: Border.all(
+            if (showIcon) ...<Widget>[
+              SizedBox(width: dense ? 10 : 12),
+              ExcludeSemantics(
+                child: Container(
+                  width: iconExtent,
+                  height: iconExtent,
+                  decoration: BoxDecoration(
                     color: color.withValues(
-                      alpha: PassengerUi.isDarkMode ? 0.24 : 0.12,
+                      alpha: PassengerUi.isDarkMode ? 0.16 : 0.08,
+                    ),
+                    borderRadius: BorderRadius.circular(dense ? 12 : 14),
+                    border: Border.all(
+                      color: color.withValues(
+                        alpha: PassengerUi.isDarkMode ? 0.24 : 0.12,
+                      ),
                     ),
                   ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, color: color, size: dense ? 19 : 21),
                 ),
-                alignment: Alignment.center,
-                child: Icon(icon, color: color, size: dense ? 19 : 21),
               ),
-            ),
+            ],
           ],
         ),
       ),

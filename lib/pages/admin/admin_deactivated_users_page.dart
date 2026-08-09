@@ -99,7 +99,6 @@ class _AdminDeactivatedUsersPageState extends State<AdminDeactivatedUsersPage> {
                       'Restore accounts before their 60-day permanent deletion window ends.',
                   count: users.length.toString(),
                   countLabel: 'Accounts',
-                  icon: Icons.no_accounts_rounded,
                   accentColor: AdminUi.primary,
                 ),
                 SizedBox(height: 12),

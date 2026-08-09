@@ -306,7 +306,6 @@ class _OverviewMetricPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ModernOverviewCard(
-      icon: Icons.dashboard_customize_rounded,
       title: 'Platform Metrics',
       subtitle: 'Tap any metric to open its detailed admin view',
       accentColor: AdminUi.accentBlue,
@@ -497,7 +496,6 @@ class _TodayRideSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ModernOverviewCard(
-      icon: Icons.auto_graph_rounded,
       title: "Today's Ride Summary",
       subtitle: 'Live booking movement for today',
       accentColor: AdminUi.accentBlue,
@@ -542,7 +540,6 @@ class _RecentReportsCard extends StatelessWidget {
     final recentReports = reports.take(3).toList(growable: false);
 
     return _ModernOverviewCard(
-      icon: Icons.report_gmailerrorred_rounded,
       title: 'Recent Reports',
       subtitle: 'Latest service issues from passengers and drivers',
       accentColor: AdminUi.highlightAmber,
@@ -583,7 +580,6 @@ class _SystemHealthCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ModernOverviewCard(
-      icon: Icons.monitor_heart_rounded,
       title: 'System Health',
       subtitle: 'Live admin dashboard data is available',
       accentColor: AdminUi.secondary,
@@ -620,7 +616,6 @@ class _BookingAnalyticsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ModernOverviewCard(
-      icon: Icons.bar_chart_rounded,
       title: '7-Day Booking Trend',
       subtitle: 'Short graph analytics from booking timestamps',
       accentColor: const Color(0xFF7C3AED),
@@ -630,14 +625,12 @@ class _BookingAnalyticsCard extends StatelessWidget {
 }
 
 class _ModernOverviewCard extends StatelessWidget {
-  final IconData icon;
   final String title;
   final String subtitle;
   final Color accentColor;
   final Widget child;
 
   const _ModernOverviewCard({
-    required this.icon,
     required this.title,
     required this.subtitle,
     required this.accentColor,
@@ -661,19 +654,6 @@ class _ModernOverviewCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AdminUi.soft(accentColor, alpha: 0.14),
-                  borderRadius: AdminUi.radius,
-                  border: Border.all(
-                    color: accentColor.withValues(alpha: 0.16),
-                  ),
-                ),
-                child: Icon(icon, color: accentColor, size: 20),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

@@ -107,9 +107,6 @@ class _AdminUnverifiedUsersPageState extends State<AdminUnverifiedUsersPage> {
                   subtitle: _pageSubtitle,
                   count: filteredUsers.length.toString(),
                   countLabel: _metricLabel,
-                  icon: _showDrivers
-                      ? Icons.two_wheeler_rounded
-                      : Icons.person_outline_rounded,
                   accentColor: _showDrivers
                       ? AdminUi.secondary
                       : AdminUi.accentBlue,

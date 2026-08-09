@@ -47,7 +47,6 @@ class AdminActionLogsPage extends StatelessWidget {
                       'Review admin account, verification, restriction, restoration, and fare-setting activity.',
                   count: logs.length.toString(),
                   countLabel: 'logged actions',
-                  icon: Icons.history_rounded,
                   accentColor: AdminUi.accentBlue,
                 ),
                 const SizedBox(height: 16),
@@ -85,17 +84,6 @@ class _AdminActionLogCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: AdminUi.soft(_accentColor, alpha: 0.14),
-              borderRadius: AdminUi.radius,
-              border: Border.all(color: _accentColor.withValues(alpha: 0.12)),
-            ),
-            child: Icon(_icon, color: _accentColor, size: 21),
-          ),
-          const SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,44 +127,5 @@ class _AdminActionLogCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  IconData get _icon {
-    switch (log.action) {
-      case 'admin_account_created':
-        return Icons.admin_panel_settings_rounded;
-      case 'admin_account_deactivated':
-        return Icons.no_accounts_rounded;
-      case 'admin_account_restored':
-        return Icons.restore_rounded;
-      case 'fare_settings_updated':
-        return Icons.tune_rounded;
-      case 'user_restricted':
-        return Icons.block_rounded;
-      case 'user_restored':
-      case 'deactivated_user_restored':
-        return Icons.restart_alt_rounded;
-      case 'user_approved':
-        return Icons.verified_user_rounded;
-      default:
-        return Icons.history_rounded;
-    }
-  }
-
-  Color get _accentColor {
-    switch (log.action) {
-      case 'user_restricted':
-      case 'admin_account_deactivated':
-        return AdminUi.highlightAmber;
-      case 'user_approved':
-      case 'user_restored':
-      case 'deactivated_user_restored':
-      case 'admin_account_restored':
-        return AdminUi.successText;
-      case 'fare_settings_updated':
-        return AdminUi.accentBlue;
-      default:
-        return AdminUi.primary;
-    }
   }
 }

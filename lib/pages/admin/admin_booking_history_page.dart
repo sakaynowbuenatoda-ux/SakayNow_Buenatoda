@@ -133,7 +133,6 @@ class _AdminBookingHistoryPageState extends State<AdminBookingHistoryPage> {
                       subtitle: _section.subtitle,
                       count: bookings.length.toString(),
                       countLabel: bookings.length == 1 ? 'Result' : 'Results',
-                      icon: Icons.history_rounded,
                       accentColor: _section.accentColor,
                     ),
                     const SizedBox(height: 12),

@@ -143,7 +143,6 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
                           'Manage secondary admin accounts created by the main admin.',
                       count: filteredAdmins.length.toString(),
                       countLabel: 'Admins',
-                      icon: Icons.admin_panel_settings_rounded,
                       accentColor: AdminUi.primary,
                     ),
                     const SizedBox(height: 12),

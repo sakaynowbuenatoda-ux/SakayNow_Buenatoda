@@ -385,8 +385,10 @@ void main() {
       expect(rules, contains('function isActiveAccount(userData)'));
       expect(rules, contains("userData.get('is_active', true) == true"));
       expect(rules, contains('&& isActiveAccount(signedInUser())'));
-      expect(rules, contains('function isMainAdmin()'));
-      expect(rules, contains('function isMainAdminRole(userData)'));
+      expect(rules, contains('function isRegularAdminRole(userData)'));
+      expect(rules, contains('function isSuperAdminRole(userData)'));
+      expect(rules, contains('function isSuperAdmin()'));
+      expect(rules, contains("'super_admin'"));
     });
 
     test('protect admin user documents from client-side mutation', () {
@@ -399,39 +401,31 @@ void main() {
       expect(rules, contains('allow update: if !isAdminRole(resource.data)'));
     });
 
-    test('allow admin direct messages only from the active main admin', () {
+    test('keeps admin direct creation server-owned and participant-scoped', () {
       expect(
         rules,
-        contains(
-          'function isAdminCreatedAdminDirectConversation(conversationId)',
-        ),
-      );
-      expect(rules, contains("request.resource.data.type == 'admin_direct'"));
-      expect(
-        rules,
-        contains(
-          "conversationId == 'admin_direct_' + request.auth.uid + '_' + request.resource.data.target_admin_id",
-        ),
+        contains('function isAdminDirectConversation(conversationData)'),
       );
       expect(
         rules,
-        contains('&& isActiveAdminId(request.resource.data.target_admin_id)'),
+        contains("request.resource.data.type in ['ride', 'support']"),
+      );
+      expect(rules, isNot(contains('isAdminCreatedAdminDirectConversation')));
+      expect(
+        rules,
+        contains('&& request.auth.uid in conversationData.participant_ids'),
       );
       expect(
         rules,
         contains(
-          '&& !isMainAdminRole(userById(request.resource.data.target_admin_id))',
+          'request.resource.data.participant_names == conversationData.participant_names',
         ),
       );
       expect(
         rules,
         contains(
-          "request.resource.data.type in ['ride', 'support', 'admin_direct']",
+          'request.resource.data.participant_roles == conversationData.participant_roles',
         ),
-      );
-      expect(
-        rules,
-        contains('|| isAdminCreatedAdminDirectConversation(conversationId)'),
       );
     });
   });

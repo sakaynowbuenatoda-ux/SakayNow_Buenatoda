@@ -130,7 +130,10 @@ class TermsAndPrivacyPolicySheet extends StatelessWidget {
         ),
         _PolicyBulletGroup(
           label: 'Account Information',
-          items: ['User ID', 'Role such as Passenger, Driver, or Admin'],
+          items: [
+            'User ID',
+            'Role such as Passenger, Driver, Admin, or Super Admin',
+          ],
         ),
         _PolicyBulletGroup(
           label: 'Location Data',

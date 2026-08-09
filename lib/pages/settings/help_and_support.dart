@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/session/user_roles.dart';
+
 import '../../services/chat_service.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../messages/chat_page.dart';
@@ -71,7 +73,7 @@ class _HelpAndSupportPageState extends State<HelpAndSupportPage> {
   @override
   Widget build(BuildContext context) {
     final normalizedRole = widget.userRole.trim().toLowerCase();
-    final isAdmin = normalizedRole == 'admin';
+    final isAdmin = isAdminStaffRole(normalizedRole);
     final canMessageAdmin =
         !isAdmin && widget.userId?.trim().isNotEmpty == true;
 

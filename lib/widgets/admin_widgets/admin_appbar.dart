@@ -5,6 +5,7 @@ import '../firebase_storage_image.dart';
 
 class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String adminName;
+  final String roleLabel;
   final String appName;
   final String? profileImageUrl;
   final String? logoAssetPath;
@@ -18,6 +19,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
   const AdminAppBar({
     super.key,
     required this.adminName,
+    this.roleLabel = 'Admin',
     required this.appName,
     this.profileImageUrl,
     required this.onMenuTap,
@@ -207,7 +209,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
                           if (!compact) ...[
                             const SizedBox(height: 2),
                             Text(
-                              'Administrator',
+                              roleLabel,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AdminUi.labelText.copyWith(

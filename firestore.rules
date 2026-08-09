@@ -18,8 +18,20 @@ service cloud.firestore {
       return userData.get('role', '');
     }
 
-    function isAdminRole(userData) {
+    function isRegularAdminRole(userData) {
       return userRole(userData) in ['admin', 'Admin', 'ADMIN'];
+    }
+
+    function isSuperAdminRole(userData) {
+      return userRole(userData) in [
+        'super_admin',
+        'Super Admin',
+        'SUPER_ADMIN'
+      ];
+    }
+
+    function isAdminRole(userData) {
+      return isRegularAdminRole(userData) || isSuperAdminRole(userData);
     }
 
     function isPassengerRole(userData) {
@@ -71,21 +83,15 @@ service cloud.firestore {
         && isUsableAccount(userData);
     }
 
-    function isMainAdminRole(userData) {
-      return isAdminRole(userData)
-        && userData.get('first_name', '') is string
-        && userData.get('first_name', '').matches('^\\s*[Aa][Dd][Mm][Ii][Nn]\\s*$');
-    }
-
     function isAdmin() {
       return signedIn()
         && isAdminRole(signedInUser())
         && isActiveAccount(signedInUser());
     }
 
-    function isMainAdmin() {
+    function isSuperAdmin() {
       return signedIn()
-        && isMainAdminRole(signedInUser())
+        && isSuperAdminRole(signedInUser())
         && isActiveAccount(signedInUser());
     }
 
@@ -205,35 +211,6 @@ service cloud.firestore {
         ];
     }
 
-    function isAdminCreatedAdminDirectConversation(conversationId) {
-      return isMainAdmin()
-        && request.resource.data.type == 'admin_direct'
-        && request.resource.data.keys().hasOnly([
-          'conversation_id',
-          'type',
-          'main_admin_id',
-          'target_admin_id',
-          'participant_ids',
-          'participant_names',
-          'participant_roles',
-          'updated_at'
-        ])
-        && request.resource.data.target_admin_id is string
-        && request.resource.data.target_admin_id.size() > 0
-        && request.resource.data.target_admin_id != request.auth.uid
-        && request.resource.data.main_admin_id == request.auth.uid
-        && conversationId == 'admin_direct_' + request.auth.uid + '_' + request.resource.data.target_admin_id
-        && isActiveAdminId(request.resource.data.target_admin_id)
-        && !isMainAdminRole(userById(request.resource.data.target_admin_id))
-        && request.resource.data.participant_ids.size() == 2
-        && request.resource.data.participant_ids[0] == request.auth.uid
-        && request.resource.data.participant_ids[1] == request.resource.data.target_admin_id
-        && request.resource.data.participant_names is map
-        && request.resource.data.participant_roles is map
-        && request.resource.data.participant_roles[request.auth.uid] == 'admin'
-        && request.resource.data.participant_roles[request.resource.data.target_admin_id] == 'admin';
-    }
-
     function hasStableConversationUpdate(conversationData) {
       return request.resource.data.conversation_id == conversationData.conversation_id
         && request.resource.data.type == conversationData.type
@@ -241,8 +218,7 @@ service cloud.firestore {
         && (
           !isAdminDirectConversation(conversationData)
           || (
-            request.resource.data.main_admin_id == conversationData.main_admin_id
-            && request.resource.data.target_admin_id == conversationData.target_admin_id
+            request.resource.data.participant_names == conversationData.participant_names
             && request.resource.data.participant_roles == conversationData.participant_roles
           )
         );
@@ -1330,7 +1306,7 @@ service cloud.firestore {
       allow read: if canReadConversation(resource.data);
       allow create: if signedIn()
         && request.resource.data.conversation_id == conversationId
-        && request.resource.data.type in ['ride', 'support', 'admin_direct']
+        && request.resource.data.type in ['ride', 'support']
         && request.resource.data.participant_ids is list
         && (
           (
@@ -1338,11 +1314,14 @@ service cloud.firestore {
             && request.auth.uid in request.resource.data.participant_ids
           )
           || isAdminCreatedSupportConversation(conversationId)
-          || isAdminCreatedAdminDirectConversation(conversationId)
         );
       allow update: if canWriteConversation(resource.data)
         && hasStableConversationUpdate(resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isAdmin()
+        && (
+          !isAdminDirectConversation(resource.data)
+          || isConversationParticipant(resource.data)
+        );
 
       match /messages/{messageId} {
         function parentConversation() {
@@ -1358,7 +1337,11 @@ service cloud.firestore {
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 1000
           && canWriteConversation(parentConversation());
-        allow update, delete: if isAdmin();
+        allow update, delete: if isAdmin()
+          && (
+            !isAdminDirectConversation(parentConversation())
+            || isConversationParticipant(parentConversation())
+          );
       }
     }
 

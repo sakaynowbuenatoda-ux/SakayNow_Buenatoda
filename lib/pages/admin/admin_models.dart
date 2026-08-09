@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../models/driver_document_status.dart';
 import '../../models/ride_location.dart';
+import '../../core/session/user_roles.dart';
 import 'widgets/admin_ui.dart';
 
 class AdminUserRecord {
@@ -93,7 +94,7 @@ class AdminUserRecord {
       firstName: (data['first_name'] ?? '').toString().trim(),
       lastName: (data['last_name'] ?? '').toString().trim(),
       email: (data['email'] ?? '').toString().trim(),
-      role: (data['role'] ?? '').toString().trim().toLowerCase(),
+      role: normalizeUserRole(data['role']),
       passengerType: (data['passenger_type'] ?? '')
           .toString()
           .trim()
@@ -174,8 +175,10 @@ class AdminUserRecord {
 
   bool get isDriver => role == 'driver';
   bool get isPassenger => role == 'passenger';
-  bool get isAdmin => role == 'admin';
-  bool get isMainAdmin => isAdmin && firstName.trim().toLowerCase() == 'admin';
+  bool get isAdmin => isAdminStaffRole(role);
+  bool get isAdminStaff => isAdminStaffRole(role);
+  bool get isRegularAdmin => isRegularAdminRole(role);
+  bool get isSuperAdmin => isSuperAdminRole(role);
   bool get isPassengerOrDriver => isPassenger || isDriver;
   bool get isStudentPassenger =>
       isPassenger && passengerType.toLowerCase() == 'student';
@@ -231,7 +234,8 @@ class AdminUserRecord {
       isPendingVerification && (!isDriver || isDriverVerificationComplete);
 
   String get roleLabel {
-    if (isAdmin) return 'Admin';
+    if (isSuperAdmin) return 'Super Admin';
+    if (isRegularAdmin) return 'Admin';
     if (isDriver) return 'Driver';
     if (isStudentPassenger) return 'Student Passenger';
     if (isSeniorCitizenPassenger) return 'Senior Citizen Passenger';
@@ -800,6 +804,8 @@ class AdminReportRecord {
     switch (role.trim().toLowerCase()) {
       case 'admin':
         return 'Admin';
+      case 'super_admin':
+        return 'Super Admin';
       case 'driver':
         return 'Driver';
       case 'passenger':

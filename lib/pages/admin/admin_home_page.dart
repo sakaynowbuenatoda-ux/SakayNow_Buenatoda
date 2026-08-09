@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../config/app_assets.dart';
 import '../../core/preferences/app_preferences_controller.dart';
 import '../../core/session/session_service.dart';
+import '../../core/session/user_roles.dart';
 import '../../services/chat_service.dart';
 import '../../services/notification_service.dart';
 import '../../utils/user_facing_error_message.dart';
@@ -25,12 +26,14 @@ import 'admin_reports_page.dart';
 class AdminHomePage extends StatefulWidget {
   final String userId;
   final String firstName;
+  final String role;
   final String? profileImageUrl;
 
   const AdminHomePage({
     super.key,
     required this.userId,
     required this.firstName,
+    required this.role,
     this.profileImageUrl,
   });
 
@@ -78,7 +81,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       AdminMonitoringPage(adminId: widget.userId),
       AdminAccountManagementPage(adminId: widget.userId),
       AdminManagementPage(adminId: widget.userId),
-      AdminMessagesPage(adminId: widget.userId),
+      AdminMessagesPage(adminId: widget.userId, adminRole: widget.role),
       AdminInsightsPage(adminId: widget.userId),
       AdminReportsPage(adminId: widget.userId),
     ];
@@ -169,6 +172,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       backgroundColor: AdminUi.background,
       appBar: AdminAppBar(
         adminName: widget.firstName.isEmpty ? 'Admin' : widget.firstName,
+        roleLabel: adminStaffRoleLabel(widget.role),
         appName: 'SakayNow Buenatoda',
         profileImageUrl: widget.profileImageUrl,
         showMenuButton: !useDesktopLayout,
@@ -241,7 +245,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       ),
       _AdminUtilityDestination.settings => SettingsPage(
         userId: widget.userId,
-        role: 'admin',
+        role: widget.role,
         embeddedInAdmin: true,
       ),
       null => const SizedBox.shrink(),
@@ -280,7 +284,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
   void _watchUnreadMessages() {
     unawaited(_messageUnreadSubscription?.cancel());
     _messageUnreadSubscription = _chatService
-        .watchAdminSupportUnreadCount()
+        .watchAdminInboxUnreadCount(
+          adminId: widget.userId,
+          adminRole: widget.role,
+        )
         .listen(
           (count) {
             if (mounted && count != _messageUnreadCount) {

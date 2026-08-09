@@ -38,7 +38,9 @@ void main() {
     test('admin storage checks still resolve through Firestore user roles', () {
       expect(rules, contains('function isAdmin()'));
       expect(rules, contains('firestore.get('));
-      expect(rules, contains(".data.role == 'admin'"));
+      expect(rules, contains(".data.role in ['admin', 'super_admin']"));
+      expect(rules, contains(".data.get('is_active', true) == true"));
+      expect(rules, contains(".data.get('is_banned', false) != true"));
     });
 
     test('keep renewal uploads private to the driver and admins', () {

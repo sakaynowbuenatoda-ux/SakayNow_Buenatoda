@@ -77,7 +77,7 @@ class AdminManagementPage extends StatelessWidget {
                     subtitle:
                         'Manage service-wide fare and payment rules separately from live monitoring and account management.',
                     actions: [
-                      if (currentAdmin.isMainAdmin)
+                      if (currentAdmin.isSuperAdmin)
                         ElevatedButton.icon(
                           onPressed: () => _openAdminCreationFlow(context),
                           icon: const Icon(
@@ -113,7 +113,7 @@ class AdminManagementPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  if (currentAdmin.isMainAdmin)
+                  if (currentAdmin.isSuperAdmin)
                     _ManagementAdminGrid(
                       left: _AdminAccountsPreviewCard(adminId: adminId),
                       right: const _AdminLogsPreviewCard(),
@@ -167,7 +167,7 @@ class AdminManagementPage extends StatelessWidget {
     final authenticated = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const _MainAdminReauthDialog(),
+      builder: (_) => const _SuperAdminReauthDialog(),
     );
 
     if (authenticated != true || !context.mounted) {
@@ -215,7 +215,7 @@ class _AdminAccountsPreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _ManagementSurfacePanel(
       title: 'Admin Accounts',
-      subtitle: 'Message or deactivate secondary admin accounts.',
+      subtitle: 'Message or deactivate regular admin accounts.',
       accentColor: AdminUi.primary,
       child: StreamBuilder<List<AdminUserRecord>>(
         stream: AdminService.watchManagedAdmins(),
@@ -524,23 +524,22 @@ class _InlinePanelState extends StatelessWidget {
   }
 }
 
-class _MainAdminReauthDialog extends StatefulWidget {
-  const _MainAdminReauthDialog();
+class _SuperAdminReauthDialog extends StatefulWidget {
+  const _SuperAdminReauthDialog();
 
   @override
-  State<_MainAdminReauthDialog> createState() => _MainAdminReauthDialogState();
+  State<_SuperAdminReauthDialog> createState() =>
+      _SuperAdminReauthDialogState();
 }
 
-class _MainAdminReauthDialogState extends State<_MainAdminReauthDialog> {
+class _SuperAdminReauthDialogState extends State<_SuperAdminReauthDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _adminNameController = TextEditingController(text: 'admin');
   final _passwordController = TextEditingController();
   bool _isSubmitting = false;
   String? _errorMessage;
 
   @override
   void dispose() {
-    _adminNameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -606,36 +605,16 @@ class _MainAdminReauthDialogState extends State<_MainAdminReauthDialog> {
     }
   }
 
-  String? _validateAdminName(String? value) {
-    if ((value ?? '').trim().toLowerCase() != 'admin') {
-      return 'Enter the main admin name.';
-    }
-
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: AdminUi.radius),
-      title: const Text('Confirm Main Admin'),
+      title: const Text('Confirm Super Admin'),
       content: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextFormField(
-              controller: _adminNameController,
-              textInputAction: TextInputAction.next,
-              decoration: AdminUi.inputDecoration(
-                labelText: 'Admin Name',
-                hintText: 'admin',
-                prefixIcon: const Icon(Icons.admin_panel_settings_rounded),
-              ),
-              validator: _validateAdminName,
-              enabled: !_isSubmitting,
-            ),
-            const SizedBox(height: 12),
             TextFormField(
               controller: _passwordController,
               obscureText: true,

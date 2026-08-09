@@ -31,7 +31,7 @@ class PrivacyPolicyPage extends StatelessWidget {
           label: 'Account Information',
           items: <String>[
             'User ID',
-            'Role such as Passenger, Driver, or Admin',
+            'Role such as Passenger, Driver, Admin, or Super Admin',
           ],
         ),
         _PrivacyGroup(

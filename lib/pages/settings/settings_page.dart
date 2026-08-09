@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/session/user_roles.dart';
+
 import '../../core/preferences/app_preferences_controller.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../driver/driver_info_hub_page.dart';
@@ -70,7 +72,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildPage(BuildContext context) {
     final normalizedRole = widget.role.trim().toLowerCase();
-    final isAdmin = normalizedRole == 'admin';
+    final isAdmin = isAdminStaffRole(normalizedRole);
     final isDriver = normalizedRole == 'driver';
     final isPassenger =
         normalizedRole == 'passenger' ||

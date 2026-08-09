@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../core/session/user_roles.dart';
+
 enum ConversationType { ride, support, adminDirect }
 
 extension ConversationTypeFirestore on ConversationType {
@@ -94,7 +96,7 @@ class ChatConversation {
     required String currentUserId,
     required String currentUserRole,
   }) {
-    if (isSupport && currentUserRole != 'admin') {
+    if (isSupport && !isAdminStaffRole(currentUserRole)) {
       return 'SakayNow Support';
     }
 
@@ -122,7 +124,7 @@ class ChatConversation {
     required String currentUserRole,
   }) {
     if (isSupport) {
-      return currentUserRole == 'admin' ? 'Support' : 'Admin';
+      return isAdminStaffRole(currentUserRole) ? 'Support' : 'Admin';
     }
 
     final otherId = participantIds
@@ -131,6 +133,7 @@ class ChatConversation {
     final role = otherId == null ? null : participantRoles[otherId];
     return switch (role) {
       'admin' => 'Admin',
+      'super_admin' => 'Super Admin',
       'driver' => 'Driver',
       'passenger' || 'regular' || 'student' || 'senior_citizen' => 'Passenger',
       _ => 'Ride',
@@ -153,7 +156,7 @@ class ChatConversation {
     required String currentUserId,
     required String currentUserRole,
   }) {
-    if (currentUserRole == 'admin' && isSupport) {
+    if (isAdminStaffRole(currentUserRole) && isSupport) {
       return adminUnreadCount;
     }
 

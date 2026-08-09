@@ -1,8 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../models/driver_document_status.dart';
+export 'user_roles.dart';
 
-enum UserRole { admin, driver, passenger }
+import '../../models/driver_document_status.dart';
+import 'user_roles.dart';
 
 enum PassengerType { regular, student, seniorCitizen }
 
@@ -71,10 +72,7 @@ class AppUser {
 
   factory AppUser.fromMap(Map<String, dynamic> data, String fallbackUserId) {
     final rawRole = (data['role'] ?? '').toString().trim().toLowerCase();
-    final normalizedRole = switch (rawRole) {
-      'regular' || 'student' || 'senior_citizen' => 'passenger',
-      _ => rawRole,
-    };
+    final normalizedRole = normalizeUserRole(rawRole);
 
     final normalizedPassengerType =
         (data['passenger_type'] ?? '')
@@ -172,6 +170,8 @@ class AppUser {
 
   UserRole get userRole {
     switch (role) {
+      case 'super_admin':
+        return UserRole.superAdmin;
       case 'admin':
         return UserRole.admin;
       case 'driver':
@@ -197,6 +197,8 @@ class AppUser {
 
   String get roleLabel {
     switch (userRole) {
+      case UserRole.superAdmin:
+        return 'Super Admin';
       case UserRole.admin:
         return 'Admin';
       case UserRole.driver:
@@ -226,7 +228,7 @@ class AppUser {
       return AccountAccessState.deactivated;
     }
 
-    if (userRole == UserRole.admin) {
+    if (isAdminStaff) {
       return AccountAccessState.active;
     }
 
@@ -238,4 +240,10 @@ class AppUser {
 
     return AccountAccessState.active;
   }
+
+  bool get isAdminStaff => isAdminStaffRole(role);
+
+  bool get isRegularAdmin => isRegularAdminRole(role);
+
+  bool get isSuperAdmin => isSuperAdminRole(role);
 }

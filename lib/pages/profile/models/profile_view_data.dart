@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../models/driver_rating.dart';
+import '../../../core/session/user_roles.dart';
 
 class ProfileViewData {
   final String userId;
@@ -68,10 +69,7 @@ class ProfileViewData {
     String fallbackUserId,
   ) {
     final rawRole = (data['role'] ?? 'user').toString().trim().toLowerCase();
-    final normalizedRole = switch (rawRole) {
-      'regular' || 'student' || 'senior_citizen' => 'passenger',
-      _ => rawRole,
-    };
+    final normalizedRole = normalizeUserRole(rawRole);
 
     final normalizedPassengerType =
         (data['passenger_type'] ?? '')
@@ -217,7 +215,8 @@ class ProfileViewData {
     return combined.isEmpty ? 'Unnamed User' : combined;
   }
 
-  bool get isAdmin => role == 'admin';
+  bool get isAdmin => isAdminStaffRole(role);
+  bool get isSuperAdmin => isSuperAdminRole(role);
   bool get isDriver => role == 'driver';
   bool get isPassenger => role == 'passenger';
   bool get showVerifiedBadge => !isAdmin && isVerified;
@@ -250,6 +249,8 @@ class ProfileViewData {
         return 'Passenger';
       case 'admin':
         return 'Admin';
+      case 'super_admin':
+        return 'Super Admin';
       default:
         return role.isEmpty ? 'User' : _titleCase(role);
     }
@@ -266,7 +267,9 @@ class ProfileViewData {
   String get ageLabel => age.isEmpty ? 'Not set' : age;
 
   String get verificationLabel => isAdmin
-      ? 'Developer-managed admin account'
+      ? isSuperAdmin
+            ? 'Developer-managed super admin account'
+            : 'Developer-managed admin account'
       : (isVerified ? 'Verified' : 'Pending verification');
 
   String get joinedAtLabel {

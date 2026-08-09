@@ -94,7 +94,7 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
             if (currentAdminSnapshot.hasError) {
               return AdminErrorCard(
                 message:
-                    'Unable to confirm main admin access: ${currentAdminSnapshot.error}',
+                    'Unable to confirm super admin access: ${currentAdminSnapshot.error}',
               );
             }
 
@@ -103,10 +103,10 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
             }
 
             final currentAdmin = currentAdminSnapshot.data!;
-            if (!currentAdmin.isMainAdmin) {
+            if (!currentAdmin.isSuperAdmin) {
               return const AdminErrorCard(
                 message:
-                    'Only the main admin account can manage admin accounts.',
+                    'Only the super admin account can manage admin accounts.',
               );
             }
 
@@ -140,7 +140,7 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
                     AdminCountPageHeader(
                       title: 'Admin Accounts',
                       subtitle:
-                          'Manage secondary admin accounts created by the main admin.',
+                          'Manage regular admin accounts created by the super admin.',
                       count: filteredAdmins.length.toString(),
                       countLabel: 'Admins',
                       accentColor: AdminUi.primary,
@@ -167,7 +167,7 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
                             : 'No secondary admin accounts',
                         description: hasActiveFilters
                             ? 'Try searching by name, email, status, or user ID.'
-                            : 'Admin accounts created by the main admin will appear here.',
+                            : 'Regular admin accounts created by the super admin will appear here.',
                       )
                     else
                       ...filteredAdmins.map(
@@ -564,10 +564,7 @@ class _AdminDirectMessageButtonState extends State<_AdminDirectMessageButton> {
     setState(() => _isOpening = true);
     try {
       final conversationId = await _chatService.ensureAdminConversation(
-        currentAdminId: widget.currentAdmin.userId,
-        currentAdminName: widget.currentAdmin.fullName,
         targetAdminId: widget.targetAdmin.userId,
-        targetAdminName: widget.targetAdmin.fullName,
       );
 
       if (!mounted) {
@@ -579,9 +576,9 @@ class _AdminDirectMessageButtonState extends State<_AdminDirectMessageButton> {
           builder: (_) => ChatPage(
             conversationId: conversationId,
             currentUserId: widget.currentAdmin.userId,
-            currentUserRole: 'admin',
+            currentUserRole: widget.currentAdmin.role,
             title: widget.targetAdmin.fullName,
-            subtitle: 'Admin direct',
+            subtitle: widget.targetAdmin.roleLabel,
           ),
         ),
       );

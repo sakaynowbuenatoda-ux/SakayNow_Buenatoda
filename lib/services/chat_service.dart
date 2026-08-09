@@ -1,12 +1,24 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+
+import '../core/session/user_roles.dart';
 import '../models/chat_conversation.dart';
 import '../models/chat_message.dart';
 import '../models/chat_participant_profile.dart';
 
+typedef AdminDirectConversationCreator =
+    Future<String> Function(String targetAdminId);
+
 class ChatService {
-  ChatService({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  ChatService({
+    FirebaseFirestore? firestore,
+    FirebaseFunctions? functions,
+    AdminDirectConversationCreator? adminDirectConversationCreator,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _functions = functions,
+       _adminDirectConversationCreator = adminDirectConversationCreator;
 
   static const int maxMessageLength = 1000;
   static final List<String> _userVisibleConversationTypes = <String>[
@@ -15,6 +27,8 @@ class ChatService {
   ];
 
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions? _functions;
+  final AdminDirectConversationCreator? _adminDirectConversationCreator;
 
   CollectionReference<Map<String, dynamic>> get _conversations =>
       _firestore.collection('conversations');
@@ -57,6 +71,72 @@ class ChatService {
       return conversations.fold<int>(
         0,
         (total, conversation) => total + conversation.adminUnreadCount,
+      );
+    });
+  }
+
+  Stream<List<ChatConversation>> watchAdminDirectConversations(String adminId) {
+    final normalizedAdminId = adminId.trim();
+    if (normalizedAdminId.isEmpty) {
+      return Stream<List<ChatConversation>>.value(<ChatConversation>[]);
+    }
+
+    return _conversations
+        .where('participant_ids', arrayContains: normalizedAdminId)
+        .where('type', isEqualTo: ConversationType.adminDirect.firestoreValue)
+        .snapshots()
+        .map((snapshot) {
+          final conversations = snapshot.docs
+              .map(ChatConversation.fromDocument)
+              .toList();
+          conversations.sort(_compareConversationsByActivity);
+          return conversations;
+        });
+  }
+
+  Stream<List<ChatConversation>> watchAdminInbox(String adminId) async* {
+    var support = <ChatConversation>[];
+    var direct = <ChatConversation>[];
+    final updates = StreamController<void>();
+    final supportSubscription = watchAdminSupportConversations().listen((
+      value,
+    ) {
+      support = value;
+      updates.add(null);
+    }, onError: updates.addError);
+    final directSubscription = watchAdminDirectConversations(adminId).listen((
+      value,
+    ) {
+      direct = value;
+      updates.add(null);
+    }, onError: updates.addError);
+
+    try {
+      await for (final _ in updates.stream) {
+        final conversations = <ChatConversation>[...support, ...direct];
+        conversations.sort(_compareConversationsByActivity);
+        yield conversations;
+      }
+    } finally {
+      await supportSubscription.cancel();
+      await directSubscription.cancel();
+      await updates.close();
+    }
+  }
+
+  Stream<int> watchAdminInboxUnreadCount({
+    required String adminId,
+    required String adminRole,
+  }) {
+    return watchAdminInbox(adminId).map((conversations) {
+      return conversations.fold<int>(
+        0,
+        (total, conversation) =>
+            total +
+            conversation.unreadCountFor(
+              currentUserId: adminId,
+              currentUserRole: adminRole,
+            ),
       );
     });
   }
@@ -138,51 +218,29 @@ class ChatService {
   }
 
   Future<String> ensureAdminConversation({
-    required String currentAdminId,
-    required String currentAdminName,
     required String targetAdminId,
-    required String targetAdminName,
   }) async {
-    final normalizedCurrentAdminId = currentAdminId.trim();
     final normalizedTargetAdminId = targetAdminId.trim();
-    if (normalizedCurrentAdminId.isEmpty || normalizedTargetAdminId.isEmpty) {
-      throw ArgumentError('Admin conversations require two admin accounts.');
+    if (normalizedTargetAdminId.isEmpty) {
+      throw ArgumentError('Choose an admin to message.');
     }
 
-    if (normalizedCurrentAdminId == normalizedTargetAdminId) {
-      throw ArgumentError('Choose another admin to message.');
+    final creator = _adminDirectConversationCreator;
+    if (creator != null) {
+      return creator(normalizedTargetAdminId);
     }
 
-    final conversationId =
-        'admin_direct_${normalizedCurrentAdminId}_$normalizedTargetAdminId';
-    final conversationRef = _conversations.doc(conversationId);
-
-    await conversationRef.set(<String, dynamic>{
-      'conversation_id': conversationId,
-      'type': ConversationType.adminDirect.firestoreValue,
-      'main_admin_id': normalizedCurrentAdminId,
+    final functions =
+        _functions ?? FirebaseFunctions.instanceFor(region: 'asia-southeast1');
+    final callable = functions.httpsCallable('ensureAdminDirectConversation');
+    final result = await callable.call<Map<String, dynamic>>({
       'target_admin_id': normalizedTargetAdminId,
-      'participant_ids': <String>[
-        normalizedCurrentAdminId,
-        normalizedTargetAdminId,
-      ],
-      'participant_names': <String, String>{
-        normalizedCurrentAdminId: _normalizeName(
-          currentAdminName,
-          fallback: 'Main Admin',
-        ),
-        normalizedTargetAdminId: _normalizeName(
-          targetAdminName,
-          fallback: 'Admin',
-        ),
-      },
-      'participant_roles': <String, String>{
-        normalizedCurrentAdminId: 'admin',
-        normalizedTargetAdminId: 'admin',
-      },
-      'updated_at': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
+    });
+    final conversationId =
+        result.data['conversation_id']?.toString().trim() ?? '';
+    if (conversationId.isEmpty) {
+      throw StateError('Admin conversation was created without an ID.');
+    }
     return conversationId;
   }
 
@@ -282,7 +340,7 @@ class ChatService {
       final conversation = ChatConversation.fromDocument(snapshot);
       final normalizedSenderRole = _normalizeRole(senderRole);
       final isAdminSupportMessage =
-          conversation.isSupport && normalizedSenderRole == 'admin';
+          conversation.isSupport && isAdminStaffRole(normalizedSenderRole);
       if (!conversation.participantIds.contains(senderId) &&
           !isAdminSupportMessage) {
         throw StateError('You are not part of this conversation.');
@@ -324,7 +382,7 @@ class ChatService {
       }
 
       if (conversation.isSupport) {
-        updates['admin_unread_count'] = normalizedSenderRole == 'admin'
+        updates['admin_unread_count'] = isAdminStaffRole(normalizedSenderRole)
             ? 0
             : FieldValue.increment(1);
       }
@@ -353,7 +411,7 @@ class ChatService {
       updates['unread_counts.$userId'] = 0;
     }
 
-    if (conversation.isSupport && _normalizeRole(userRole) == 'admin') {
+    if (conversation.isSupport && isAdminStaffRole(_normalizeRole(userRole))) {
       updates['admin_unread_count'] = 0;
     }
 
@@ -420,10 +478,11 @@ class ChatService {
   }
 
   static String _normalizeRole(String value) {
-    final role = value.trim().toLowerCase();
+    final role = normalizeUserRole(value);
     return switch (role) {
       'driver' => 'driver',
       'admin' => 'admin',
+      'super_admin' => 'super_admin',
       _ => 'passenger',
     };
   }

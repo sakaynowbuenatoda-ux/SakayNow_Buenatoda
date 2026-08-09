@@ -104,7 +104,7 @@ class _AdminCreateAccountPageState extends State<AdminCreateAccountPage> {
             const AdminSectionIntro(
               title: 'Create Admin Account',
               subtitle:
-                  'Add a verified admin profile. The role is fixed to admin and the reserved name admin cannot be reused.',
+                  'Add a verified regular admin profile. Super admin access cannot be assigned here.',
             ),
             const SizedBox(height: 16),
             AdminSurfaceCard(

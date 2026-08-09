@@ -129,10 +129,12 @@ class SessionService {
 
   static Widget buildHomeForUser(AppUser user) {
     switch (user.userRole) {
+      case UserRole.superAdmin:
       case UserRole.admin:
         return AdminHomePage(
           userId: user.userId,
           firstName: user.firstName,
+          role: user.role,
           profileImageUrl: user.profileImageUrl,
         );
       case UserRole.driver:

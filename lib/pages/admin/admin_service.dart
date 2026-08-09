@@ -32,7 +32,7 @@ class AdminService {
   static Stream<List<AdminUserRecord>> watchManagedAdmins() {
     return watchUsers().map((users) {
       final admins = users
-          .where((user) => user.isAdmin && !user.isMainAdmin)
+          .where((user) => user.isRegularAdmin)
           .toList(growable: false);
 
       admins.sort((a, b) {
@@ -42,6 +42,31 @@ class AdminService {
       });
 
       return admins;
+    });
+  }
+
+  static Stream<List<AdminUserRecord>> watchActiveAdminStaff({
+    String? excludingUserId,
+  }) {
+    final excludedId = excludingUserId?.trim() ?? '';
+    return watchUsers().map((users) {
+      final staff =
+          users
+              .where(
+                (user) =>
+                    user.isAdminStaff &&
+                    user.isActive &&
+                    !user.isBanned &&
+                    !user.isDeactivated &&
+                    !user.isDeleted &&
+                    user.userId != excludedId,
+              )
+              .toList(growable: false)
+            ..sort(
+              (a, b) =>
+                  a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
+            );
+      return staff;
     });
   }
 
@@ -160,7 +185,12 @@ class AdminService {
         .map((snapshot) {
           final users = snapshot.docs
               .map(AdminUserRecord.fromDocument)
-              .where((user) => user.isDeactivated && !user.isDeleted)
+              .where(
+                (user) =>
+                    user.isPassengerOrDriver &&
+                    user.isDeactivated &&
+                    !user.isDeleted,
+              )
               .toList(growable: false);
 
           users.sort((a, b) {

@@ -6,12 +6,19 @@ import '../../services/chat_service.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/time_ago_text.dart';
 import '../messages/chat_page.dart';
+import 'admin_models.dart';
+import 'admin_service.dart';
 import 'widgets/admin_shared.dart';
 
 class AdminMessagesPage extends StatefulWidget {
   final String adminId;
+  final String adminRole;
 
-  const AdminMessagesPage({super.key, required this.adminId});
+  const AdminMessagesPage({
+    super.key,
+    required this.adminId,
+    required this.adminRole,
+  });
 
   @override
   State<AdminMessagesPage> createState() => _AdminMessagesPageState();
@@ -45,7 +52,7 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           StreamBuilder<List<ChatConversation>>(
-            stream: _chatService.watchAdminSupportConversations(),
+            stream: _chatService.watchAdminInbox(widget.adminId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting &&
                   !snapshot.hasData) {
@@ -55,6 +62,7 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
                     _MessagesHeader(
                       searchController: _searchController,
                       unreadTotal: 0,
+                      onNewAdminMessage: _openAdminStaffDirectory,
                     ),
                     const SizedBox(height: 16),
                     const AdminSurfaceCard(
@@ -71,11 +79,12 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
                     _MessagesHeader(
                       searchController: _searchController,
                       unreadTotal: 0,
+                      onNewAdminMessage: _openAdminStaffDirectory,
                     ),
                     const SizedBox(height: 16),
                     const AdminErrorCard(
                       message:
-                          'Unable to load support messages. Please try again.',
+                          'Unable to load admin messages. Please try again.',
                     ),
                   ],
                 );
@@ -84,12 +93,18 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
               final conversations = snapshot.data ?? <ChatConversation>[];
               final unreadTotal = conversations.fold<int>(
                 0,
-                (total, conversation) => total + conversation.adminUnreadCount,
+                (total, conversation) =>
+                    total +
+                    conversation.unreadCountFor(
+                      currentUserId: widget.adminId,
+                      currentUserRole: widget.adminRole,
+                    ),
               );
 
               final header = _MessagesHeader(
                 searchController: _searchController,
                 unreadTotal: unreadTotal,
+                onNewAdminMessage: _openAdminStaffDirectory,
               );
 
               if (conversations.isEmpty) {
@@ -100,9 +115,9 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
                     const SizedBox(height: 16),
                     const AdminEmptyCollection(
                       icon: Icons.support_agent_rounded,
-                      title: 'No support messages yet',
+                      title: 'No messages yet',
                       description:
-                          'Passenger and driver support requests appear here.',
+                          'Support requests and admin staff conversations appear here.',
                     ),
                   ],
                 );
@@ -137,9 +152,10 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
                               ? 0
                               : 12,
                         ),
-                        child: _AdminSupportConversationCard(
+                        child: _AdminConversationCard(
                           conversation: conversation,
                           adminId: widget.adminId,
+                          adminRole: widget.adminRole,
                           avatarIdentity:
                               targetUserId ?? conversation.conversationId,
                           targetProfileFuture: _profileFutureForTarget(
@@ -194,7 +210,7 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
       conversation.bookingId ?? '',
       conversation.titleFor(
         currentUserId: widget.adminId,
-        currentUserRole: 'admin',
+        currentUserRole: widget.adminRole,
       ),
       conversation.previewFor(widget.adminId),
       conversation.participantIds.join(' '),
@@ -204,15 +220,55 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
 
     return searchable.contains(_query);
   }
+
+  Future<void> _openAdminStaffDirectory() async {
+    final target = await showDialog<AdminUserRecord>(
+      context: context,
+      builder: (_) =>
+          _AdminStaffDirectoryDialog(currentAdminId: widget.adminId),
+    );
+    if (target == null || !mounted) {
+      return;
+    }
+
+    try {
+      final conversationId = await _chatService.ensureAdminConversation(
+        targetAdminId: target.userId,
+      );
+      if (!mounted) {
+        return;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatPage(
+            conversationId: conversationId,
+            currentUserId: widget.adminId,
+            currentUserRole: widget.adminRole,
+            title: target.fullName,
+            subtitle: target.roleLabel,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to open admin message: $error')),
+      );
+    }
+  }
 }
 
 class _MessagesHeader extends StatelessWidget {
   final TextEditingController searchController;
   final int unreadTotal;
+  final VoidCallback onNewAdminMessage;
 
   const _MessagesHeader({
     required this.searchController,
     required this.unreadTotal,
+    required this.onNewAdminMessage,
   });
 
   @override
@@ -223,6 +279,11 @@ class _MessagesHeader extends StatelessWidget {
         final title = AdminSectionIntro(title: 'Messages');
         final unreadPill = _UnreadSupportPill(unreadTotal: unreadTotal);
         final search = _MessagesSearchField(controller: searchController);
+        final newMessage = ElevatedButton.icon(
+          onPressed: onNewAdminMessage,
+          icon: const Icon(Icons.add_comment_rounded, size: 18),
+          label: const Text('New admin message'),
+        );
 
         if (compact) {
           return Column(
@@ -237,6 +298,8 @@ class _MessagesHeader extends StatelessWidget {
                   Expanded(child: search),
                 ],
               ),
+              const SizedBox(height: 10),
+              SizedBox(width: double.infinity, child: newMessage),
             ],
           );
         }
@@ -248,7 +311,9 @@ class _MessagesHeader extends StatelessWidget {
             const SizedBox(width: 16),
             unreadPill,
             const SizedBox(width: 10),
-            SizedBox(width: 420, child: search),
+            newMessage,
+            const SizedBox(width: 10),
+            SizedBox(width: 320, child: search),
           ],
         );
       },
@@ -314,15 +379,17 @@ class _MessagesSearchField extends StatelessWidget {
   }
 }
 
-class _AdminSupportConversationCard extends StatelessWidget {
+class _AdminConversationCard extends StatelessWidget {
   final ChatConversation conversation;
   final String adminId;
+  final String adminRole;
   final String avatarIdentity;
   final Future<ChatParticipantProfile?>? targetProfileFuture;
 
-  const _AdminSupportConversationCard({
+  const _AdminConversationCard({
     required this.conversation,
     required this.adminId,
+    required this.adminRole,
     required this.avatarIdentity,
     required this.targetProfileFuture,
   });
@@ -331,11 +398,19 @@ class _AdminSupportConversationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = conversation.titleFor(
       currentUserId: adminId,
-      currentUserRole: 'admin',
+      currentUserRole: adminRole,
     );
-    final unreadCount = conversation.adminUnreadCount;
+    final unreadCount = conversation.unreadCountFor(
+      currentUserId: adminId,
+      currentUserRole: adminRole,
+    );
     final hasUnread = unreadCount > 0;
-    const roleLabel = 'Support';
+    final roleLabel = conversation.isSupport
+        ? 'Support'
+        : conversation.tagFor(
+            currentUserId: adminId,
+            currentUserRole: adminRole,
+          );
 
     return AdminInteractiveCard(
       semanticLabel: 'Open conversation with $title',
@@ -346,9 +421,9 @@ class _AdminSupportConversationCard extends StatelessWidget {
             builder: (_) => ChatPage(
               conversationId: conversation.conversationId,
               currentUserId: adminId,
-              currentUserRole: 'admin',
+              currentUserRole: adminRole,
               title: title,
-              subtitle: 'Support request',
+              subtitle: conversation.isSupport ? 'Support request' : roleLabel,
             ),
           ),
         );
@@ -396,7 +471,7 @@ class _AdminSupportConversationCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const _AdminConversationRoleLabel(label: roleLabel),
+                          _AdminConversationRoleLabel(label: roleLabel),
                         ],
                       ),
                     ),
@@ -447,6 +522,82 @@ class _AdminSupportConversationCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AdminStaffDirectoryDialog extends StatelessWidget {
+  final String currentAdminId;
+
+  const _AdminStaffDirectoryDialog({required this.currentAdminId});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Message admin staff'),
+      content: SizedBox(
+        width: 520,
+        height: 420,
+        child: StreamBuilder<List<AdminUserRecord>>(
+          stream: AdminService.watchActiveAdminStaff(
+            excludingUserId: currentAdminId,
+          ),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const AdminErrorCard(
+                message: 'Unable to load active admin staff.',
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final staff = snapshot.data!;
+            if (staff.isEmpty) {
+              return const AdminEmptyCollection(
+                icon: Icons.admin_panel_settings_outlined,
+                title: 'No other active admins',
+                description: 'Active admin staff will appear here.',
+              );
+            }
+
+            return ListView.separated(
+              itemCount: staff.length,
+              separatorBuilder: (_, _) => Divider(color: AdminUi.border),
+              itemBuilder: (context, index) {
+                final admin = staff[index];
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  leading: CircleAvatar(
+                    backgroundColor: AdminUi.mutedSurface,
+                    foregroundColor: AdminUi.primary,
+                    child: Text(
+                      admin.fullName.isEmpty
+                          ? 'A'
+                          : admin.fullName.substring(0, 1).toUpperCase(),
+                    ),
+                  ),
+                  title: Text(admin.fullName, style: AdminUi.cardTitle),
+                  subtitle: Text(
+                    '${admin.roleLabel} • ${admin.email}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AdminUi.bodyText,
+                  ),
+                  trailing: const Icon(Icons.chat_bubble_outline_rounded),
+                  onTap: () => Navigator.of(context).pop(admin),
+                );
+              },
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/session/user_roles.dart';
+
 import '../../models/chat_conversation.dart';
 import '../../models/chat_participant_profile.dart';
 import '../../services/chat_service.dart';
@@ -273,7 +275,7 @@ class _ConversationListPageState extends State<ConversationListPage> {
   }
 
   String? _targetUserIdFor(ChatConversation conversation) {
-    if (conversation.isSupport && widget.currentUserRole != 'admin') {
+    if (conversation.isSupport && !isAdminStaffRole(widget.currentUserRole)) {
       return null;
     }
 

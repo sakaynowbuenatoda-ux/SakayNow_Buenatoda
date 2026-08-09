@@ -10,7 +10,30 @@ void main() {
 
     setUp(() {
       firestore = FakeFirebaseFirestore();
-      service = ChatService(firestore: firestore);
+      service = ChatService(
+        firestore: firestore,
+        adminDirectConversationCreator: (targetAdminId) async {
+          const currentAdminId = 'admin-1';
+          final participantIds = <String>[currentAdminId, targetAdminId]
+            ..sort();
+          final conversationId =
+              'admin_direct_${participantIds[0]}_${participantIds[1]}';
+          await firestore.collection('conversations').doc(conversationId).set({
+            'conversation_id': conversationId,
+            'type': ConversationType.adminDirect.firestoreValue,
+            'participant_ids': participantIds,
+            'participant_names': <String, String>{
+              currentAdminId: 'Admin One',
+              targetAdminId: 'Admin Two',
+            },
+            'participant_roles': <String, String>{
+              currentAdminId: 'admin',
+              targetAdminId: 'super_admin',
+            },
+          });
+          return conversationId;
+        },
+      );
     });
 
     test(
@@ -282,10 +305,7 @@ void main() {
 
     test('creates stable admin direct conversations', () async {
       final conversationId = await service.ensureAdminConversation(
-        currentAdminId: 'main-admin',
-        currentAdminName: 'admin',
         targetAdminId: 'admin-2',
-        targetAdminName: 'Maria Admin',
       );
 
       final snapshot = await firestore
@@ -294,32 +314,26 @@ void main() {
           .get();
       final conversation = ChatConversation.fromDocument(snapshot);
 
-      expect(conversationId, 'admin_direct_main-admin_admin-2');
+      expect(conversationId, 'admin_direct_admin-1_admin-2');
       expect(conversation.type, ConversationType.adminDirect);
       expect(conversation.isAdminDirect, isTrue);
-      expect(conversation.participantIds, <String>['main-admin', 'admin-2']);
-      expect(conversation.participantNames['admin-2'], 'Maria Admin');
-      expect(conversation.participantRoles['main-admin'], 'admin');
+      expect(conversation.participantIds, <String>['admin-1', 'admin-2']);
+      expect(conversation.participantNames['admin-2'], 'Admin Two');
+      expect(conversation.participantRoles['admin-2'], 'super_admin');
       expect(
-        conversation.tagFor(
-          currentUserId: 'main-admin',
-          currentUserRole: 'admin',
-        ),
-        'Admin',
+        conversation.tagFor(currentUserId: 'admin-1', currentUserRole: 'admin'),
+        'Super Admin',
       );
     });
 
     test('sends admin direct messages to the other admin', () async {
       final conversationId = await service.ensureAdminConversation(
-        currentAdminId: 'main-admin',
-        currentAdminName: 'admin',
         targetAdminId: 'admin-2',
-        targetAdminName: 'Maria Admin',
       );
 
       await service.sendMessage(
         conversationId: conversationId,
-        senderId: 'main-admin',
+        senderId: 'admin-1',
         senderRole: 'admin',
         text: 'Please review the queue.',
       );
@@ -340,9 +354,29 @@ void main() {
       expect(messages.docs.single.data()['sender_role'], 'admin');
       expect(conversation['last_message_text'], 'Please review the queue.');
       expect(conversation['unread_counts'], <String, dynamic>{
-        'main-admin': 0,
+        'admin-1': 0,
         'admin-2': 1,
       });
+    });
+
+    test('combines support and participant admin-direct inboxes', () async {
+      final supportId = await service.ensureSupportConversation(
+        userId: 'passenger-1',
+        userName: 'Ana Passenger',
+        userRole: 'passenger',
+      );
+      final directId = await service.ensureAdminConversation(
+        targetAdminId: 'admin-2',
+      );
+
+      final inbox = await service
+          .watchAdminInbox('admin-1')
+          .firstWhere((conversations) => conversations.length == 2);
+
+      expect(
+        inbox.map((conversation) => conversation.conversationId),
+        containsAll(<String>[supportId, directId]),
+      );
     });
   });
 }

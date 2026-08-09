@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/session/user_roles.dart';
+
 import '../../models/chat_conversation.dart';
 import '../../models/chat_message.dart';
 import '../../models/chat_participant_profile.dart';
@@ -98,7 +100,7 @@ class _ChatPageState extends State<ChatPage> {
   }) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      backgroundColor: widget.currentUserRole == 'admin'
+      backgroundColor: isAdminStaffRole(widget.currentUserRole)
           ? PassengerUi.mutedSurface
           : PassengerUi.background,
       appBar: AppBar(
@@ -111,7 +113,7 @@ class _ChatPageState extends State<ChatPage> {
         top: false,
         bottom: false,
         child: _ChatBodyFrame(
-          maxContentWidth: widget.currentUserRole == 'admin'
+          maxContentWidth: isAdminStaffRole(widget.currentUserRole)
               ? PassengerUi.settingsContentWidth
               : null,
           child: Column(
@@ -163,7 +165,7 @@ class _ChatPageState extends State<ChatPage> {
 
   VoidCallback? _profileTapFor(_ChatTarget target) {
     final userId = target.userId?.trim() ?? '';
-    if (widget.currentUserRole != 'admin' || userId.isEmpty) {
+    if (!isAdminStaffRole(widget.currentUserRole) || userId.isEmpty) {
       return null;
     }
 
@@ -206,7 +208,7 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
 
-    if (conversation.isSupport && widget.currentUserRole != 'admin') {
+    if (conversation.isSupport && !isAdminStaffRole(widget.currentUserRole)) {
       return _ChatTarget(
         userId: null,
         name: 'SakayNow Support',
@@ -405,6 +407,7 @@ class _ChatPageState extends State<ChatPage> {
     return switch (role?.trim().toLowerCase()) {
       'driver' => 'Driver',
       'admin' => 'Admin',
+      'super_admin' => 'Super Admin',
       'passenger' || 'regular' || 'student' || 'senior_citizen' => 'Passenger',
       _ => null,
     };

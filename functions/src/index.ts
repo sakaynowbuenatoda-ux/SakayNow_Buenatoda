@@ -376,7 +376,7 @@ export const createAdminAccount = onCall(
     if (!requesterId) {
       throw new HttpsError(
         "unauthenticated",
-        "Sign in as the main admin to create admin accounts.",
+        "Sign in as the super admin to create admin accounts.",
       );
     }
 
@@ -385,10 +385,10 @@ export const createAdminAccount = onCall(
       .doc(requesterId)
       .get();
     const requester = requesterSnapshot.data();
-    if (!requesterSnapshot.exists || !requester || !isMainAdmin(requester)) {
+    if (!requesterSnapshot.exists || !requester || !isSuperAdmin(requester)) {
       throw new HttpsError(
         "permission-denied",
-        "Only the main admin account can create admin accounts.",
+        "Only the super admin account can create admin accounts.",
       );
     }
 
@@ -478,13 +478,15 @@ export const createAdminAccount = onCall(
 export const deactivateAdminAccount = onCall(
   {
     region: "asia-southeast1",
+    cpu: "gcf_gen1",
+    invoker: "public",
   },
   async (request) => {
     const requesterId = request.auth?.uid;
     if (!requesterId) {
       throw new HttpsError(
         "unauthenticated",
-        "Sign in as the main admin to deactivate admin accounts.",
+        "Sign in as the super admin to deactivate admin accounts.",
       );
     }
 
@@ -493,10 +495,10 @@ export const deactivateAdminAccount = onCall(
       .doc(requesterId)
       .get();
     const requester = requesterSnapshot.data();
-    if (!requesterSnapshot.exists || !requester || !isMainAdmin(requester)) {
+    if (!requesterSnapshot.exists || !requester || !isSuperAdmin(requester)) {
       throw new HttpsError(
         "permission-denied",
-        "Only the active main admin account can deactivate admin accounts.",
+        "Only the active super admin account can deactivate admin accounts.",
       );
     }
 
@@ -504,7 +506,7 @@ export const deactivateAdminAccount = onCall(
     if (adminUserId === requesterId) {
       throw new HttpsError(
         "failed-precondition",
-        "The main admin account cannot be deactivated.",
+        "The super admin account cannot be deactivated.",
       );
     }
 
@@ -519,13 +521,6 @@ export const deactivateAdminAccount = onCall(
       throw new HttpsError(
         "invalid-argument",
         "Only admin accounts can be deactivated here.",
-      );
-    }
-
-    if (hasMainAdminName(target)) {
-      throw new HttpsError(
-        "failed-precondition",
-        "The main admin account cannot be deactivated.",
       );
     }
 
@@ -575,7 +570,7 @@ export const restoreAdminAccount = onCall(
     if (!requesterId) {
       throw new HttpsError(
         "unauthenticated",
-        "Sign in as the main admin to restore admin accounts.",
+        "Sign in as the super admin to restore admin accounts.",
       );
     }
 
@@ -584,10 +579,10 @@ export const restoreAdminAccount = onCall(
       .doc(requesterId)
       .get();
     const requester = requesterSnapshot.data();
-    if (!requesterSnapshot.exists || !requester || !isMainAdmin(requester)) {
+    if (!requesterSnapshot.exists || !requester || !isSuperAdmin(requester)) {
       throw new HttpsError(
         "permission-denied",
-        "Only the active main admin account can restore admin accounts.",
+        "Only the active super admin account can restore admin accounts.",
       );
     }
 
@@ -595,7 +590,7 @@ export const restoreAdminAccount = onCall(
     if (adminUserId === requesterId) {
       throw new HttpsError(
         "failed-precondition",
-        "The main admin account does not need restoration.",
+        "The super admin account does not need restoration.",
       );
     }
 
@@ -610,13 +605,6 @@ export const restoreAdminAccount = onCall(
       throw new HttpsError(
         "invalid-argument",
         "Only admin accounts can be restored here.",
-      );
-    }
-
-    if (hasMainAdminName(target)) {
-      throw new HttpsError(
-        "failed-precondition",
-        "The main admin account does not need restoration.",
       );
     }
 
@@ -656,6 +644,93 @@ export const restoreAdminAccount = onCall(
     });
 
     return {admin_user_id: adminUserId};
+  },
+);
+
+export const ensureAdminDirectConversation = onCall(
+  {
+    region: "asia-southeast1",
+  },
+  async (request) => {
+    const requesterId = request.auth?.uid;
+    if (!requesterId) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in with an admin account to start this conversation.",
+      );
+    }
+
+    const targetAdminId = readRequiredString(request.data, "target_admin_id");
+    if (targetAdminId === requesterId) {
+      throw new HttpsError("invalid-argument", "Choose another admin to message.");
+    }
+
+    const [requesterSnapshot, targetSnapshot] = await Promise.all([
+      firestore.collection("users").doc(requesterId).get(),
+      firestore.collection("users").doc(targetAdminId).get(),
+    ]);
+    const requester = requesterSnapshot.data();
+    const target = targetSnapshot.data();
+    if (!requesterSnapshot.exists || !requester || !isAdminStaff(requester)) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only active admin staff can start admin conversations.",
+      );
+    }
+    if (!targetSnapshot.exists || !target || !isAdminStaff(target)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The selected admin account is not active.",
+      );
+    }
+
+    const participantIds = [requesterId, targetAdminId].sort();
+    const conversationId = `admin_direct_${participantIds[0]}_${participantIds[1]}`;
+    const conversationRef = firestore
+      .collection("conversations")
+      .doc(conversationId);
+    const conversationSnapshot = await conversationRef.get();
+    if (conversationSnapshot.exists) {
+      const existing = conversationSnapshot.data() ?? {};
+      const existingParticipantIds = readStringArray(existing.participant_ids)
+        .sort();
+      if (
+        readOptionalString(existing.type) !== "admin_direct" ||
+        existingParticipantIds.length !== 2 ||
+        existingParticipantIds[0] !== participantIds[0] ||
+        existingParticipantIds[1] !== participantIds[1]
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The admin conversation ID conflicts with an existing record.",
+        );
+      }
+    }
+    const participantNames: Record<string, string> = {
+      [requesterId]: fullName(requester),
+      [targetAdminId]: fullName(target),
+    };
+    const participantRoles: Record<string, string> = {
+      [requesterId]: normalizedUserRole(requester),
+      [targetAdminId]: normalizedUserRole(target),
+    };
+
+    await conversationRef.set(
+      {
+        conversation_id: conversationId,
+        type: "admin_direct",
+        participant_ids: participantIds,
+        participant_names: participantNames,
+        participant_roles: participantRoles,
+        ...(conversationSnapshot.exists ? {} : {
+          created_at: FieldValue.serverTimestamp(),
+        }),
+        updated_at: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+    );
+
+    return {conversation_id: conversationId};
   },
 );
 
@@ -872,7 +947,7 @@ export const notifyNewVerificationRequest = onDocumentCreated(
     const userId = event.params.userId;
     const user = userSnapshot.data();
     const role = normalizedUserRole(user);
-    if (role === "admin" || isVerifiedAccount(user)) {
+    if (isAdminStaffRole(role) || isVerifiedAccount(user)) {
       return;
     }
 
@@ -907,7 +982,7 @@ export const notifyAccountStatusChanged = onDocumentUpdated(
     const before = change.before.data();
     const after = change.after.data();
     const role = normalizedUserRole(after);
-    if (role === "admin") {
+    if (isAdminStaffRole(role)) {
       return;
     }
 
@@ -1074,6 +1149,7 @@ export const notifyDriverRenewalSubmitted = onDocumentUpdated(
 export const notifyDriverRenewalDecision = onDocumentUpdated(
   {
     region: "asia-southeast1",
+    cpu: "gcf_gen1",
     document: "users/{userId}",
   },
   async (event) => {
@@ -1127,7 +1203,7 @@ export const logAdminUserAction = onDocumentUpdated(
     const before = change.before.data();
     const after = change.after.data();
     const role = normalizedUserRole(after);
-    if (role === "admin") {
+    if (isAdminStaffRole(role)) {
       return;
     }
 
@@ -1303,6 +1379,7 @@ export const stampPaymentEventRetention = onDocumentWritten(
 export const purgeExpiredDeactivatedAccounts = onSchedule(
   {
     region: "asia-southeast1",
+    cpu: "gcf_gen1",
     schedule: "every day 02:00",
     timeZone: "Asia/Manila",
   },
@@ -1578,6 +1655,7 @@ export const notifyBookingStatusChanged = onDocumentUpdated(
 export const notifyReviewReceived = onDocumentCreated(
   {
     region: "asia-southeast1",
+    cpu: "gcf_gen1",
     document: "reviews/{reviewId}",
   },
   async (event) => {
@@ -1622,6 +1700,7 @@ export const notifyReviewReceived = onDocumentCreated(
 export const syncRevieweeRatingStats = onDocumentWritten(
   {
     region: "asia-southeast1",
+    cpu: "gcf_gen1",
     document: "reviews/{reviewId}",
   },
   async (event) => {
@@ -1987,7 +2066,7 @@ async function sendPushToUser(params: {
 async function notifyAdmins(params: Omit<AppNotificationParams, "userId">) {
   const snapshot = await firestore
     .collection("users")
-    .where("role", "==", "admin")
+    .where("role", "in", ["admin", "super_admin"])
     .get();
 
   await Promise.all(
@@ -1997,7 +2076,7 @@ async function notifyAdmins(params: Omit<AppNotificationParams, "userId">) {
         createAppNotification({
           ...params,
           userId: doc.id,
-          role: "admin",
+          role: normalizedUserRole(doc.data()),
         }),
       ),
   );
@@ -2289,7 +2368,7 @@ function normalizedUserRole(data: Record<string, unknown>) {
     return "passenger";
   }
 
-  if (role === "driver" || role === "admin") {
+  if (role === "driver" || role === "admin" || role === "super_admin") {
     return role;
   }
 
@@ -2714,13 +2793,13 @@ async function notificationRecipientIds(params: {
     return participantIds;
   }
 
-  if (params.senderRole === "admin") {
+  if (isAdminStaffRole(params.senderRole)) {
     return participantIds;
   }
 
   const adminSnapshot = await firestore
     .collection("users")
-    .where("role", "==", "admin")
+    .where("role", "in", ["admin", "super_admin"])
     .get();
 
   return adminSnapshot.docs
@@ -2740,7 +2819,7 @@ async function notificationTargetsForUsers(
     const userRef = firestore.collection("users").doc(userId);
     const userSnapshot = await userRef.get();
     const userData = userSnapshot.data() ?? {};
-    if (normalizedUserRole(userData) === "admin" && !isActiveAccount(userData)) {
+    if (isAdminStaffRole(normalizedUserRole(userData)) && !isActiveAccount(userData)) {
       continue;
     }
 
@@ -2791,7 +2870,7 @@ function notificationTitle(params: {
   senderRole: string;
 }) {
   const conversationType = readOptionalString(params.conversation.type);
-  if (params.senderRole === "admin" && conversationType !== "admin_direct") {
+  if (isAdminStaffRole(params.senderRole) && conversationType !== "admin_direct") {
     return "SakayNow Support";
   }
 
@@ -2801,7 +2880,13 @@ function notificationTitle(params: {
     return senderName;
   }
 
-  return params.senderRole === "driver" ? "Driver" : "Passenger";
+  if (params.senderRole === "driver") {
+    return "Driver";
+  }
+  if (params.senderRole === "super_admin") {
+    return "Super Admin";
+  }
+  return params.senderRole === "admin" ? "Admin" : "Passenger";
 }
 
 function truncateNotificationBody(text: string) {
@@ -3021,15 +3106,16 @@ async function adminNameForId(adminId: string) {
   return name === "SakayNow Passenger" ? "Admin" : name;
 }
 
-function isMainAdmin(user: Record<string, unknown>) {
-  return normalizedUserRole(user) === "admin" &&
-    hasMainAdminName(user) &&
-    isActiveAccount(user);
+function isAdminStaffRole(role: string) {
+  return role === "admin" || role === "super_admin";
 }
 
-function hasMainAdminName(user: Record<string, unknown>) {
-  return (readOptionalString(user.first_name)?.toLowerCase() ?? "") ===
-    "admin";
+function isAdminStaff(user: Record<string, unknown>) {
+  return isAdminStaffRole(normalizedUserRole(user)) && isActiveAccount(user);
+}
+
+function isSuperAdmin(user: Record<string, unknown>) {
+  return normalizedUserRole(user) === "super_admin" && isActiveAccount(user);
 }
 
 function isActiveAccount(user: Record<string, unknown>) {

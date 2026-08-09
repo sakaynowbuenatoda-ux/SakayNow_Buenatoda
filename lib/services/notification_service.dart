@@ -16,6 +16,7 @@ import '../models/app_notification.dart';
 import '../models/notification_preferences.dart';
 import '../models/notification_sound_profile.dart';
 import '../pages/admin/admin_user_review_page.dart';
+import '../core/session/user_roles.dart';
 import '../pages/driver/driver_queue.dart';
 import '../pages/messages/chat_page.dart';
 import '../pages/profile/profile_page.dart';
@@ -541,8 +542,8 @@ class NotificationService {
     final title = data['title']?.toString().trim();
     final conversationType = data['conversation_type']?.toString().trim();
     final subtitle = switch (conversationType) {
-      'support' => role == 'admin' ? 'Support request' : 'Admin',
-      'admin_direct' => 'Admin direct',
+      'support' => isAdminStaffRole(role) ? 'Support request' : 'Admin',
+      'admin_direct' => 'Admin staff',
       _ => 'Ride chat',
     };
 
@@ -643,7 +644,7 @@ class NotificationService {
       return;
     }
 
-    if (type == 'verification_request' && currentUserRole == 'admin') {
+    if (type == 'verification_request' && isAdminStaffRole(currentUserRole)) {
       final userId = data['user_id']?.toString().trim() ?? '';
       if (userId.isNotEmpty) {
         _pushPageWhenNavigatorIsReady(

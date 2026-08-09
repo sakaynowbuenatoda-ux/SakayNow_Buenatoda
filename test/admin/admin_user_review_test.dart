@@ -62,6 +62,19 @@ void main() {
   }
 
   group('AdminUserRecord verification validation and gating', () {
+    test('distinguishes regular and super admin records explicitly', () {
+      final regularAdmin = buildUser(role: 'admin', isVerified: true);
+      final superAdmin = buildUser(role: 'super_admin', isVerified: true);
+
+      expect(regularAdmin.isAdminStaff, isTrue);
+      expect(regularAdmin.isRegularAdmin, isTrue);
+      expect(regularAdmin.isSuperAdmin, isFalse);
+      expect(superAdmin.isAdminStaff, isTrue);
+      expect(superAdmin.isRegularAdmin, isFalse);
+      expect(superAdmin.isSuperAdmin, isTrue);
+      expect(superAdmin.roleLabel, 'Super Admin');
+    });
+
     test(
       'complete driver profile returns isDriverVerificationComplete=true and canBeApproved=true',
       () {

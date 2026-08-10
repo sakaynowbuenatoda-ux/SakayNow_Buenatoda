@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sakaynow_buenatoda/widgets/passenger_widgets/passenger_ui.dart';
 
 void main() {
-  testWidgets('page header uses compact typography and a trailing tonal icon', (
+  testWidgets('page header renders a compact title without decorations', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(320, 640);
@@ -28,11 +28,11 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Dashboard'), findsOneWidget);
-    expect(find.byIcon(Icons.insights_rounded), findsOneWidget);
-
-    final titleRect = tester.getRect(find.text('Dashboard'));
-    final iconRect = tester.getRect(find.byIcon(Icons.insights_rounded));
-    expect(iconRect.center.dx, greaterThan(titleRect.center.dx));
+    expect(
+      find.text('A quick view of trips, payments, and safety status.'),
+      findsNothing,
+    );
+    expect(find.byIcon(Icons.insights_rounded), findsNothing);
 
     final title = tester.widget<Text>(find.text('Dashboard'));
     expect(title.style?.fontWeight, FontWeight.w800);
@@ -54,7 +54,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Payment Methods'), findsOneWidget);
-    expect(find.byIcon(Icons.credit_card_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.credit_card_rounded), findsNothing);
   });
 
   testWidgets('page header can omit its decorative icon', (tester) async {
@@ -73,6 +73,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('Manage the admin console preferences.'), findsNothing);
     expect(find.byIcon(Icons.settings_suggest_rounded), findsNothing);
   });
 }

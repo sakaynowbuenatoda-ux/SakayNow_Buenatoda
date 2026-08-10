@@ -187,6 +187,199 @@ class PassengerPageContainer extends StatelessWidget {
   }
 }
 
+class PassengerHomeSplitLayout extends StatefulWidget {
+  final Widget map;
+  final Widget header;
+  final Widget child;
+  final double maxContentWidth;
+
+  const PassengerHomeSplitLayout({
+    super.key,
+    required this.map,
+    required this.header,
+    required this.child,
+    this.maxContentWidth = 920,
+  });
+
+  @override
+  State<PassengerHomeSplitLayout> createState() =>
+      _PassengerHomeSplitLayoutState();
+}
+
+class _PassengerHomeSplitLayoutState extends State<PassengerHomeSplitLayout> {
+  static const double _initialExtent = 0.5;
+  static const double _expandedExtent = 2 / 3;
+
+  final DraggableScrollableController _sheetController =
+      DraggableScrollableController();
+  double _sheetExtent = _initialExtent;
+
+  @override
+  void initState() {
+    super.initState();
+    _sheetController.addListener(_handleSheetChanged);
+  }
+
+  @override
+  void dispose() {
+    _sheetController
+      ..removeListener(_handleSheetChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _handleSheetChanged() {
+    if (!_sheetController.isAttached) {
+      return;
+    }
+
+    final nextExtent = _sheetController.size;
+    if ((nextExtent - _sheetExtent).abs() < 0.001 || !mounted) {
+      return;
+    }
+
+    setState(() => _sheetExtent = nextExtent);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final expansionProgress =
+        ((_sheetExtent - _initialExtent) / (_expandedExtent - _initialExtent))
+            .clamp(0.0, 1.0);
+
+    return ColoredBox(
+      color: PassengerUi.background,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          KeyedSubtree(key: const Key('home-map-pane'), child: widget.map),
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: const Alignment(0, -0.08),
+                  colors: <Color>[
+                    Colors.black.withValues(alpha: 0.28),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 440),
+            curve: Curves.easeOutCubic,
+            builder: (context, entrance, child) {
+              return Opacity(
+                opacity: entrance * (1 - (expansionProgress * 0.08)),
+                child: Transform.translate(
+                  offset: Offset(
+                    0,
+                    (12 * (1 - entrance)) - (8 * expansionProgress),
+                  ),
+                  child: child,
+                ),
+              );
+            },
+            child: widget.header,
+          ),
+          Positioned.fill(
+            child: DraggableScrollableSheet(
+              key: const Key('home-content-sheet'),
+              controller: _sheetController,
+              initialChildSize: _initialExtent,
+              minChildSize: _initialExtent,
+              maxChildSize: _expandedExtent,
+              expand: false,
+              snap: true,
+              snapSizes: const <double>[_initialExtent, _expandedExtent],
+              snapAnimationDuration: const Duration(milliseconds: 360),
+              builder: (context, scrollController) {
+                return Align(
+                  alignment: Alignment.bottomCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: widget.maxContentWidth,
+                    ),
+                    child: SizedBox.expand(
+                      key: const Key('home-content-sheet-surface'),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: PassengerUi.background,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(28),
+                          ),
+                          border: Border(
+                            top: BorderSide(
+                              color: PassengerUi.border.withValues(alpha: 0.9),
+                            ),
+                          ),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: Colors.black.withValues(
+                                alpha: PassengerUi.isDarkMode ? 0.34 : 0.14,
+                              ),
+                              blurRadius: 28,
+                              offset: const Offset(0, -8),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(28),
+                          ),
+                          child: CustomScrollView(
+                            controller: scrollController,
+                            physics: const BouncingScrollPhysics(
+                              parent: AlwaysScrollableScrollPhysics(),
+                            ),
+                            slivers: <Widget>[
+                              SliverToBoxAdapter(
+                                child: Center(
+                                  child: Container(
+                                    key: const Key('home-sheet-handle'),
+                                    width: 42,
+                                    height: 5,
+                                    margin: const EdgeInsets.only(
+                                      top: 10,
+                                      bottom: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: PassengerUi.body.withValues(
+                                        alpha: 0.32,
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: PassengerUi.pagePadding(
+                                    context,
+                                    top: 10,
+                                  ),
+                                  child: widget.child,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class PassengerSurfaceCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -268,83 +461,23 @@ class PassengerPageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = accentColor ?? PassengerUi.primary;
     final compact = PassengerUi.isCompactWidth(context);
-    final hasSubtitle = subtitle.trim().isNotEmpty;
-    final iconExtent = dense || compact ? 38.0 : 42.0;
 
     return Semantics(
       container: true,
       header: true,
       child: SizedBox(
         width: double.infinity,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            Container(
-              width: 4,
-              height: hasSubtitle ? (dense ? 46 : 52) : 36,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            SizedBox(width: dense ? 11 : 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: PassengerUi.sectionTitle.copyWith(
-                      fontSize: dense || compact ? 20 : 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.35,
-                      height: 1.08,
-                    ),
-                  ),
-                  if (hasSubtitle) ...<Widget>[
-                    SizedBox(height: dense ? 4 : 6),
-                    Text(
-                      subtitle,
-                      maxLines: dense ? 2 : 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: PassengerUi.bodyText.copyWith(
-                        fontSize: dense || compact ? 12 : 13,
-                        height: 1.32,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (showIcon) ...<Widget>[
-              SizedBox(width: dense ? 10 : 12),
-              ExcludeSemantics(
-                child: Container(
-                  width: iconExtent,
-                  height: iconExtent,
-                  decoration: BoxDecoration(
-                    color: color.withValues(
-                      alpha: PassengerUi.isDarkMode ? 0.16 : 0.08,
-                    ),
-                    borderRadius: BorderRadius.circular(dense ? 12 : 14),
-                    border: Border.all(
-                      color: color.withValues(
-                        alpha: PassengerUi.isDarkMode ? 0.24 : 0.12,
-                      ),
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(icon, color: color, size: dense ? 19 : 21),
-                ),
-              ),
-            ],
-          ],
+        child: Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: PassengerUi.sectionTitle.copyWith(
+            fontSize: dense || compact ? 20 : 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.35,
+            height: 1.08,
+          ),
         ),
       ),
     );

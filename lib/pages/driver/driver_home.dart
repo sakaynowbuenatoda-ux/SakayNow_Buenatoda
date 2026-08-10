@@ -14,6 +14,7 @@ import '../../services/location_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/action_cooldown_notice.dart';
+import '../../widgets/app_bar.dart';
 import '../../widgets/driver_rating_leaderboard_panel.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/maps/map_type_toggle.dart';
@@ -34,6 +35,11 @@ class DriverHomePage extends StatelessWidget {
   final bool isActive;
   final bool isVerified;
   final bool canReceiveBookings;
+  final String? profileImageUrl;
+  final int notificationUnreadCount;
+  final VoidCallback onNotificationsTap;
+  final VoidCallback? onBrandTap;
+  final ValueChanged<String>? onProfileSelected;
   final VoidCallback onOpenQueue;
   final VoidCallback onOpenHistory;
 
@@ -44,54 +50,66 @@ class DriverHomePage extends StatelessWidget {
     required this.isActive,
     required this.isVerified,
     this.canReceiveBookings = false,
+    this.profileImageUrl,
+    this.notificationUnreadCount = 0,
+    required this.onNotificationsTap,
+    this.onBrandTap,
+    this.onProfileSelected,
     required this.onOpenQueue,
     required this.onOpenHistory,
   });
 
   @override
   Widget build(BuildContext context) {
-    return PassengerPageContainer(
+    return PassengerHomeSplitLayout(
+      map: DriverLiveRequestMapCard(
+        driverId: userId,
+        expanded: true,
+        showRequests: isActive,
+      ),
+      header: HomeMapHeader(
+        firstName: firstName,
+        profileImageUrl: profileImageUrl,
+        greeting: firstName.trim().isEmpty
+            ? 'Welcome'
+            : 'Welcome, ${firstName.trim()}',
+        isDriver: true,
+        showVerifiedBadge: isVerified,
+        notificationUnreadCount: notificationUnreadCount,
+        onNotificationsTap: onNotificationsTap,
+        onBrandTap: onBrandTap,
+        onProfileSelected: onProfileSelected,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          PassengerPageHeader(
-            title: 'Welcome, $firstName',
-            subtitle:
-                'Manage availability and respond to nearby booking requests.',
-            icon: Icons.near_me_rounded,
-            accentColor: PassengerUi.secondary,
-            dense: true,
+          DriverStatusHeroCard(
+            firstName: firstName,
+            isActive: isActive,
+            isVerified: isVerified,
           ),
-          SizedBox(height: 16),
-          isActive
-              ? DriverLiveRequestMapCard(driverId: userId)
-              : DriverStatusHeroCard(
-                  firstName: firstName,
-                  isActive: isActive,
-                  isVerified: isVerified,
-                ),
           DriverActiveRideShortcut(driverId: userId),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           PassengerSectionHeader(
             title: 'Incoming Requests',
             actionLabel: 'Open queue',
             onActionTap: onOpenQueue,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           _LiveIncomingRequestsPreview(
             driverId: userId,
             isVerified: canReceiveBookings,
             isActive: isActive,
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           PassengerSectionHeader(
             title: 'Recent Trips',
             actionLabel: 'View all',
             onActionTap: onOpenHistory,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           DriverRecentTripsSection(driverId: userId, limit: 3),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           DriverRatingLeaderboardPanel(
             limit: 5,
             actionLabel: 'See Top 20',
@@ -340,8 +358,12 @@ class DriverStatusHeroCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  Icons.signal_wifi_off_rounded,
-                  color: PassengerUi.accentBlue,
+                  isActive
+                      ? Icons.location_searching_rounded
+                      : Icons.signal_wifi_off_rounded,
+                  color: isActive
+                      ? PassengerUi.successText
+                      : PassengerUi.accentBlue,
                   size: 22,
                 ),
               ),
@@ -392,8 +414,15 @@ class DriverStatusHeroCard extends StatelessWidget {
 
 class DriverLiveRequestMapCard extends StatefulWidget {
   final String driverId;
+  final bool expanded;
+  final bool showRequests;
 
-  const DriverLiveRequestMapCard({super.key, required this.driverId});
+  const DriverLiveRequestMapCard({
+    super.key,
+    required this.driverId,
+    this.expanded = false,
+    this.showRequests = true,
+  });
 
   @override
   State<DriverLiveRequestMapCard> createState() =>
@@ -419,145 +448,161 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      padding: const EdgeInsets.all(10),
-      child: StreamBuilder<RideDriverLocation?>(
-        stream: _rideTrackingService.watchDriverLocation(widget.driverId),
-        builder: (context, locationSnapshot) {
-          return FutureBuilder<LatLng>(
-            future: _currentLocationFuture,
-            builder: (context, fallbackSnapshot) {
-              final driverLocation = locationSnapshot.data?.latLng;
-              final fallbackLocation =
-                  fallbackSnapshot.data ?? MapConfig.buenavistaCenter;
-              final mapCenter = driverLocation ?? fallbackLocation;
+    final mapContent = StreamBuilder<RideDriverLocation?>(
+      stream: _rideTrackingService.watchDriverLocation(widget.driverId),
+      builder: (context, locationSnapshot) {
+        return FutureBuilder<LatLng>(
+          future: _currentLocationFuture,
+          builder: (context, fallbackSnapshot) {
+            final driverLocation = locationSnapshot.data?.latLng;
+            final fallbackLocation =
+                fallbackSnapshot.data ?? MapConfig.buenavistaCenter;
+            final mapCenter = driverLocation ?? fallbackLocation;
 
-              return StreamBuilder<List<Ride>>(
-                stream: _rideTrackingService.watchOpenBookings(
-                  driverId: widget.driverId,
-                ),
-                builder: (context, rideSnapshot) {
-                  final rides = rideSnapshot.data ?? const <Ride>[];
-                  final visibleRides = rides
-                      .where((ride) => ride.pickupLocation.latLng != null)
-                      .toList(growable: false);
-                  _prunePassengerProfileFutures(visibleRides);
-                  final passengerProfilesFuture = _passengerProfilesFor(
-                    visibleRides,
-                  );
-                  final markers = _buildMarkers(
-                    driverLocation: mapCenter,
-                    rides: visibleRides,
-                  );
-                  final bounds = _boundsFor([
-                    mapCenter,
-                    ...visibleRides
-                        .map((ride) => ride.pickupLocation.latLng)
-                        .nonNulls,
-                  ]);
+            return StreamBuilder<List<Ride>>(
+              stream: widget.showRequests
+                  ? _rideTrackingService.watchOpenBookings(
+                      driverId: widget.driverId,
+                    )
+                  : null,
+              builder: (context, rideSnapshot) {
+                final rides = rideSnapshot.data ?? const <Ride>[];
+                final visibleRides = rides
+                    .where((ride) => ride.pickupLocation.latLng != null)
+                    .toList(growable: false);
+                _prunePassengerProfileFutures(visibleRides);
+                final passengerProfilesFuture = _passengerProfilesFor(
+                  visibleRides,
+                );
+                final markers = _buildMarkers(
+                  driverLocation: mapCenter,
+                  rides: visibleRides,
+                );
+                final bounds = _boundsFor([
+                  mapCenter,
+                  ...visibleRides
+                      .map((ride) => ride.pickupLocation.latLng)
+                      .nonNulls,
+                ]);
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                Widget buildMapViewport(double? controlsTop) {
+                  return Stack(
+                    fit: StackFit.expand,
                     children: <Widget>[
-                      ClipRRect(
-                        borderRadius: PassengerUi.cardRadius,
-                        child: SizedBox(
-                          height: PassengerUi.isCompactWidth(context)
-                              ? 260
-                              : 300,
-                          child: Stack(
-                            children: <Widget>[
-                              Positioned.fill(
-                                child:
-                                    FutureBuilder<
-                                      Map<String, PassengerReviewProfile?>
-                                    >(
-                                      future: passengerProfilesFuture,
-                                      builder: (context, profileSnapshot) {
-                                        final passengerProfiles =
-                                            profileSnapshot.data ??
-                                            <String, PassengerReviewProfile?>{};
+                      FutureBuilder<Map<String, PassengerReviewProfile?>>(
+                        future: passengerProfilesFuture,
+                        builder: (context, profileSnapshot) {
+                          final passengerProfiles =
+                              profileSnapshot.data ??
+                              <String, PassengerReviewProfile?>{};
 
-                                        return AnimatedBuilder(
-                                          animation:
-                                              AppPreferencesController.instance,
-                                          builder: (context, _) {
-                                            return SakayGoogleMap(
-                                              initialCameraTarget: mapCenter,
-                                              bounds: bounds,
-                                              markers: markers,
-                                              profilePins:
-                                                  _passengerProfilePins(
-                                                    visibleRides,
-                                                    passengerProfiles,
-                                                  ),
-                                              mapType: AppPreferencesController
-                                                  .instance
-                                                  .googleMapType,
-                                              myLocationEnabled:
-                                                  driverLocation != null,
-                                              autoMoveCamera: true,
-                                            );
-                                          },
-                                        );
-                                      },
-                                    ),
-                              ),
-                              const Positioned(
-                                top: 10,
-                                right: 10,
-                                child: MapTypeToggle(),
-                              ),
-                              Positioned(
-                                left: 10,
-                                right: 112,
-                                top: 10,
-                                child: _DriverMapStatusPill(
-                                  requestCount: rides.length,
-                                  passengerCount: _uniquePassengerCount(rides),
-                                  hasDriverLocation: driverLocation != null,
-                                  isLoading:
-                                      locationSnapshot.connectionState ==
-                                          ConnectionState.waiting ||
-                                      rideSnapshot.connectionState ==
-                                          ConnectionState.waiting,
+                          return AnimatedBuilder(
+                            animation: AppPreferencesController.instance,
+                            builder: (context, _) {
+                              return SakayGoogleMap(
+                                initialCameraTarget: mapCenter,
+                                bounds: bounds,
+                                markers: markers,
+                                profilePins: _passengerProfilePins(
+                                  visibleRides,
+                                  passengerProfiles,
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
+                                mapType: AppPreferencesController
+                                    .instance
+                                    .googleMapType,
+                                myLocationEnabled: driverLocation != null,
+                                autoMoveCamera: true,
+                              );
+                            },
+                          );
+                        },
                       ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: <Widget>[
-                          Icon(
-                            Icons.radio_button_checked_rounded,
-                            size: 16,
-                            color: PassengerUi.secondary,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              visibleRides.isEmpty
-                                  ? 'Online. Passenger requests will appear on the map.'
-                                  : '${visibleRides.length} passenger pickup location(s) nearby.',
-                              style: PassengerUi.bodyText.copyWith(
-                                fontSize: 12.5,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                      Positioned(
+                        top: controlsTop ?? 10,
+                        right: widget.expanded ? 8 : 10,
+                        child: const MapTypeToggle(),
+                      ),
+                      Positioned(
+                        left: widget.expanded ? 8 : 10,
+                        right: 112,
+                        top: controlsTop ?? 10,
+                        child: _DriverMapStatusPill(
+                          requestCount: rides.length,
+                          passengerCount: _uniquePassengerCount(rides),
+                          hasDriverLocation: driverLocation != null,
+                          isLoading:
+                              locationSnapshot.connectionState ==
+                                  ConnectionState.waiting ||
+                              (widget.showRequests &&
+                                  rideSnapshot.connectionState ==
+                                      ConnectionState.waiting),
+                          isOnline: widget.showRequests,
+                        ),
                       ),
                     ],
                   );
-                },
-              );
-            },
-          );
-        },
-      ),
+                }
+
+                if (widget.expanded) {
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final controlsTop =
+                          MediaQuery.paddingOf(context).top +
+                          (PassengerUi.isCompactWidth(context) ? 88 : 96);
+                      return buildMapViewport(controlsTop);
+                    },
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    ClipRRect(
+                      borderRadius: PassengerUi.cardRadius,
+                      child: SizedBox(
+                        height: PassengerUi.isCompactWidth(context) ? 260 : 300,
+                        child: buildMapViewport(null),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: <Widget>[
+                        Icon(
+                          Icons.radio_button_checked_rounded,
+                          size: 16,
+                          color: PassengerUi.secondary,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            visibleRides.isEmpty
+                                ? 'Online. Passenger requests will appear on the map.'
+                                : '${visibleRides.length} passenger pickup location(s) nearby.',
+                            style: PassengerUi.bodyText.copyWith(
+                              fontSize: 12.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+
+    if (widget.expanded) {
+      return mapContent;
+    }
+
+    return PassengerSurfaceCard(
+      padding: const EdgeInsets.all(10),
+      child: mapContent,
     );
   }
 
@@ -698,17 +743,23 @@ class _DriverMapStatusPill extends StatelessWidget {
   final int passengerCount;
   final bool hasDriverLocation;
   final bool isLoading;
+  final bool isOnline;
 
   const _DriverMapStatusPill({
     required this.requestCount,
     required this.passengerCount,
     required this.hasDriverLocation,
     required this.isLoading,
+    this.isOnline = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final onlineText = isLoading ? 'Syncing' : 'Online';
+    final onlineText = isLoading
+        ? 'Syncing'
+        : isOnline
+        ? 'Online'
+        : 'Offline';
     final countText =
         '$passengerCount passenger${passengerCount == 1 ? '' : 's'}';
 
@@ -738,22 +789,24 @@ class _DriverMapStatusPill extends StatelessWidget {
                 onlineText,
                 style: PassengerUi.valueText.copyWith(fontSize: 12),
               ),
-              const SizedBox(width: 8),
-              Container(width: 1, height: 14, color: PassengerUi.border),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.groups_2_rounded,
-                size: 15,
-                color: PassengerUi.secondary,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                countText,
-                style: PassengerUi.valueText.copyWith(
-                  fontSize: 12,
+              if (isOnline) ...<Widget>[
+                const SizedBox(width: 8),
+                Container(width: 1, height: 14, color: PassengerUi.border),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.groups_2_rounded,
+                  size: 15,
                   color: PassengerUi.secondary,
                 ),
-              ),
+                const SizedBox(width: 5),
+                Text(
+                  countText,
+                  style: PassengerUi.valueText.copyWith(
+                    fontSize: 12,
+                    color: PassengerUi.secondary,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

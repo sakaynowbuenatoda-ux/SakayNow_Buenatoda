@@ -10,7 +10,6 @@ import '../../services/chat_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/animated_tab_switcher.dart';
-import '../../widgets/app_bar.dart';
 import '../../widgets/bottom_nav.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../notifications/notifications_page.dart';
@@ -140,6 +139,11 @@ class _PassengerShellState extends State<PassengerShell> {
         firstName: widget.firstName,
         passengerType: widget.passengerType,
         isVerified: widget.isVerified,
+        profileImageUrl: widget.profileImageUrl,
+        notificationUnreadCount: _notificationUnreadCount,
+        onNotificationsTap: _openNotifications,
+        onBrandTap: () => _selectTab(0),
+        onProfileSelected: _handleProfileSelected,
         onOpenHistory: _openHistory,
       ),
       PassengerMessages(
@@ -165,16 +169,6 @@ class _PassengerShellState extends State<PassengerShell> {
     return Scaffold(
       extendBody: true,
       backgroundColor: PassengerUi.background,
-      appBar: AppBarWidget(
-        firstName: widget.firstName,
-        profileImageUrl: widget.profileImageUrl,
-        isDriver: false,
-        showVerifiedBadge: widget.isVerified,
-        notificationUnreadCount: _notificationUnreadCount,
-        onNotificationsTap: _openNotifications,
-        onBrandTap: () => _selectTab(0),
-        onProfileSelected: _handleProfileSelected,
-      ),
       body: AnimatedTabSwitcher(
         index: _currentIndex,
         onRefresh: _handleRefresh,

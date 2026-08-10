@@ -112,7 +112,6 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
       ),
       actions: [
         _ModernIconButton(
-          icon: Icons.notifications_none_rounded,
           onTap: onNotificationsTap,
           compact: compact,
           count: notificationUnreadCount,
@@ -135,6 +134,158 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(72);
 }
 
+class HomeMapHeader extends StatelessWidget {
+  final String firstName;
+  final String? profileImageUrl;
+  final String greeting;
+  final VoidCallback onNotificationsTap;
+  final VoidCallback? onBrandTap;
+  final int notificationUnreadCount;
+  final ValueChanged<String>? onProfileSelected;
+  final bool isDriver;
+  final bool showVerifiedBadge;
+
+  const HomeMapHeader({
+    super.key,
+    required this.firstName,
+    this.profileImageUrl,
+    required this.greeting,
+    required this.onNotificationsTap,
+    this.onBrandTap,
+    this.notificationUnreadCount = 0,
+    this.onProfileSelected,
+    this.isDriver = false,
+    this.showVerifiedBadge = false,
+  });
+
+  Future<void> _logout(BuildContext context) async {
+    try {
+      await SessionService.signOut();
+    } catch (error) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback: 'Unable to log out. Please try again.',
+            ),
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _showLogoutConfirmation(BuildContext context) async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true && context.mounted) {
+      await _logout(context);
+    }
+  }
+
+  void _handleMenuAction(BuildContext context, String value) {
+    if (value == 'logout') {
+      _showLogoutConfirmation(context);
+      return;
+    }
+
+    onProfileSelected?.call(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = PassengerUi.isCompactWidth(context);
+    final edgePadding = compact ? 6.0 : 8.0;
+
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(edgePadding, 4, edgePadding, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            SizedBox(
+              height: compact ? 46 : 50,
+              child: Row(
+                children: <Widget>[
+                  _AppLogo(
+                    compact: true,
+                    showBrandText: !isDriver,
+                    onTap: onBrandTap,
+                  ),
+                  const Spacer(),
+                  _ModernIconButton(
+                    onTap: onNotificationsTap,
+                    compact: true,
+                    count: notificationUnreadCount,
+                  ),
+                  const SizedBox(width: 5),
+                  _ProfileAvatarMenu(
+                    firstName: firstName,
+                    profileImageUrl: profileImageUrl,
+                    showVerifiedBadge: showVerifiedBadge,
+                    onSelected: (value) => _handleMenuAction(context, value),
+                    compact: true,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 3 : 5,
+                  vertical: 4,
+                ),
+                child: Text(
+                  greeting,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.archivoBlack(
+                    color: Colors.white,
+                    fontSize: compact ? 20 : 22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.35,
+                    height: 1,
+                    shadows: <Shadow>[
+                      Shadow(
+                        color: Colors.black.withValues(alpha: 0.48),
+                        blurRadius: 9,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 //// ---------- INTERNAL WIDGETS BELOW ---------- ////
 
 class _AppLogo extends StatelessWidget {
@@ -154,32 +305,38 @@ class _AppLogo extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(compact ? 12 : 14),
+        borderRadius: BorderRadius.circular(compact ? 10 : 14),
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: compact ? 6 : 10,
-            vertical: compact ? 6 : 8,
+            horizontal: compact ? 3 : 10,
+            vertical: compact ? 3 : 8,
           ),
           child: Row(
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(compact ? 8 : 10),
+                borderRadius: BorderRadius.circular(compact ? 9 : 10),
                 child: Image.asset(
                   AppAssets.logo,
-                  width: compact ? 32 : 36,
-                  height: compact ? 32 : 36,
+                  width: compact ? 28 : 36,
+                  height: compact ? 28 : 36,
                   fit: BoxFit.cover,
                 ),
               ),
               if (showBrandText) ...[
-                SizedBox(width: compact ? 6 : 8),
+                SizedBox(width: compact ? 5 : 8),
                 Text(
                   'SakayNow',
                   style: GoogleFonts.poppins(
                     color: PassengerUi.primary,
-                    fontSize: compact ? 16 : 18,
+                    fontSize: compact ? 15 : 18,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
+                    letterSpacing: -0.2,
+                    shadows: <Shadow>[
+                      Shadow(
+                        color: PassengerUi.surface.withValues(alpha: 0.85),
+                        blurRadius: 7,
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -218,13 +375,11 @@ class _NameText extends StatelessWidget {
 }
 
 class _ModernIconButton extends StatelessWidget {
-  final IconData icon;
   final VoidCallback onTap;
   final bool compact;
   final int count;
 
   const _ModernIconButton({
-    required this.icon,
     required this.onTap,
     required this.compact,
     this.count = 0,
@@ -235,56 +390,61 @@ class _ModernIconButton extends StatelessWidget {
     final hasUnread = count > 0;
 
     return Padding(
-      padding: EdgeInsets.only(right: compact ? 4 : 8),
-      child: Material(
-        color: PassengerUi.mutedSurface,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: SizedBox(
-            width: compact ? 38 : 42,
-            height: compact ? 38 : 42,
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                Icon(
-                  icon,
-                  color: PassengerUi.accentBlue,
-                  size: compact ? 20 : 22,
-                ),
-                if (hasUnread)
-                  Positioned(
-                    top: compact ? 7 : 8,
-                    right: compact ? 7 : 8,
-                    child: Container(
-                      constraints: const BoxConstraints(
-                        minWidth: 15,
-                        minHeight: 15,
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: PassengerUi.primary,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: PassengerUi.surface,
-                          width: 1.4,
+      padding: EdgeInsets.only(right: compact ? 3 : 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox(
+              width: compact ? 34 : 42,
+              height: compact ? 34 : 42,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  Text(
+                    '🔔',
+                    style: TextStyle(fontSize: compact ? 24 : 28, height: 1),
+                  ),
+                  if (hasUnread)
+                    Positioned(
+                      top: compact ? 4 : 8,
+                      right: compact ? 4 : 8,
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          minWidth: 14,
+                          minHeight: 14,
                         ),
-                      ),
-                      child: Text(
-                        count > 99 ? '99+' : count.toString(),
-                        style: TextStyle(
-                          color: PassengerUi.onPrimary,
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w800,
-                          height: 1,
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: PassengerUi.primary,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: PassengerUi.surface,
+                            width: 1.4,
+                          ),
+                        ),
+                        child: Text(
+                          count > 99 ? '99+' : count.toString(),
+                          style: TextStyle(
+                            color: PassengerUi.onPrimary,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w800,
+                            height: 1,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -350,30 +510,30 @@ class _ProfileAvatarMenu extends StatelessWidget {
         clipBehavior: Clip.none,
         children: <Widget>[
           Container(
-            margin: EdgeInsets.only(right: compact ? 2 : 4),
-            padding: const EdgeInsets.all(2.5),
+            margin: EdgeInsets.only(right: compact ? 1 : 4),
+            padding: EdgeInsets.all(compact ? 2 : 2.5),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: PassengerUi.primary.withValues(alpha: 0.22),
-                width: 1.4,
+                color: PassengerUi.surface.withValues(alpha: 0.9),
+                width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.10),
-                  blurRadius: 10,
-                  offset: Offset(0, 3),
+                  color: Colors.black.withValues(alpha: 0.07),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
                 ),
               ],
             ),
             child: CircleAvatar(
-              radius: compact ? 16 : 18,
-              backgroundColor: PassengerUi.primary.withValues(alpha: 0.10),
+              radius: compact ? 14 : 18,
+              backgroundColor: PassengerUi.surface.withValues(alpha: 0.76),
               child: ClipOval(
                 child: _StableProfileAvatarImage(
                   imageUrl: profileImageUrl,
-                  width: compact ? 32 : 36,
-                  height: compact ? 32 : 36,
+                  width: compact ? 28 : 36,
+                  height: compact ? 28 : 36,
                   fallback: _AvatarFallback(initial: initial),
                 ),
               ),
@@ -381,11 +541,11 @@ class _ProfileAvatarMenu extends StatelessWidget {
           ),
           if (showVerifiedBadge)
             Positioned(
-              right: compact ? -2 : 0,
+              right: compact ? -3 : 0,
               bottom: -1,
               child: Container(
-                width: compact ? 14 : 16,
-                height: compact ? 14 : 16,
+                width: compact ? 13 : 16,
+                height: compact ? 13 : 16,
                 decoration: BoxDecoration(
                   color: PassengerUi.successText,
                   shape: BoxShape.circle,
@@ -393,7 +553,7 @@ class _ProfileAvatarMenu extends StatelessWidget {
                 ),
                 child: Icon(
                   Icons.check_rounded,
-                  size: compact ? 9 : 10,
+                  size: compact ? 8 : 10,
                   color: Colors.white,
                 ),
               ),

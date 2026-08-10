@@ -14,6 +14,7 @@ import '../../services/fare_settings_service.dart';
 import '../../services/geofencing_service.dart';
 import '../../services/location_service.dart';
 import '../../services/ride_tracking_service.dart';
+import '../../widgets/app_bar.dart';
 import '../../widgets/maps/location_pin_picker_sheet.dart';
 import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/maps/map_type_toggle.dart';
@@ -36,6 +37,11 @@ class PassengerHomepage extends StatefulWidget {
   final String firstName;
   final String passengerType;
   final bool isVerified;
+  final String? profileImageUrl;
+  final int notificationUnreadCount;
+  final VoidCallback onNotificationsTap;
+  final VoidCallback? onBrandTap;
+  final ValueChanged<String>? onProfileSelected;
   final VoidCallback onOpenHistory;
 
   const PassengerHomepage({
@@ -44,6 +50,11 @@ class PassengerHomepage extends StatefulWidget {
     required this.firstName,
     required this.passengerType,
     required this.isVerified,
+    this.profileImageUrl,
+    this.notificationUnreadCount = 0,
+    required this.onNotificationsTap,
+    this.onBrandTap,
+    this.onProfileSelected,
     required this.onOpenHistory,
   });
 
@@ -73,27 +84,30 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerPageContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          PassengerPageHeader(
-            title: 'Welcome, ${widget.firstName}',
-            subtitle:
-                'Book faster with saved places, fair fares, and verified drivers.',
-            icon: Icons.near_me_rounded,
-            accentColor: PassengerUi.primary,
-            dense: true,
+    return StreamBuilder<Ride?>(
+      stream: _rideTrackingService.watchPassengerActiveRide(widget.userId),
+      builder: (context, snapshot) {
+        final ride = snapshot.data;
+
+        return PassengerHomeSplitLayout(
+          map: _PassengerHomeMap(ride: ride),
+          header: HomeMapHeader(
+            firstName: widget.firstName,
+            profileImageUrl: widget.profileImageUrl,
+            greeting: widget.firstName.trim().isEmpty
+                ? 'Welcome'
+                : 'Welcome, ${widget.firstName.trim()}',
+            showVerifiedBadge: widget.isVerified,
+            notificationUnreadCount: widget.notificationUnreadCount,
+            onNotificationsTap: widget.onNotificationsTap,
+            onBrandTap: widget.onBrandTap,
+            onProfileSelected: widget.onProfileSelected,
           ),
-          SizedBox(height: 16),
-          StreamBuilder<Ride?>(
-            stream: RideTrackingService().watchPassengerActiveRide(
-              widget.userId,
-            ),
-            builder: (context, snapshot) {
-              final ride = snapshot.data;
-              if (ride != null) {
-                return PassengerBookingHeroCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (ride != null)
+                PassengerBookingHeroCard(
                   actionLabel: 'Continue Monitoring',
                   actionIcon: Icons.near_me_rounded,
                   onSecondaryAction: ride.hasDriver && !ride.status.isTerminal
@@ -101,7 +115,7 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
                       : null,
                   secondaryActionLabel: 'Message',
                   secondaryActionIcon: Icons.chat_bubble_rounded,
-                  content: _RideMonitoringPreview(ride: ride),
+                  content: _RideMonitoringPreview(ride: ride, showMap: false),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -112,46 +126,45 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
                       ),
                     ),
                   ),
-                );
-              }
-
-              return PassengerBookingHeroCard(
-                content: const _LiveBookingMapPreview(),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PassengerBookRidePage(
-                      passengerId: widget.userId,
-                      passengerType: widget.passengerType,
-                      isVerified: widget.isVerified,
+                )
+              else
+                PassengerBookingHeroCard(
+                  content: const _PassengerBookingCallout(),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PassengerBookRidePage(
+                        passengerId: widget.userId,
+                        passengerType: widget.passengerType,
+                        isVerified: widget.isVerified,
+                      ),
                     ),
                   ),
                 ),
-              );
-            },
+              const SizedBox(height: 24),
+              _AnimatedOneTapBookingCard(
+                quickDestinationsController: _quickDestinationsController,
+                onSeeAllTap: _openQuickDestinationsPage,
+                onDestinationTap: _handleQuickDestinationTap,
+              ),
+              const SizedBox(height: 24),
+              PassengerRecentTripsSection(
+                passengerId: widget.userId,
+                limit: 3,
+                onViewAllTap: widget.onOpenHistory,
+              ),
+              const SizedBox(height: 24),
+              DriverRatingLeaderboardPanel(
+                limit: 5,
+                actionLabel: 'See Top 20',
+                onActionTap: _openDriverLeaderboard,
+              ),
+              const SizedBox(height: 24),
+              _PassengerInformationKeySection(),
+            ],
           ),
-          SizedBox(height: 24),
-          _AnimatedOneTapBookingCard(
-            quickDestinationsController: _quickDestinationsController,
-            onSeeAllTap: _openQuickDestinationsPage,
-            onDestinationTap: _handleQuickDestinationTap,
-          ),
-          SizedBox(height: 24),
-          PassengerRecentTripsSection(
-            passengerId: widget.userId,
-            limit: 3,
-            onViewAllTap: widget.onOpenHistory,
-          ),
-          SizedBox(height: 24),
-          DriverRatingLeaderboardPanel(
-            limit: 5,
-            actionLabel: 'See Top 20',
-            onActionTap: _openDriverLeaderboard,
-          ),
-          SizedBox(height: 24),
-          _PassengerInformationKeySection(),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -932,14 +945,56 @@ class _OneTapBookingProcessingDialog extends StatelessWidget {
   }
 }
 
-class _LiveBookingMapPreview extends StatefulWidget {
-  const _LiveBookingMapPreview();
+class _PassengerBookingCallout extends StatelessWidget {
+  const _PassengerBookingCallout();
 
   @override
-  State<_LiveBookingMapPreview> createState() => _LiveBookingMapPreviewState();
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: PassengerUi.blueSoft,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Icon(Icons.my_location_rounded, color: PassengerUi.accentBlue),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Ready when you are',
+                style: PassengerUi.cardTitle.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Choose a pickup and destination to request your ride.',
+                style: PassengerUi.bodyText,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _LiveBookingMapPreviewState extends State<_LiveBookingMapPreview> {
+class _PassengerHomeMap extends StatefulWidget {
+  final Ride? ride;
+
+  const _PassengerHomeMap({required this.ride});
+
+  @override
+  State<_PassengerHomeMap> createState() => _PassengerHomeMapState();
+}
+
+class _PassengerHomeMapState extends State<_PassengerHomeMap> {
   late final Future<LatLng> _currentLocationFuture;
   final LocationService _locationService = const LocationService();
 
@@ -959,55 +1014,74 @@ class _LiveBookingMapPreviewState extends State<_LiveBookingMapPreview> {
     return FutureBuilder<LatLng>(
       future: _currentLocationFuture,
       builder: (context, snapshot) {
-        final location = snapshot.data ?? MapConfig.buenavistaCenter;
+        final ride = widget.ride;
+        final location = ride == null
+            ? snapshot.data ?? MapConfig.buenavistaCenter
+            : _RideMonitoringPreview._initialTarget(ride);
         final hasLocation = snapshot.hasData;
 
-        return ClipRRect(
-          borderRadius: PassengerUi.cardRadius,
-          child: SizedBox(
-            height: PassengerUi.isCompactWidth(context) ? 210 : 230,
-            child: Stack(
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final controlsTop =
+                MediaQuery.paddingOf(context).top +
+                (PassengerUi.isCompactWidth(context) ? 88 : 96);
+
+            return Stack(
+              fit: StackFit.expand,
               children: <Widget>[
-                Positioned.fill(
-                  child: AnimatedBuilder(
-                    animation: AppPreferencesController.instance,
-                    builder: (context, _) {
-                      return SakayGoogleMap(
-                        initialCameraTarget: location,
-                        markers: hasLocation
-                            ? <Marker>{
-                                Marker(
-                                  markerId: const MarkerId(
-                                    'current_location_preview',
-                                  ),
-                                  position: location,
-                                  infoWindow: const InfoWindow(
-                                    title: 'Current location',
-                                  ),
-                                  icon: BitmapDescriptor.defaultMarkerWithHue(
-                                    BitmapDescriptor.hueAzure,
-                                  ),
+                AnimatedBuilder(
+                  animation: AppPreferencesController.instance,
+                  builder: (context, _) {
+                    return SakayGoogleMap(
+                      initialCameraTarget: location,
+                      bounds: ride == null
+                          ? null
+                          : _RideMonitoringPreview._boundsFor(ride),
+                      markers: ride != null
+                          ? _RideMonitoringPreview._markersFor(ride)
+                          : hasLocation
+                          ? <Marker>{
+                              Marker(
+                                markerId: const MarkerId(
+                                  'current_location_preview',
                                 ),
-                              }
-                            : const <Marker>{},
-                        mapType:
-                            AppPreferencesController.instance.googleMapType,
-                        myLocationEnabled: hasLocation,
-                        autoMoveCamera: true,
-                      );
-                    },
-                  ),
+                                position: location,
+                                infoWindow: const InfoWindow(
+                                  title: 'Current location',
+                                ),
+                                icon: BitmapDescriptor.defaultMarkerWithHue(
+                                  BitmapDescriptor.hueAzure,
+                                ),
+                              ),
+                            }
+                          : const <Marker>{},
+                      polylines: ride == null
+                          ? const <Polyline>{}
+                          : _RideMonitoringPreview._polylinesFor(ride),
+                      mapType: AppPreferencesController.instance.googleMapType,
+                      myLocationEnabled: ride == null && hasLocation,
+                      autoMoveCamera: true,
+                    );
+                  },
                 ),
-                const Positioned(top: 10, right: 10, child: MapTypeToggle()),
                 Positioned(
-                  left: 12,
+                  right: 8,
+                  top: controlsTop,
+                  child: const MapTypeToggle(),
+                ),
+                Positioned(
+                  left: 8,
                   right: 112,
-                  top: 12,
+                  top: controlsTop,
                   child: _MapOverlayPill(
-                    icon: hasLocation
+                    icon: ride != null
+                        ? Icons.route_rounded
+                        : hasLocation
                         ? Icons.my_location_rounded
                         : Icons.location_searching_rounded,
-                    text: hasLocation
+                    text: ride != null
+                        ? ride.status.label
+                        : hasLocation
                         ? 'Live map'
                         : snapshot.hasError
                         ? 'Location unavailable'
@@ -1015,8 +1089,8 @@ class _LiveBookingMapPreviewState extends State<_LiveBookingMapPreview> {
                   ),
                 ),
               ],
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -1025,8 +1099,9 @@ class _LiveBookingMapPreviewState extends State<_LiveBookingMapPreview> {
 
 class _RideMonitoringPreview extends StatelessWidget {
   final Ride ride;
+  final bool showMap;
 
-  const _RideMonitoringPreview({required this.ride});
+  const _RideMonitoringPreview({required this.ride, this.showMap = true});
 
   @override
   Widget build(BuildContext context) {
@@ -1062,34 +1137,36 @@ class _RideMonitoringPreview extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        ClipRRect(
-          borderRadius: PassengerUi.cardRadius,
-          child: SizedBox(
-            height: 180,
-            child: Stack(
-              children: <Widget>[
-                Positioned.fill(
-                  child: AnimatedBuilder(
-                    animation: AppPreferencesController.instance,
-                    builder: (context, _) {
-                      return SakayGoogleMap(
-                        initialCameraTarget: _initialTarget(ride),
-                        bounds: _boundsFor(ride),
-                        markers: _markersFor(ride),
-                        polylines: _polylinesFor(ride),
-                        mapType:
-                            AppPreferencesController.instance.googleMapType,
-                        autoMoveCamera: true,
-                      );
-                    },
+        if (showMap) ...<Widget>[
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: PassengerUi.cardRadius,
+            child: SizedBox(
+              height: 180,
+              child: Stack(
+                children: <Widget>[
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: AppPreferencesController.instance,
+                      builder: (context, _) {
+                        return SakayGoogleMap(
+                          initialCameraTarget: _initialTarget(ride),
+                          bounds: _boundsFor(ride),
+                          markers: _markersFor(ride),
+                          polylines: _polylinesFor(ride),
+                          mapType:
+                              AppPreferencesController.instance.googleMapType,
+                          autoMoveCamera: true,
+                        );
+                      },
+                    ),
                   ),
-                ),
-                const Positioned(top: 10, right: 10, child: MapTypeToggle()),
-              ],
+                  const Positioned(top: 10, right: 10, child: MapTypeToggle()),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
         const SizedBox(height: 8),
         RideStatusStripForRide(ride: ride),
         const SizedBox(height: 12),

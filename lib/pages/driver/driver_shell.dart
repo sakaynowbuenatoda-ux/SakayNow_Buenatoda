@@ -8,7 +8,6 @@ import '../../models/ride_status.dart';
 import '../../controllers/ride_tracking_controller.dart';
 import '../../services/chat_service.dart';
 import '../../widgets/animated_tab_switcher.dart';
-import '../../widgets/app_bar.dart';
 import '../../widgets/bottom_nav.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../services/location_service.dart';
@@ -180,6 +179,11 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
             isActive: isActive,
             isVerified: widget.isVerified,
             canReceiveBookings: widget.canReceiveBookings,
+            profileImageUrl: widget.profileImageUrl,
+            notificationUnreadCount: _notificationUnreadCount,
+            onNotificationsTap: _openNotifications,
+            onBrandTap: () => _selectTab(0),
+            onProfileSelected: _handleProfileSelected,
             onOpenQueue: _openQueue,
             onOpenHistory: _openHistory,
           );
@@ -206,16 +210,6 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
       child: Scaffold(
         extendBody: true,
         backgroundColor: PassengerUi.background,
-        appBar: AppBarWidget(
-          firstName: widget.firstName,
-          profileImageUrl: widget.profileImageUrl,
-          isDriver: true,
-          showVerifiedBadge: widget.isVerified,
-          notificationUnreadCount: _notificationUnreadCount,
-          onNotificationsTap: _openNotifications,
-          onBrandTap: () => _selectTab(0),
-          onProfileSelected: _handleProfileSelected,
-        ),
         body: AnimatedTabSwitcher(
           index: _currentIndex,
           onRefresh: _handleRefresh,

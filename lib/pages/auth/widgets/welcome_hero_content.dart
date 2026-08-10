@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../config/app_assets.dart';
 import '../auth_ui.dart';
+import 'auth_brand_header.dart';
 import 'welcome_actions.dart';
 
 class WelcomeHeroContent extends StatelessWidget {
@@ -30,7 +30,7 @@ class WelcomeHeroContent extends StatelessWidget {
       crossAxisAlignment: crossAxisAlignment,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _BrandHeader(centered: centered),
+        AuthBrandHeader(centered: centered),
         SizedBox(height: compact ? 24 : 34),
         const _SignalPill(),
         SizedBox(height: compact ? 16 : 20),
@@ -75,63 +75,6 @@ class WelcomeHeroContent extends StatelessWidget {
             _FeaturePill(icon: Icons.person_rounded, label: 'Passenger app'),
             _FeaturePill(icon: Icons.local_taxi_rounded, label: 'Driver queue'),
           ],
-        ),
-      ],
-    );
-  }
-}
-
-class _BrandHeader extends StatelessWidget {
-  final bool centered;
-
-  const _BrandHeader({required this.centered});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: centered
-          ? MainAxisAlignment.center
-          : MainAxisAlignment.start,
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: AuthUi.cardShadow,
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Image.asset(AppAssets.logo, fit: BoxFit.cover),
-        ),
-        const SizedBox(width: 12),
-        Flexible(
-          child: Column(
-            crossAxisAlignment: centered
-                ? CrossAxisAlignment.center
-                : CrossAxisAlignment.start,
-            children: [
-              Text(
-                'SakayNow BuenaToda',
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  color: AuthUi.title,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0,
-                ),
-              ),
-              Text(
-                'Smart tricycle dispatch',
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  color: AuthUi.body,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
         ),
       ],
     );

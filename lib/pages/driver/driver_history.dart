@@ -10,19 +10,19 @@ class DriverHistoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerPageContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          PassengerPageHeader(
-            title: 'History',
-            subtitle: 'See finished trips, ratings, and earnings at a glance.',
-            icon: Icons.receipt_long_rounded,
-            accentColor: PassengerUi.secondary,
-          ),
-          SizedBox(height: 16),
-          DriverRecentTripsSection(driverId: driverId),
-        ],
+    return Scaffold(
+      backgroundColor: PassengerUi.background,
+      appBar: AppBar(
+        backgroundColor: PassengerUi.surface,
+        surfaceTintColor: PassengerUi.surface,
+        elevation: 0,
+        title: Text('Trip History', style: PassengerUi.cardTitle),
+      ),
+      body: PassengerPageContainer(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[DriverRecentTripsSection(driverId: driverId)],
+        ),
       ),
     );
   }

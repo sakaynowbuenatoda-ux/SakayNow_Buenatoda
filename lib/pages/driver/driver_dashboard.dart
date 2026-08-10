@@ -11,6 +11,7 @@ import '../../widgets/driver_widgets/driver_payout_account_card.dart';
 import '../../widgets/driver_widgets/driver_earnings_card.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../driver_ratings/driver_leaderboard_page.dart';
+import 'driver_home.dart';
 import 'driver_payout_accounts_page.dart';
 
 const String _leaderboardAnimationAsset =
@@ -19,12 +20,14 @@ const String _leaderboardAnimationAsset =
 class DriverDashboardPage extends StatelessWidget {
   final String driverId;
   final bool isVerified;
+  final VoidCallback onOpenHistory;
   final RideTrackingService rideTrackingService;
 
   DriverDashboardPage({
     super.key,
     required this.driverId,
     required this.isVerified,
+    required this.onOpenHistory,
     RideTrackingService? rideTrackingService,
   }) : rideTrackingService = rideTrackingService ?? RideTrackingService();
 
@@ -46,6 +49,7 @@ class DriverDashboardPage extends StatelessWidget {
             driverId: driverId,
             isVerified: isVerified,
             rideTrackingService: rideTrackingService,
+            onOpenHistory: onOpenHistory,
           ),
           SizedBox(height: 20),
           PassengerSectionHeader(
@@ -69,11 +73,13 @@ class _DriverRideSummary extends StatelessWidget {
   final String driverId;
   final bool isVerified;
   final RideTrackingService rideTrackingService;
+  final VoidCallback onOpenHistory;
 
   const _DriverRideSummary({
     required this.driverId,
     required this.isVerified,
     required this.rideTrackingService,
+    required this.onOpenHistory,
   });
 
   @override
@@ -142,7 +148,13 @@ class _DriverRideSummary extends StatelessWidget {
               rideTrackingService: rideTrackingService,
             ),
             SizedBox(height: 14),
-            _DriverLatestRideCard(data: data),
+            PassengerSectionHeader(
+              title: 'Recent Trips',
+              actionLabel: 'See More',
+              onActionTap: onOpenHistory,
+            ),
+            SizedBox(height: 12),
+            DriverRecentTripsSection(driverId: driverId, limit: 3),
           ],
         );
       },
@@ -185,86 +197,6 @@ class _DriverInsightCard extends StatelessWidget {
                 Text(data.summary, style: PassengerUi.bodyText),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DriverLatestRideCard extends StatelessWidget {
-  final _DriverDashboardData data;
-
-  const _DriverLatestRideCard({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final ride = data.latestRide;
-    if (ride == null) {
-      return const PassengerEmptyState(
-        icon: Icons.route_outlined,
-        title: 'No driver trips yet',
-        description:
-            'Accepted bookings, earnings, and route summaries will appear here after your first trip.',
-      );
-    }
-
-    return PassengerSurfaceCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text('Latest trip', style: PassengerUi.cardTitle),
-              ),
-              PassengerStatusChip(
-                label: ride.status.label,
-                textColor: ride.status == RideStatus.cancelled
-                    ? PassengerUi.primary
-                    : PassengerUi.successText,
-                backgroundColor: ride.status == RideStatus.cancelled
-                    ? PassengerUi.dangerSoft
-                    : PassengerUi.successBackground,
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
-          _DashboardDetailRow(
-            icon: Icons.place_rounded,
-            label: 'Drop-off',
-            value: ride.dropoffLocation.publicDisplayLabel,
-          ),
-          SizedBox(height: 10),
-          _DashboardDetailRow(
-            icon: Icons.payments_rounded,
-            label: 'Gross fare',
-            value: ride.grossEarningsLabel,
-          ),
-          SizedBox(height: 10),
-          _DashboardDetailRow(
-            icon: Icons.remove_circle_outline_rounded,
-            label: 'Commission (${ride.commissionRateLabel})',
-            value: '-${ride.commissionDeductionLabel}',
-          ),
-          SizedBox(height: 10),
-          _DashboardDetailRow(
-            icon: Icons.savings_rounded,
-            label: 'Net earnings',
-            value: ride.netEarningsLabel,
-          ),
-          SizedBox(height: 10),
-          _DashboardDetailRow(
-            icon: Icons.account_balance_wallet_rounded,
-            label: 'Payment',
-            value: ride.paymentMethodDisplayLabel,
-          ),
-          SizedBox(height: 10),
-          _DashboardDetailRow(
-            icon: Icons.payments_outlined,
-            label: 'Payout status',
-            value: ride.driverPayoutStatusLabel,
           ),
         ],
       ),
@@ -625,39 +557,6 @@ class _DashboardMetricCard extends StatelessWidget {
   }
 }
 
-class _DashboardDetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _DashboardDetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Icon(icon, color: PassengerUi.accentBlue, size: 18),
-        SizedBox(width: 10),
-        Text(label, style: PassengerUi.bodyText),
-        SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.right,
-            style: PassengerUi.valueText,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _DashboardMetric {
   final IconData icon;
   final String label;
@@ -676,13 +575,11 @@ class _DriverDashboardData {
   final int completedTrips;
   final int activeTrips;
   final DriverEarningsSummary earnings;
-  final Ride? latestRide;
 
   const _DriverDashboardData({
     required this.completedTrips,
     required this.activeTrips,
     required this.earnings,
-    required this.latestRide,
   });
 
   factory _DriverDashboardData.fromRides(List<Ride> rides) {
@@ -695,7 +592,6 @@ class _DriverDashboardData {
       completedTrips: completed.length,
       activeTrips: rides.where((ride) => ride.isActive).length,
       earnings: earnings,
-      latestRide: rides.isEmpty ? null : rides.first,
     );
   }
 

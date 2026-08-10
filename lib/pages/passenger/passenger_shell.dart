@@ -45,7 +45,8 @@ class PassengerShell extends StatefulWidget {
 
 class _PassengerShellState extends State<PassengerShell> {
   static const int _messagesIndex = 1;
-  static const int _historyIndex = 2;
+  static const int _dashboardIndex = 2;
+  static const int _profileIndex = 3;
 
   int _currentIndex = 0;
   final ChatService _chatService = ChatService();
@@ -99,9 +100,7 @@ class _PassengerShellState extends State<PassengerShell> {
 
   void _handleProfileSelected(String value) {
     if (value == 'profile') {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ProfilePage(userId: widget.userId)),
-      );
+      _selectTab(_profileIndex);
     } else if (value == 'settings') {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -114,13 +113,13 @@ class _PassengerShellState extends State<PassengerShell> {
         ),
       );
     } else if (value == 'dashboard') {
-      setState(() => _currentIndex = 3);
+      _selectTab(_dashboardIndex);
     } else if (value == 'home') {
       setState(() => _currentIndex = 0);
     } else if (value == 'messages') {
       _selectTab(_messagesIndex);
     } else if (value == 'history') {
-      _selectTab(_historyIndex);
+      _openHistory();
     }
   }
 
@@ -141,14 +140,9 @@ class _PassengerShellState extends State<PassengerShell> {
         firstName: widget.firstName,
         passengerType: widget.passengerType,
         isVerified: widget.isVerified,
-        onOpenHistory: () => _selectTab(_historyIndex),
+        onOpenHistory: _openHistory,
       ),
       PassengerMessages(
-        userId: widget.userId,
-        firstName: widget.firstName,
-        passengerType: widget.passengerType,
-      ),
-      PassengerHistory(
         userId: widget.userId,
         firstName: widget.firstName,
         passengerType: widget.passengerType,
@@ -158,7 +152,9 @@ class _PassengerShellState extends State<PassengerShell> {
         firstName: widget.firstName,
         passengerType: widget.passengerType,
         isVerified: widget.isVerified,
+        onOpenHistory: _openHistory,
       ),
+      ProfilePage(userId: widget.userId, embedded: true),
     ];
   }
 
@@ -167,6 +163,7 @@ class _PassengerShellState extends State<PassengerShell> {
     final pages = _buildPages();
 
     return Scaffold(
+      extendBody: true,
       backgroundColor: PassengerUi.background,
       appBar: AppBarWidget(
         firstName: widget.firstName,
@@ -188,6 +185,7 @@ class _PassengerShellState extends State<PassengerShell> {
       bottomNavigationBar: BottomNavWidget(
         currentIndex: _currentIndex,
         messageUnreadCount: _messageUnreadCount,
+        onBookTap: _openBooking,
         onTap: _selectTab,
       ),
     );
@@ -200,6 +198,18 @@ class _PassengerShellState extends State<PassengerShell> {
           passengerId: widget.userId,
           passengerType: widget.passengerType,
           isVerified: widget.isVerified,
+        ),
+      ),
+    );
+  }
+
+  void _openHistory() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PassengerHistory(
+          userId: widget.userId,
+          firstName: widget.firstName,
+          passengerType: widget.passengerType,
         ),
       ),
     );

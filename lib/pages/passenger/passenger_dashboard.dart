@@ -6,6 +6,7 @@ import '../../models/ride_status.dart';
 import '../../services/payment_method_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../widgets/passenger_widgets/passenger_payment_method_card.dart';
+import '../../widgets/passenger_widgets/passenger_recent_trips_section.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'passenger_payment_methods_page.dart';
 
@@ -14,6 +15,7 @@ class PassengerDashboard extends StatelessWidget {
   final String firstName;
   final String passengerType;
   final bool isVerified;
+  final VoidCallback onOpenHistory;
   final RideTrackingService rideTrackingService;
 
   PassengerDashboard({
@@ -22,6 +24,7 @@ class PassengerDashboard extends StatelessWidget {
     required this.firstName,
     required this.passengerType,
     required this.isVerified,
+    required this.onOpenHistory,
     RideTrackingService? rideTrackingService,
   }) : rideTrackingService = rideTrackingService ?? RideTrackingService();
 
@@ -43,6 +46,7 @@ class PassengerDashboard extends StatelessWidget {
             userId: userId,
             passengerType: passengerType,
             rideTrackingService: rideTrackingService,
+            onOpenHistory: onOpenHistory,
           ),
           SizedBox(height: 20),
           PassengerSectionHeader(
@@ -71,11 +75,13 @@ class _PassengerRideSummary extends StatelessWidget {
   final String userId;
   final String passengerType;
   final RideTrackingService rideTrackingService;
+  final VoidCallback onOpenHistory;
 
   const _PassengerRideSummary({
     required this.userId,
     required this.passengerType,
     required this.rideTrackingService,
+    required this.onOpenHistory,
   });
 
   @override
@@ -137,7 +143,13 @@ class _PassengerRideSummary extends StatelessWidget {
               ],
             ),
             SizedBox(height: 14),
-            _PassengerLatestRideCard(data: data),
+            PassengerRecentTripsSection(
+              passengerId: userId,
+              limit: 3,
+              title: 'Recent Trips',
+              actionLabel: 'See More',
+              onViewAllTap: onOpenHistory,
+            ),
           ],
         );
       },
@@ -180,68 +192,6 @@ class _PassengerInsightCard extends StatelessWidget {
                 Text(data.summary, style: PassengerUi.bodyText),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PassengerLatestRideCard extends StatelessWidget {
-  final _PassengerDashboardData data;
-
-  const _PassengerLatestRideCard({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final ride = data.latestRide;
-    if (ride == null) {
-      return const PassengerEmptyState(
-        icon: Icons.route_outlined,
-        title: 'No ride activity yet',
-        description:
-            'Your bookings, fare totals, and trip status will appear here after your first ride.',
-      );
-    }
-
-    return PassengerSurfaceCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text('Latest ride', style: PassengerUi.cardTitle),
-              ),
-              PassengerStatusChip(
-                label: ride.status.label,
-                textColor: ride.status == RideStatus.cancelled
-                    ? PassengerUi.primary
-                    : PassengerUi.successText,
-                backgroundColor: ride.status == RideStatus.cancelled
-                    ? PassengerUi.dangerSoft
-                    : PassengerUi.successBackground,
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
-          _DashboardDetailRow(
-            icon: Icons.place_rounded,
-            label: 'Drop-off',
-            value: ride.dropoffLocation.displayLabel,
-          ),
-          SizedBox(height: 10),
-          _DashboardDetailRow(
-            icon: Icons.payments_rounded,
-            label: 'Fare',
-            value: ride.fareLabel ?? 'Pending fare',
-          ),
-          SizedBox(height: 10),
-          _DashboardDetailRow(
-            icon: Icons.account_balance_wallet_rounded,
-            label: 'Payment',
-            value: ride.paymentMethodDisplayLabel,
           ),
         ],
       ),
@@ -464,39 +414,6 @@ class _DashboardMetricCard extends StatelessWidget {
   }
 }
 
-class _DashboardDetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _DashboardDetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Icon(icon, color: PassengerUi.accentBlue, size: 18),
-        SizedBox(width: 10),
-        Text(label, style: PassengerUi.bodyText),
-        SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.right,
-            style: PassengerUi.valueText,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _DashboardMetric {
   final IconData icon;
   final String label;
@@ -517,7 +434,6 @@ class _PassengerDashboardData {
   final int totalSpent;
   final int cashlessTrips;
   final int studentSavings;
-  final Ride? latestRide;
 
   const _PassengerDashboardData({
     required this.completedTrips,
@@ -525,7 +441,6 @@ class _PassengerDashboardData {
     required this.totalSpent,
     required this.cashlessTrips,
     required this.studentSavings,
-    required this.latestRide,
   });
 
   factory _PassengerDashboardData.fromRides(
@@ -551,7 +466,6 @@ class _PassengerDashboardData {
           )
           .length,
       studentSavings: isStudent ? (totalSpent * 0.15).round() : 0,
-      latestRide: rides.isEmpty ? null : rides.first,
     );
   }
 

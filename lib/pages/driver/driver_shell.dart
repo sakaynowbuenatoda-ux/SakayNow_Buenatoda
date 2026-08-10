@@ -46,8 +46,9 @@ class DriverShell extends StatefulWidget {
 }
 
 class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
-  static const int _messagesIndex = 2;
-  static const int _historyIndex = 3;
+  static const int _messagesIndex = 1;
+  static const int _dashboardIndex = 2;
+  static const int _profileIndex = 3;
 
   int _currentIndex = 0;
   late final ValueNotifier<bool> _isActiveNotifier;
@@ -59,14 +60,12 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   StreamSubscription<int>? _notificationSubscription;
   StreamSubscription<List<Ride>>? _rideCancellationSubscription;
   StreamSubscription<bool>? _availabilitySubscription;
-  StreamSubscription<int>? _queueRequestSubscription;
   final Map<String, RideStatus> _knownRideStatuses = <String, RideStatus>{};
   Timer? _inactivityTimer;
   Timer? _foregroundIdleTimer;
   DateTime? _inactiveSince;
   int _messageUnreadCount = 0;
   int _notificationUnreadCount = 0;
-  int _queueRequestCount = 0;
   bool _isMarkingMessagesRead = false;
   bool _isChangingAvailability = false;
   bool _hasSeededRideStatuses = false;
@@ -82,7 +81,6 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     _watchDriverAvailability();
     _watchUnreadMessages();
     _watchUnreadNotifications();
-    _watchQueueRequestCount();
     _watchRideCancellations();
   }
 
@@ -96,11 +94,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
       _watchDriverAvailability();
       _watchUnreadMessages();
       _watchUnreadNotifications();
-      _watchQueueRequestCount();
       _watchRideCancellations();
-    } else if (oldWidget.isVerified != widget.isVerified ||
-        oldWidget.canReceiveBookings != widget.canReceiveBookings) {
-      _watchQueueRequestCount();
     }
   }
 
@@ -112,7 +106,6 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     _notificationSubscription?.cancel();
     _rideCancellationSubscription?.cancel();
     _availabilitySubscription?.cancel();
-    _queueRequestSubscription?.cancel();
     _inactivityTimer?.cancel();
     _foregroundIdleTimer?.cancel();
     _isActiveNotifier.dispose();
@@ -144,9 +137,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
 
   void _handleProfileSelected(String value) {
     if (value == 'profile') {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ProfilePage(userId: widget.userId)),
-      );
+      _selectTab(_profileIndex);
     } else if (value == 'settings') {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -162,9 +153,9 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     } else if (value == 'messages') {
       _selectTab(_messagesIndex);
     } else if (value == 'history') {
-      _selectTab(_historyIndex);
+      _openHistory();
     } else if (value == 'dashboard') {
-      setState(() => _currentIndex = 4);
+      _selectTab(_dashboardIndex);
     }
   }
 
@@ -189,27 +180,18 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
             isActive: isActive,
             isVerified: widget.isVerified,
             canReceiveBookings: widget.canReceiveBookings,
-            onOpenQueue: () => setState(() => _currentIndex = 1),
-            onOpenHistory: () => _selectTab(_historyIndex),
-          );
-        },
-      ),
-      ValueListenableBuilder<bool>(
-        valueListenable: _isActiveNotifier,
-        builder: (context, isActive, _) {
-          return DriverQueuePage(
-            driverId: widget.userId,
-            isVerified: widget.canReceiveBookings,
-            isActive: isActive,
+            onOpenQueue: _openQueue,
+            onOpenHistory: _openHistory,
           );
         },
       ),
       DriverMessagesPage(userId: widget.userId, firstName: widget.firstName),
-      DriverHistoryPage(driverId: widget.userId),
       DriverDashboardPage(
         driverId: widget.userId,
         isVerified: widget.isVerified,
+        onOpenHistory: _openHistory,
       ),
+      ProfilePage(userId: widget.userId, embedded: true),
     ];
   }
 
@@ -222,15 +204,14 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
       onPointerMove: (_) => _recordDriverActivity(),
       onPointerSignal: (_) => _recordDriverActivity(),
       child: Scaffold(
+        extendBody: true,
         backgroundColor: PassengerUi.background,
         appBar: AppBarWidget(
           firstName: widget.firstName,
           profileImageUrl: widget.profileImageUrl,
           isDriver: true,
           showVerifiedBadge: widget.isVerified,
-          isActive: isActive,
           notificationUnreadCount: _notificationUnreadCount,
-          onStatusChanged: _handleAvailabilityChanged,
           onNotificationsTap: _openNotifications,
           onBrandTap: () => _selectTab(0),
           onProfileSelected: _handleProfileSelected,
@@ -240,11 +221,19 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
           onRefresh: _handleRefresh,
           children: pages,
         ),
+        floatingActionButton: DriverAvailabilityButton(
+          isActive: isActive,
+          isLoading: _isChangingAvailability,
+          onPressed: () => unawaited(_handleAvailabilityChanged(!isActive)),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         bottomNavigationBar: BottomNavWidget(
           currentIndex: _currentIndex,
           isDriver: true,
           messageUnreadCount: _messageUnreadCount,
-          queueRequestCount: _queueRequestCount,
+          isDriverActive: isActive,
+          onDriverAvailabilityTap: () =>
+              unawaited(_handleAvailabilityChanged(!isActive)),
           onTap: _selectTab,
         ),
       ),
@@ -256,6 +245,29 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     if (index == _messagesIndex) {
       unawaited(_markMessagesRead());
     }
+  }
+
+  void _openHistory() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DriverHistoryPage(driverId: widget.userId),
+      ),
+    );
+  }
+
+  void _openQueue() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ValueListenableBuilder<bool>(
+          valueListenable: _isActiveNotifier,
+          builder: (context, isActive, _) => DriverQueuePage(
+            driverId: widget.userId,
+            isVerified: widget.canReceiveBookings,
+            isActive: isActive,
+          ),
+        ),
+      ),
+    );
   }
 
   void _watchUnreadMessages() {
@@ -301,34 +313,6 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
           onError: (_) {
             if (mounted && _notificationUnreadCount != 0) {
               setState(() => _notificationUnreadCount = 0);
-            }
-          },
-        );
-  }
-
-  void _watchQueueRequestCount() {
-    unawaited(_queueRequestSubscription?.cancel());
-
-    if (!widget.canReceiveBookings) {
-      if (mounted && _queueRequestCount != 0) {
-        setState(() => _queueRequestCount = 0);
-      } else {
-        _queueRequestCount = 0;
-      }
-      return;
-    }
-
-    _queueRequestSubscription = _rideTrackingService
-        .watchOpenBookingCount(driverId: widget.userId, includeDeclined: true)
-        .listen(
-          (count) {
-            if (mounted && count != _queueRequestCount) {
-              setState(() => _queueRequestCount = count);
-            }
-          },
-          onError: (_) {
-            if (mounted && _queueRequestCount != 0) {
-              setState(() => _queueRequestCount = 0);
             }
           },
         );
@@ -508,7 +492,11 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
       return;
     }
 
-    _isChangingAvailability = true;
+    if (mounted) {
+      setState(() => _isChangingAvailability = true);
+    } else {
+      _isChangingAvailability = true;
+    }
     try {
       if (!value) {
         final activeRide = await _rideTrackingService.findDriverActiveRide(
@@ -574,7 +562,11 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
         _cancelForegroundIdleTimer();
       }
     } finally {
-      _isChangingAvailability = false;
+      if (mounted) {
+        setState(() => _isChangingAvailability = false);
+      } else {
+        _isChangingAvailability = false;
+      }
     }
   }
 

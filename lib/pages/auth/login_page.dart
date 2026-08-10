@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../config/app_assets.dart';
 import '../../core/auth/signup_validators.dart';
 import '../../core/session/session_service.dart';
 import '../../utils/user_facing_error_message.dart';
@@ -10,6 +9,7 @@ import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'auth_ui.dart';
 import 'forgot_password_page.dart';
 import 'signup_page.dart';
+import 'widgets/auth_brand_header.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -98,237 +98,264 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final compact = PassengerUi.isCompactWidth(context);
+    final horizontalPadding = compact ? 24.0 : 32.0;
+    const topPadding = 12.0;
+    const bottomPadding = 20.0;
 
     return AuthUi.scope(
       context,
       Scaffold(
-        backgroundColor: AuthUi.background,
-        body: Container(
-          decoration: BoxDecoration(gradient: AuthUi.mapGradient),
-          child: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
+        backgroundColor: AuthUi.surface,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final minimumHeight =
+                  constraints.maxHeight - topPadding - bottomPadding;
+
+              return SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(
-                  compact ? 16 : 20,
-                  compact ? 16 : 20,
-                  compact ? 16 : 20,
-                  (compact ? 16 : 20) + PassengerUi.pageBottomInset(context),
+                  horizontalPadding,
+                  topPadding,
+                  horizontalPadding,
+                  bottomPadding,
                 ),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: 420),
-                  child: Column(
-                    children: [
-                      Column(
-                        children: [
-                          Container(
-                            width: compact ? 68 : 80,
-                            height: compact ? 68 : 80,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.88),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Color(
-                                    0xFF0C2238,
-                                  ).withValues(alpha: 0.06),
-                                  blurRadius: 18,
-                                  offset: Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: Image.asset(
-                              AppAssets.logo,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          SizedBox(height: compact ? 12 : 10),
-                          Text(
-                            'SakayNow BuenaToda',
-                            style: GoogleFonts.poppins(
-                              fontSize: compact ? 24 : 26,
-                              letterSpacing: 0,
-                              color: AuthUi.primary,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: minimumHeight < 0 ? 0 : minimumHeight,
                       ),
-                      SizedBox(height: compact ? 22 : 32),
-                      TweenAnimationBuilder<double>(
-                        tween: Tween<double>(begin: 0, end: 1),
-                        duration: const Duration(milliseconds: 420),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, value, child) {
-                          return Opacity(
-                            opacity: value,
-                            child: Transform.translate(
-                              offset: Offset(0, 18 * (1 - value)),
-                              child: child,
-                            ),
-                          );
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.92),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Color(
-                                  0xFF0C2238,
-                                ).withValues(alpha: 0.08),
-                                blurRadius: compact ? 14 : 16,
-                                offset: Offset(0, 8),
+                      child: IntrinsicHeight(
+                        child: AutofillGroup(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              TextButton.icon(
+                                onPressed: () =>
+                                    Navigator.of(context).maybePop(),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AuthUi.title,
+                                  minimumSize: Size.zero,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                icon: const Icon(
+                                  Icons.arrow_back_rounded,
+                                  size: 22,
+                                ),
+                                label: Text(
+                                  'Back',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: compact ? 18 : 22),
+                              const AuthBrandHeader(centered: true),
+                              SizedBox(height: compact ? 30 : 38),
+                              Text(
+                                'Login to your\nAccount',
+                                style: GoogleFonts.poppins(
+                                  color: AuthUi.title,
+                                  fontSize: compact ? 32 : 36,
+                                  height: 1.2,
+                                  letterSpacing: -0.8,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(height: compact ? 38 : 48),
+                              _FieldLabel(label: 'Email'),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                autocorrect: false,
+                                autofillHints: const <String>[
+                                  AutofillHints.email,
+                                  AutofillHints.username,
+                                ],
+                                decoration: _fieldDecoration(
+                                  hintText: 'Enter your email',
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              _FieldLabel(label: 'Password'),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _passwordController,
+                                obscureText: _obscurePassword,
+                                textInputAction: TextInputAction.done,
+                                autofillHints: const <String>[
+                                  AutofillHints.password,
+                                ],
+                                onSubmitted: (_) {
+                                  if (!_isLoading) {
+                                    _loginUser();
+                                  }
+                                },
+                                decoration: _fieldDecoration(
+                                  hintText: 'Enter your password',
+                                  suffixIcon: IconButton(
+                                    tooltip: _obscurePassword
+                                        ? 'Show password'
+                                        : 'Hide password',
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      color: AuthUi.body,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePassword = !_obscurePassword;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: _openForgotPasswordPage,
+                                  style: TextButton.styleFrom(
+                                    minimumSize: Size.zero,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                    ),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text('Forgot Password?'),
+                                ),
+                              ),
+                              SizedBox(height: compact ? 22 : 28),
+                              SizedBox(
+                                width: double.infinity,
+                                height: compact ? 54 : 56,
+                                child: ElevatedButton(
+                                  onPressed: _isLoading ? null : _loginUser,
+                                  style: ElevatedButton.styleFrom(
+                                    shape: const StadiumBorder(),
+                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          height: 22,
+                                          width: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Login',
+                                          style: TextStyle(fontSize: 16),
+                                        ),
+                                ),
+                              ),
+                              const Spacer(),
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  top: compact ? 40 : 52,
+                                  bottom: 20,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: <Widget>[
+                                    Text(
+                                      "Don't have an account?",
+                                      style: GoogleFonts.poppins(
+                                        color: AuthUi.body,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => const SignUpPage(),
+                                          ),
+                                        );
+                                      },
+                                      style: TextButton.styleFrom(
+                                        minimumSize: Size.zero,
+                                        padding: const EdgeInsets.only(
+                                          left: 5,
+                                          top: 8,
+                                          bottom: 8,
+                                        ),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: const Text('Sign up'),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
-                          child: Padding(
-                            padding: EdgeInsets.all(compact ? 18 : 20),
-                            child: Column(
-                              children: [
-                                Text(
-                                  'Welcome Back',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: compact ? 20 : 22,
-                                    color: AuthUi.title,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                SizedBox(height: compact ? 18 : 22),
-                                TextField(
-                                  controller: _emailController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Email',
-                                    prefixIcon: Icon(
-                                      Icons.email_outlined,
-                                      color: AuthUi.accentBlue,
-                                    ),
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: compact ? 14 : 16,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 15),
-                                TextField(
-                                  controller: _passwordController,
-                                  obscureText: _obscurePassword,
-                                  decoration: InputDecoration(
-                                    hintText: 'Password',
-                                    prefixIcon: Icon(
-                                      Icons.lock_outline,
-                                      color: AuthUi.accentBlue,
-                                    ),
-                                    suffixIcon: IconButton(
-                                      icon: Icon(
-                                        _obscurePassword
-                                            ? Icons.visibility_off
-                                            : Icons.visibility,
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _obscurePassword = !_obscurePassword;
-                                        });
-                                      },
-                                    ),
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: compact ? 14 : 16,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 10),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: _openForgotPasswordPage,
-                                    style: TextButton.styleFrom(
-                                      minimumSize: Size.zero,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 8,
-                                      ),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                    child: Text('Forgot Password?'),
-                                  ),
-                                ),
-                                SizedBox(height: 10),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: compact ? 52 : 55,
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      gradient: AuthUi.darkActionGradient,
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: AuthUi.cardShadow,
-                                    ),
-                                    child: ElevatedButton(
-                                      onPressed: _isLoading ? null : _loginUser,
-                                      style: ElevatedButton.styleFrom(
-                                        padding: EdgeInsets.zero,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        elevation: 0,
-                                        backgroundColor: Colors.transparent,
-                                        shadowColor: Colors.transparent,
-                                      ),
-                                      child: Center(
-                                        child: _isLoading
-                                            ? SizedBox(
-                                                height: 22,
-                                                width: 22,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2.5,
-                                                      color: Colors.white,
-                                                    ),
-                                              )
-                                            : Text(
-                                                'Login',
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 15),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: compact ? 52 : 55,
-                                  child: OutlinedButton(
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => SignUpPage(),
-                                        ),
-                                      );
-                                    },
-                                    child: Text(
-                                      'Create Account',
-                                      style: TextStyle(fontSize: 16),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
+      ),
+    );
+  }
+
+  InputDecoration _fieldDecoration({
+    required String hintText,
+    Widget? suffixIcon,
+  }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: AuthUi.border),
+    );
+
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: GoogleFonts.poppins(
+        color: AuthUi.body.withValues(alpha: 0.72),
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+      ),
+      filled: true,
+      fillColor: AuthUi.mutedSurface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
+      suffixIcon: suffixIcon,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: AuthUi.primary, width: 1.4),
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  final String label;
+
+  const _FieldLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: GoogleFonts.poppins(
+        color: AuthUi.title,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
       ),
     );
   }

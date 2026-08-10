@@ -7,7 +7,9 @@ class BottomNavWidget extends StatelessWidget {
   final ValueChanged<int> onTap;
   final bool isDriver;
   final int messageUnreadCount;
-  final int queueRequestCount;
+  final VoidCallback? onBookTap;
+  final bool isDriverActive;
+  final VoidCallback? onDriverAvailabilityTap;
 
   const BottomNavWidget({
     super.key,
@@ -15,36 +17,51 @@ class BottomNavWidget extends StatelessWidget {
     required this.onTap,
     this.isDriver = false,
     this.messageUnreadCount = 0,
-    this.queueRequestCount = 0,
+    this.onBookTap,
+    this.isDriverActive = false,
+    this.onDriverAvailabilityTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 390;
-    final messageIndex = isDriver ? 2 : 1;
+    final deviceBottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    final minimumBottomMargin = compact ? 8.0 : 12.0;
+    final bottomMargin = deviceBottomInset > minimumBottomMargin
+        ? deviceBottomInset
+        : minimumBottomMargin;
+    final horizontalMargin = compact ? 10.0 : 16.0;
+    const messageIndex = 1;
     final visibleMessageUnreadCount = currentIndex == messageIndex
         ? 0
         : messageUnreadCount;
-    final selectedNavigationIndex = isDriver
-        ? currentIndex
-        : currentIndex < 2
+    final selectedNavigationIndex = currentIndex < 2
         ? currentIndex
         : currentIndex + 1;
 
-    return BottomAppBar(
-      color: PassengerUi.surface,
-      surfaceTintColor: Colors.transparent,
-      elevation: PassengerUi.isDarkMode ? 18 : 12,
-      shadowColor: Colors.black.withValues(
-        alpha: PassengerUi.isDarkMode ? 0.48 : 0.18,
+    final floatingShape = _CenteredFloatingBarShape(
+      cornerRadius: compact ? 20 : 24,
+      hasNotch: true,
+    );
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        horizontalMargin,
+        0,
+        horizontalMargin,
+        bottomMargin,
       ),
-      padding: EdgeInsets.zero,
-      shape: isDriver ? null : const CircularNotchedRectangle(),
-      notchMargin: 9,
-      clipBehavior: Clip.antiAlias,
-      child: SafeArea(
-        top: false,
-        minimum: EdgeInsets.only(bottom: compact ? 3 : 5),
+      child: BottomAppBar(
+        color: PassengerUi.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: PassengerUi.isDarkMode ? 20 : 14,
+        shadowColor: Colors.black.withValues(
+          alpha: PassengerUi.isDarkMode ? 0.56 : 0.22,
+        ),
+        padding: EdgeInsets.zero,
+        shape: floatingShape,
+        notchMargin: 9,
+        clipBehavior: Clip.antiAlias,
         child: SizedBox(
           height: compact ? 62 : 66,
           child: MediaQuery.removePadding(
@@ -53,12 +70,12 @@ class BottomNavWidget extends StatelessWidget {
             child: BottomNavigationBar(
               currentIndex: selectedNavigationIndex,
               onTap: (index) {
-                if (isDriver) {
-                  onTap(index);
-                  return;
-                }
-
                 if (index == 2) {
+                  if (isDriver) {
+                    onDriverAvailabilityTap?.call();
+                  } else {
+                    onBookTap?.call();
+                  }
                   return;
                 }
 
@@ -67,7 +84,7 @@ class BottomNavWidget extends StatelessWidget {
               type: BottomNavigationBarType.fixed,
               backgroundColor: Colors.transparent,
               elevation: 0,
-              selectedItemColor: PassengerUi.title,
+              selectedItemColor: PassengerUi.primary,
               unselectedItemColor: PassengerUi.body,
               selectedFontSize: compact ? 9.5 : 10.5,
               unselectedFontSize: compact ? 9.5 : 10.5,
@@ -84,7 +101,7 @@ class BottomNavWidget extends StatelessWidget {
               items: isDriver
                   ? _driverDestinations(
                       messageUnreadCount: visibleMessageUnreadCount,
-                      queueRequestCount: queueRequestCount,
+                      isActive: isDriverActive,
                     )
                   : _passengerDestinations(
                       messageUnreadCount: visibleMessageUnreadCount,
@@ -113,25 +130,25 @@ class BottomNavWidget extends StatelessWidget {
       ),
       const BottomNavigationBarItem(
         icon: SizedBox(width: 42, height: 30),
-        label: '',
+        label: 'Book Now',
         tooltip: 'Book a ride',
-      ),
-      _destination(
-        label: 'History',
-        icon: Icons.history_rounded,
-        selectedIcon: Icons.history_rounded,
       ),
       _destination(
         label: 'Dashboard',
         icon: Icons.dashboard_outlined,
         selectedIcon: Icons.dashboard_rounded,
       ),
+      _destination(
+        label: 'Profile',
+        icon: Icons.person_outline_rounded,
+        selectedIcon: Icons.person_rounded,
+      ),
     ];
   }
 
   List<BottomNavigationBarItem> _driverDestinations({
     required int messageUnreadCount,
-    required int queueRequestCount,
+    required bool isActive,
   }) {
     return <BottomNavigationBarItem>[
       _destination(
@@ -140,26 +157,25 @@ class BottomNavWidget extends StatelessWidget {
         selectedIcon: Icons.home_rounded,
       ),
       _destination(
-        label: 'Queue',
-        icon: Icons.list_alt_outlined,
-        selectedIcon: Icons.list_alt_rounded,
-        badgeCount: queueRequestCount,
-      ),
-      _destination(
         label: 'Messages',
         icon: Icons.chat_bubble_outline_rounded,
         selectedIcon: Icons.chat_bubble_rounded,
         badgeCount: messageUnreadCount,
       ),
-      _destination(
-        label: 'History',
-        icon: Icons.history_rounded,
-        selectedIcon: Icons.history_rounded,
+      BottomNavigationBarItem(
+        icon: const SizedBox(width: 42, height: 30),
+        label: isActive ? 'Go Offline' : 'Go Active',
+        tooltip: isActive ? 'Go offline' : 'Go active',
       ),
       _destination(
         label: 'Dashboard',
         icon: Icons.dashboard_outlined,
         selectedIcon: Icons.dashboard_rounded,
+      ),
+      _destination(
+        label: 'Profile',
+        icon: Icons.person_outline_rounded,
+        selectedIcon: Icons.person_rounded,
       ),
     ];
   }
@@ -179,6 +195,42 @@ class BottomNavWidget extends StatelessWidget {
       ),
       label: label,
       tooltip: label,
+    );
+  }
+}
+
+class _CenteredFloatingBarShape extends NotchedShape {
+  final double cornerRadius;
+  final bool hasNotch;
+
+  const _CenteredFloatingBarShape({
+    required this.cornerRadius,
+    required this.hasNotch,
+  });
+
+  @override
+  Path getOuterPath(Rect host, Rect? guest) {
+    final roundedHost = Path()
+      ..addRRect(RRect.fromRectAndRadius(host, Radius.circular(cornerRadius)));
+
+    if (!hasNotch || guest == null || !host.overlaps(guest)) {
+      return roundedHost;
+    }
+
+    final centeredGuest = Rect.fromCenter(
+      center: Offset(host.center.dx, guest.center.dy),
+      width: guest.width,
+      height: guest.height,
+    );
+    final smoothlyNotchedHost = const CircularNotchedRectangle().getOuterPath(
+      host,
+      centeredGuest,
+    );
+
+    return Path.combine(
+      PathOperation.intersect,
+      roundedHost,
+      smoothlyNotchedHost,
     );
   }
 }
@@ -228,21 +280,91 @@ class PassengerBookingButton extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: onPressed,
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Icon(Icons.local_taxi_rounded, color: Colors.white, size: 25),
-                  SizedBox(height: 1),
-                  Text(
-                    'Book',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      height: 1,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
+              child: const Center(
+                child: Icon(
+                  Icons.navigation_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DriverAvailabilityButton extends StatelessWidget {
+  final bool isActive;
+  final bool isLoading;
+  final VoidCallback onPressed;
+
+  const DriverAvailabilityButton({
+    super.key,
+    required this.isActive,
+    required this.onPressed,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 390;
+    final diameter = compact ? 64.0 : 68.0;
+    final actionColor = isActive ? PassengerUi.secondary : PassengerUi.dark;
+    final actionLabel = isActive ? 'Go offline' : 'Go active';
+
+    return Tooltip(
+      message: actionLabel,
+      child: Semantics(
+        button: true,
+        toggled: isActive,
+        label: actionLabel,
+        excludeSemantics: true,
+        child: Container(
+          width: diameter,
+          height: diameter,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: PassengerUi.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: actionColor, width: 2),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: actionColor.withValues(alpha: 0.25),
+                blurRadius: 18,
+                offset: const Offset(0, 7),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(
+                  alpha: PassengerUi.isDarkMode ? 0.34 : 0.14,
+                ),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Material(
+            color: actionColor,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: isLoading ? null : onPressed,
+              child: Center(
+                child: isLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.power_settings_new_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
               ),
             ),
           ),
@@ -271,17 +393,26 @@ class _ModernNavIcon extends StatelessWidget {
         AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          width: selected ? 42 : 36,
+          width: selected ? 38 : 36,
           height: 30,
           decoration: BoxDecoration(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            color: selected ? PassengerUi.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(13),
+            boxShadow: selected
+                ? <BoxShadow>[
+                    BoxShadow(
+                      color: PassengerUi.primary.withValues(alpha: 0.22),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
           ),
           alignment: Alignment.center,
           child: Icon(
             icon,
-            size: selected ? 25 : 22,
-            color: selected ? PassengerUi.title : PassengerUi.body,
+            size: selected ? 21 : 22,
+            color: selected ? PassengerUi.onPrimary : PassengerUi.body,
           ),
         ),
         if (badgeCount > 0)

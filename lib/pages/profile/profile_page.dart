@@ -17,12 +17,16 @@ import 'widgets/profile_state_layout.dart';
 class ProfilePage extends StatefulWidget {
   final String userId;
   final bool embeddedInAdmin;
+  final bool embedded;
 
   const ProfilePage({
     super.key,
     required this.userId,
     this.embeddedInAdmin = false,
+    this.embedded = false,
   });
+
+  bool get isEmbedded => embedded || embeddedInAdmin;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -49,7 +53,7 @@ class _ProfilePageState extends State<ProfilePage> {
         if (snapshot.hasError) {
           return ProfileStateLayout(
             title: 'Profile Unavailable',
-            showBackButton: !widget.embeddedInAdmin,
+            showBackButton: !widget.isEmbedded,
             maxContentWidth: _maxContentWidth,
             child: PassengerEmptyState(
               icon: Icons.error_outline_rounded,
@@ -64,7 +68,7 @@ class _ProfilePageState extends State<ProfilePage> {
         if (profileDoc == null || !profileDoc.exists) {
           return ProfileStateLayout(
             title: 'Profile Unavailable',
-            showBackButton: !widget.embeddedInAdmin,
+            showBackButton: !widget.isEmbedded,
             maxContentWidth: _maxContentWidth,
             child: PassengerEmptyState(
               icon: Icons.person_off_outlined,
@@ -83,7 +87,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
         return _ProfileContent(
           profile: profile,
-          showBackButton: !widget.embeddedInAdmin,
+          showBackButton: !widget.isEmbedded,
           maxContentWidth: _maxContentWidth,
           isUploadingProfilePicture: _isUploadingProfilePicture,
           showEmailVerificationPrompt: isCurrentUserProfile && !isEmailVerified,
@@ -93,7 +97,7 @@ class _ProfilePageState extends State<ProfilePage> {
       },
     );
 
-    if (widget.embeddedInAdmin) {
+    if (widget.isEmbedded) {
       return content;
     }
 
@@ -103,7 +107,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  double? get _maxContentWidth => widget.embeddedInAdmin ? 760 : null;
+  double? get _maxContentWidth => widget.isEmbedded ? 760 : null;
 
   Future<void> _changeProfilePicture(ProfileViewData profile) async {
     if (_isUploadingProfilePicture) {

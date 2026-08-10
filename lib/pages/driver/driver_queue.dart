@@ -57,97 +57,98 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerPageContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          PassengerPageHeader(
-            title: 'Queue',
-            subtitle:
-                'Accept nearby passenger requests and monitor live ride progress.',
-            icon: Icons.radar_rounded,
-            accentColor: PassengerUi.highlightAmber,
-          ),
-          const SizedBox(height: 16),
-          if (!widget.isVerified)
-            const PassengerEmptyState(
-              icon: Icons.verified_user_outlined,
-              title: 'Pending verification',
-              description:
-                  'Admin verification is required before accepting passenger bookings.',
-            )
-          else if (!widget.isActive)
-            const PassengerEmptyState(
-              icon: Icons.power_settings_new_rounded,
-              title: 'Go active to open queue',
-              description:
-                  'Turn on driver availability when you are ready to receive nearby passenger requests.',
-            )
-          else
-            StreamBuilder<List<Ride>>(
-              stream: _rideTrackingService.watchOpenBookings(
-                driverId: widget.driverId,
-                includeDeclined: true,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+    return Scaffold(
+      backgroundColor: PassengerUi.background,
+      appBar: AppBar(
+        backgroundColor: PassengerUi.surface,
+        surfaceTintColor: PassengerUi.surface,
+        elevation: 0,
+        title: Text('Queue', style: PassengerUi.cardTitle),
+      ),
+      body: PassengerPageContainer(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            if (!widget.isVerified)
+              const PassengerEmptyState(
+                icon: Icons.verified_user_outlined,
+                title: 'Pending verification',
+                description:
+                    'Admin verification is required before accepting passenger bookings.',
+              )
+            else if (!widget.isActive)
+              const PassengerEmptyState(
+                icon: Icons.power_settings_new_rounded,
+                title: 'Go active to open queue',
+                description:
+                    'Turn on driver availability when you are ready to receive nearby passenger requests.',
+              )
+            else
+              StreamBuilder<List<Ride>>(
+                stream: _rideTrackingService.watchOpenBookings(
+                  driverId: widget.driverId,
+                  includeDeclined: true,
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                if (snapshot.hasError) {
-                  return PassengerEmptyState(
-                    icon: Icons.error_outline_rounded,
-                    title: 'Unable to load bookings',
-                    description:
-                        'Booking requests could not be loaded. Please try again.',
-                  );
-                }
+                  if (snapshot.hasError) {
+                    return PassengerEmptyState(
+                      icon: Icons.error_outline_rounded,
+                      title: 'Unable to load bookings',
+                      description:
+                          'Booking requests could not be loaded. Please try again.',
+                    );
+                  }
 
-                final rides = snapshot.data ?? <Ride>[];
-                final acceptCooldownRemaining = _acceptCooldownRemaining;
-                if (rides.isEmpty) {
-                  return const PassengerEmptyState(
-                    icon: Icons.route_rounded,
-                    title: 'No active requests',
-                    description:
-                        'New passenger bookings will appear here in real time.',
-                  );
-                }
+                  final rides = snapshot.data ?? <Ride>[];
+                  final acceptCooldownRemaining = _acceptCooldownRemaining;
+                  if (rides.isEmpty) {
+                    return const PassengerEmptyState(
+                      icon: Icons.route_rounded,
+                      title: 'No active requests',
+                      description:
+                          'New passenger bookings will appear here in real time.',
+                    );
+                  }
 
-                return Column(
-                  children: <Widget>[
-                    if (acceptCooldownRemaining > Duration.zero) ...<Widget>[
-                      ActionCooldownNotice(
-                        message:
-                            'You can accept another request in ${BookingActionCooldownService.formatRemaining(acceptCooldownRemaining)}.',
+                  return Column(
+                    children: <Widget>[
+                      if (acceptCooldownRemaining > Duration.zero) ...<Widget>[
+                        ActionCooldownNotice(
+                          message:
+                              'You can accept another request in ${BookingActionCooldownService.formatRemaining(acceptCooldownRemaining)}.',
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      ...rides.asMap().entries.map(
+                        (entry) => Padding(
+                          padding: EdgeInsets.only(
+                            bottom: entry.key == rides.length - 1 ? 0 : 12,
+                          ),
+                          child: DriverRideRequestCard(
+                            ride: entry.value,
+                            driverId: widget.driverId,
+                            isAccepting:
+                                _acceptingBookingId == entry.value.bookingId,
+                            isDeclining:
+                                _decliningBookingId == entry.value.bookingId,
+                            acceptCooldownRemaining: acceptCooldownRemaining,
+                            canAcceptDeclined: true,
+                            rideTrackingService: _rideTrackingService,
+                            onAccept: () => _acceptRide(entry.value),
+                            onDecline: () => _declineRide(entry.value),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 12),
                     ],
-                    ...rides.asMap().entries.map(
-                      (entry) => Padding(
-                        padding: EdgeInsets.only(
-                          bottom: entry.key == rides.length - 1 ? 0 : 12,
-                        ),
-                        child: DriverRideRequestCard(
-                          ride: entry.value,
-                          driverId: widget.driverId,
-                          isAccepting:
-                              _acceptingBookingId == entry.value.bookingId,
-                          isDeclining:
-                              _decliningBookingId == entry.value.bookingId,
-                          acceptCooldownRemaining: acceptCooldownRemaining,
-                          canAcceptDeclined: true,
-                          rideTrackingService: _rideTrackingService,
-                          onAccept: () => _acceptRide(entry.value),
-                          onDecline: () => _declineRide(entry.value),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-        ],
+                  );
+                },
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -17,8 +17,6 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
 
   final bool isDriver;
   final bool showVerifiedBadge;
-  final bool isActive;
-  final ValueChanged<bool>? onStatusChanged;
 
   const AppBarWidget({
     super.key,
@@ -30,8 +28,6 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     this.onProfileSelected,
     this.isDriver = false,
     this.showVerifiedBadge = false,
-    this.isActive = false,
-    this.onStatusChanged,
   });
 
   Future<void> _logout(BuildContext context) async {
@@ -115,15 +111,6 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
         onTap: onBrandTap,
       ),
       actions: [
-        if (isDriver)
-          Padding(
-            padding: const EdgeInsets.only(left: 4, right: 8),
-            child: _ActiveStatusToggle(
-              value: isActive,
-              onChanged: onStatusChanged ?? (_) {},
-              compact: compact,
-            ),
-          ),
         _ModernIconButton(
           icon: Icons.notifications_none_rounded,
           onTap: onNotificationsTap,
@@ -534,71 +521,6 @@ class _AvatarFallback extends StatelessWidget {
       child: Text(
         initial,
         style: TextStyle(color: PassengerUi.title, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-class _ActiveStatusToggle extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  final bool compact;
-
-  const _ActiveStatusToggle({
-    required this.value,
-    required this.onChanged,
-    required this.compact,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final label = compact ? (value ? 'On' : 'Off') : (value ? 'Active' : 'Off');
-
-    return AnimatedContainer(
-      duration: Duration(milliseconds: 220),
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 6 : 8,
-        vertical: compact ? 3 : 5,
-      ),
-      decoration: BoxDecoration(
-        color: PassengerUi.mutedSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PassengerUi.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: compact ? 7 : 8,
-            height: compact ? 7 : 8,
-            decoration: BoxDecoration(
-              color: value ? PassengerUi.secondary : PassengerUi.body,
-              shape: BoxShape.circle,
-            ),
-          ),
-          SizedBox(width: compact ? 5 : 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: PassengerUi.title,
-              fontWeight: FontWeight.w600,
-              fontSize: compact ? 11 : 12,
-            ),
-          ),
-          SizedBox(width: compact ? 1 : 3),
-          Transform.scale(
-            scale: compact ? 0.62 : 0.74,
-            child: Switch(
-              value: value,
-              onChanged: onChanged,
-              activeColor: Colors.white,
-              activeTrackColor: PassengerUi.secondary.withValues(alpha: 0.7),
-              inactiveThumbColor: PassengerUi.primary,
-              inactiveTrackColor: PassengerUi.body.withValues(alpha: 0.35),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ],
       ),
     );
   }

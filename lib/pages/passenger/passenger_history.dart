@@ -17,23 +17,25 @@ class PassengerHistory extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerPageContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          PassengerPageHeader(
-            title: 'History',
-            subtitle: 'Review completed rides, routes, fares, and ratings.',
-            icon: Icons.receipt_long_rounded,
-            accentColor: PassengerUi.secondary,
-          ),
-          SizedBox(height: 16),
-          PassengerRecentTripsSection(
-            passengerId: userId,
-            title: 'Trips',
-            actionLabel: '',
-          ),
-        ],
+    return Scaffold(
+      backgroundColor: PassengerUi.background,
+      appBar: AppBar(
+        backgroundColor: PassengerUi.surface,
+        surfaceTintColor: PassengerUi.surface,
+        elevation: 0,
+        title: Text('Trip History', style: PassengerUi.cardTitle),
+      ),
+      body: PassengerPageContainer(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            PassengerRecentTripsSection(
+              passengerId: userId,
+              title: 'Trips',
+              actionLabel: '',
+            ),
+          ],
+        ),
       ),
     );
   }

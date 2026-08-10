@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sakaynow_buenatoda/core/session/app_user.dart';
-import 'package:sakaynow_buenatoda/core/session/user_roles.dart';
 
 void main() {
   test('normalizes and classifies admin staff roles', () {

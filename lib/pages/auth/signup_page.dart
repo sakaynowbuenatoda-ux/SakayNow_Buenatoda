@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-import '../../config/app_assets.dart';
 import '../../widgets/driver_signup.dart';
 import '../../widgets/passenger_signup.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'auth_ui.dart';
 import 'auth_gate.dart';
+import 'widgets/auth_brand_header.dart';
 
 class SignUpPage extends StatelessWidget {
   const SignUpPage({super.key});
@@ -26,111 +27,41 @@ class SignUpPage extends StatelessWidget {
               builder: (context, constraints) {
                 final bottomInset = PassengerUi.pageBottomInset(context);
                 final panelMinHeight =
-                    constraints.maxHeight - (compact ? 96 : 104);
+                    constraints.maxHeight - (compact ? 210 : 220);
 
                 return SingleChildScrollView(
                   padding: EdgeInsets.only(bottom: 12 + bottomInset),
                   child: Column(
                     children: [
-                      Container(
+                      SizedBox(
                         width: double.infinity,
-                        margin: EdgeInsets.fromLTRB(
-                          compact ? 12 : 16,
-                          10,
-                          compact ? 12 : 16,
-                          compact ? 8 : 10,
-                        ),
-                        padding: EdgeInsets.symmetric(
-                          horizontal: compact ? 14 : 16,
-                          vertical: compact ? 12 : 14,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: AuthUi.darkActionGradient,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: compact
-                            ? Column(
-                                children: [
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: const _BackToLoginButton(),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Center(
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          width: 36,
-                                          height: 36,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.16,
-                                            ),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          clipBehavior: Clip.antiAlias,
-                                          child: Image.asset(
-                                            AppAssets.logo,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text(
-                                          'Create account',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Column(
-                                children: [
-                                  Center(
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          width: 42,
-                                          height: 42,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.16,
-                                            ),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          clipBehavior: Clip.antiAlias,
-                                          child: Image.asset(
-                                            AppAssets.logo,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                        SizedBox(width: 12),
-                                        Text(
-                                          'Create Account',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  SizedBox(height: 10),
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: const _BackToLoginButton(),
-                                  ),
-                                ],
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            compact ? 24 : 32,
+                            12,
+                            compact ? 24 : 32,
+                            compact ? 28 : 32,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const _BackToLoginButton(),
+                              SizedBox(height: compact ? 18 : 22),
+                              const AuthBrandHeader(centered: true),
+                              SizedBox(height: compact ? 24 : 28),
+                              Text(
+                                'Create your account',
+                                style: GoogleFonts.poppins(
+                                  color: AuthUi.title,
+                                  fontSize: compact ? 28 : 32,
+                                  height: 1.15,
+                                  letterSpacing: -0.6,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
+                            ],
+                          ),
+                        ),
                       ),
                       Container(
                         width: double.infinity,
@@ -270,7 +201,7 @@ class _BackToLoginButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
+    return TextButton.icon(
       onPressed: () {
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop();
@@ -283,16 +214,15 @@ class _BackToLoginButton extends StatelessWidget {
         );
       },
       style: TextButton.styleFrom(
-        foregroundColor: Colors.white,
+        foregroundColor: AuthUi.title,
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(vertical: 8),
       ),
-      child: Text(
-        'Back to Login',
-        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+      icon: const Icon(Icons.arrow_back_rounded, size: 22),
+      label: Text(
+        'back',
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15),
       ),
     );
   }

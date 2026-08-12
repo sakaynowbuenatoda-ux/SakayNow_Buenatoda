@@ -9,8 +9,17 @@ import 'session_service.dart';
 
 class PrivacySecuritySessionGuard extends StatefulWidget {
   final Widget child;
+  final DeviceAuthService? deviceAuthService;
+  final bool Function()? isSignedIn;
+  final Stream<bool>? signedInChanges;
 
-  const PrivacySecuritySessionGuard({super.key, required this.child});
+  const PrivacySecuritySessionGuard({
+    super.key,
+    required this.child,
+    this.deviceAuthService,
+    this.isSignedIn,
+    this.signedInChanges,
+  });
 
   @override
   State<PrivacySecuritySessionGuard> createState() =>
@@ -22,25 +31,38 @@ class _PrivacySecuritySessionGuardState
     with WidgetsBindingObserver {
   final PrivacySecurityPreferencesController _preferences =
       PrivacySecurityPreferencesController.instance;
-  final DeviceAuthService _deviceAuthService = DeviceAuthService();
+  late final DeviceAuthService _deviceAuthService;
 
   Timer? _autoLogoutTimer;
-  StreamSubscription<User?>? _authSubscription;
+  StreamSubscription<bool>? _authSubscription;
   DateTime? _backgroundedAt;
   bool _isSigningOut = false;
   bool _isLocked = false;
+  bool _isResolvingStartupSession = false;
   bool _isAuthenticating = false;
+  bool _startupAuthenticationScheduled = false;
   String? _lockMessage;
 
   @override
   void initState() {
     super.initState();
+    _deviceAuthService = widget.deviceAuthService ?? DeviceAuthService();
     WidgetsBinding.instance.addObserver(this);
     _preferences.addListener(_handlePreferencesChanged);
-    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((_) {
-      _scheduleAutoLogoutTimer();
-    });
+
+    final hasCurrentUser = _hasSignedInUser;
+    _isLocked = _preferences.appLockEnabled && hasCurrentUser;
+    _isResolvingStartupSession = _preferences.appLockEnabled && !hasCurrentUser;
+
+    final signedInChanges =
+        widget.signedInChanges ??
+        FirebaseAuth.instance.authStateChanges().map((user) => user != null);
+    _authSubscription = signedInChanges.listen(_handleAuthStateChanged);
     _scheduleAutoLogoutTimer();
+
+    if (_isLocked) {
+      _scheduleStartupAuthentication();
+    }
   }
 
   @override
@@ -80,24 +102,61 @@ class _PrivacySecuritySessionGuardState
       onPointerDown: (_) => _recordActivity(),
       onPointerMove: (_) => _recordActivity(),
       onPointerSignal: (_) => _recordActivity(),
-      child: Stack(
-        children: <Widget>[
-          widget.child,
-          if (_isLocked)
-            Positioned.fill(
-              child: _DeviceLockOverlay(
-                message: _lockMessage,
-                isAuthenticating: _isAuthenticating,
-                onUnlock: _authenticateForUnlock,
-                onLogout: _signOut,
-              ),
-            ),
-        ],
-      ),
+      child: _buildGuardedContent(),
     );
   }
 
+  Widget _buildGuardedContent() {
+    if (_isResolvingStartupSession) {
+      return const _StartupSessionPlaceholder();
+    }
+
+    if (_isLocked) {
+      return _DeviceLockOverlay(
+        message: _lockMessage,
+        isAuthenticating: _isAuthenticating,
+        onUnlock: _authenticateForUnlock,
+        onLogout: _signOut,
+      );
+    }
+
+    return widget.child;
+  }
+
   void _handlePreferencesChanged() {
+    _scheduleAutoLogoutTimer();
+  }
+
+  void _handleAuthStateChanged(bool isSignedIn) {
+    if (!mounted) {
+      return;
+    }
+
+    if (_isResolvingStartupSession) {
+      final shouldLock = _preferences.appLockEnabled && isSignedIn;
+
+      setState(() {
+        _isResolvingStartupSession = false;
+        _isLocked = shouldLock;
+        _lockMessage = null;
+      });
+
+      if (shouldLock) {
+        _scheduleStartupAuthentication();
+      } else {
+        _scheduleAutoLogoutTimer();
+      }
+      return;
+    }
+
+    if (!isSignedIn && (_isLocked || _isAuthenticating)) {
+      setState(() {
+        _isLocked = false;
+        _isAuthenticating = false;
+        _lockMessage = null;
+      });
+    }
+
     _scheduleAutoLogoutTimer();
   }
 
@@ -122,11 +181,6 @@ class _PrivacySecuritySessionGuardState
       }
     }
 
-    if (_preferences.appLockEnabled && backgroundedAt != null) {
-      _lockAndAuthenticate();
-      return;
-    }
-
     _recordActivity();
   }
 
@@ -142,14 +196,19 @@ class _PrivacySecuritySessionGuardState
   void _scheduleAutoLogoutTimer() {
     _autoLogoutTimer?.cancel();
 
-    if (!_preferences.autoLogoutEnabled || !_hasSignedInUser || _isSigningOut) {
+    if (!_preferences.autoLogoutEnabled ||
+        !_hasSignedInUser ||
+        _isSigningOut ||
+        _isLocked ||
+        _isResolvingStartupSession) {
       return;
     }
 
     _autoLogoutTimer = Timer(_preferences.autoLogoutDuration, _signOut);
   }
 
-  bool get _hasSignedInUser => FirebaseAuth.instance.currentUser != null;
+  bool get _hasSignedInUser =>
+      widget.isSignedIn?.call() ?? FirebaseAuth.instance.currentUser != null;
 
   Future<void> _signOut() async {
     if (_isSigningOut) {
@@ -175,6 +234,7 @@ class _PrivacySecuritySessionGuardState
         setState(() {
           _isSigningOut = false;
           _isLocked = false;
+          _isResolvingStartupSession = false;
           _isAuthenticating = false;
           _lockMessage = null;
         });
@@ -182,18 +242,20 @@ class _PrivacySecuritySessionGuardState
     }
   }
 
-  void _lockAndAuthenticate() {
-    if (_isSigningOut || !_hasSignedInUser) {
+  void _scheduleStartupAuthentication() {
+    if (_startupAuthenticationScheduled || !_isLocked) {
       return;
     }
 
-    _autoLogoutTimer?.cancel();
-    setState(() {
-      _isLocked = true;
-      _lockMessage = null;
-    });
+    _startupAuthenticationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startupAuthenticationScheduled = false;
+      if (!mounted || !_isLocked) {
+        return;
+      }
 
-    unawaited(_authenticateForUnlock());
+      unawaited(_authenticateForUnlock());
+    });
   }
 
   Future<void> _authenticateForUnlock() async {
@@ -207,10 +269,20 @@ class _PrivacySecuritySessionGuardState
     });
 
     final result = await _deviceAuthService.authenticate(
-      reason: 'Unlock SakayNow with your device lock.',
+      reason:
+          'Authenticate with biometrics or your device PIN to open SakayNow.',
     );
 
     if (!mounted) {
+      return;
+    }
+
+    if (!_hasSignedInUser) {
+      setState(() {
+        _isAuthenticating = false;
+        _isLocked = false;
+        _lockMessage = null;
+      });
       return;
     }
 
@@ -289,7 +361,7 @@ class _DeviceLockOverlay extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   message ??
-                      'Use your device PIN, password, pattern, or biometrics to unlock SakayNow.',
+                      'Authenticate with biometrics or your device PIN before continuing to SakayNow.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.70),
@@ -321,6 +393,34 @@ class _DeviceLockOverlay extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StartupSessionPlaceholder extends StatelessWidget {
+  const _StartupSessionPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.colorScheme.surface,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            CircularProgressIndicator(color: theme.colorScheme.primary),
+            const SizedBox(height: 16),
+            Text(
+              'Securing your session...',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.70),
+              ),
+            ),
+          ],
         ),
       ),
     );

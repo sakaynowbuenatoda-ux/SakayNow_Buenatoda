@@ -1227,6 +1227,30 @@ service cloud.firestore {
           && request.resource.data.platform is string;
         allow delete: if isSelf(userId) || isAdmin();
       }
+
+      match /login_activity/{activityId} {
+        allow read: if isSelf(userId);
+        allow create: if isSelf(userId)
+          && request.resource.data.keys().hasOnly([
+            'user_id',
+            'signed_in_at',
+            'platform',
+            'auth_method'
+          ])
+          && request.resource.data.user_id == userId
+          && request.resource.data.signed_in_at == request.time
+          && request.resource.data.platform in [
+            'android',
+            'ios',
+            'web',
+            'windows',
+            'macos',
+            'linux',
+            'unknown'
+          ]
+          && request.resource.data.auth_method == 'password';
+        allow update, delete: if false;
+      }
     }
 
     match /bookings/{bookingId} {

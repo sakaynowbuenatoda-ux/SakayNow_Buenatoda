@@ -353,6 +353,21 @@ void main() {
       expect(rules, contains('allow update, delete: if isAdmin();'));
     });
 
+    test('keep login history immutable and visible only to its owner', () {
+      expect(rules, contains('match /login_activity/{activityId}'));
+      expect(rules, contains('allow read: if isSelf(userId);'));
+      expect(
+        rules,
+        contains('request.resource.data.signed_in_at == request.time'),
+      );
+      expect(rules, contains('request.resource.data.user_id == userId'));
+      expect(
+        rules,
+        contains("request.resource.data.auth_method == 'password'"),
+      );
+      expect(rules, contains('allow update, delete: if false;'));
+    });
+
     test('allow report duplicate checks without opening report reads', () {
       expect(rules, contains('function isMissingDailyReportProbe(reportId)'));
       expect(

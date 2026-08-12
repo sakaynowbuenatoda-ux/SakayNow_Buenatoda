@@ -56,7 +56,7 @@ class _PrivacySecurityPageState extends State<PrivacySecurityPage> {
             const SizedBox(height: 16),
             _PrivacyActionCard(
               title: 'Login Activity',
-              subtitle: 'View basic account sign-in information.',
+              subtitle: 'Review the history of successful account logins.',
               icon: Icons.manage_history_rounded,
               accentColor: PassengerUi.accentBlue,
               actionLabel: 'View',
@@ -88,7 +88,8 @@ class _PrivacySecurityPageState extends State<PrivacySecurityPage> {
             const SizedBox(height: 14),
             _PrivacyToggleCard(
               title: 'App Lock',
-              subtitle: 'Use your device lock when reopening the app.',
+              subtitle:
+                  'Require biometrics or your device PIN on a fresh app start.',
               icon: Icons.phonelink_lock_outlined,
               accentColor: PassengerUi.secondary,
               value: _controller.appLockEnabled,

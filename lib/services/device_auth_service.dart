@@ -16,7 +16,8 @@ class DeviceAuthService {
   }
 
   Future<DeviceAuthResult> authenticate({
-    String reason = 'Unlock SakayNow with your device lock.',
+    String reason =
+        'Authenticate with biometrics or your device PIN to open SakayNow.',
   }) async {
     try {
       final isSupported = await isDeviceLockAvailable();

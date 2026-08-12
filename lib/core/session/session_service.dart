@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +9,7 @@ import '../preferences/app_preferences_controller.dart';
 import '../../pages/admin/admin_home_page.dart';
 import '../../pages/driver/driver_shell.dart';
 import '../../pages/passenger/passenger_shell.dart';
+import '../../services/login_activity_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/ride_tracking_service.dart';
 import 'app_user.dart';
@@ -23,7 +26,16 @@ class SessionService {
     required String email,
     required String password,
   }) async {
-    await _auth.signInWithEmailAndPassword(email: email, password: password);
+    final credential = await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    final userId = credential.user?.uid ?? _auth.currentUser?.uid;
+    if (userId != null) {
+      unawaited(
+        LoginActivityService.instance.recordSuccessfulLogin(userId: userId),
+      );
+    }
   }
 
   static Future<AppUser> loadUserProfile(String uid) async {

@@ -98,16 +98,12 @@ class _HelpAndSupportPageState extends State<HelpAndSupportPage> {
               padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
               child: Column(
                 children: <Widget>[
-                  Container(
+                  SizedBox(
                     width: 58,
                     height: 58,
-                    decoration: BoxDecoration(
-                      color: PassengerUi.blueSoft,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
                     child: Icon(
                       Icons.support_agent_rounded,
-                      color: PassengerUi.accentBlue,
+                      color: PassengerUi.dark,
                       size: 30,
                     ),
                   ),
@@ -203,14 +199,10 @@ class _SupportContactCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       child: Row(
         children: <Widget>[
-          Container(
+          SizedBox(
             width: 44,
             height: 44,
-            decoration: BoxDecoration(
-              color: PassengerUi.mutedSurface,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: PassengerUi.accentBlue),
+            child: Icon(icon, color: PassengerUi.dark),
           ),
           SizedBox(width: 14),
           Expanded(

@@ -142,11 +142,8 @@ class _ConversationListPageState extends State<ConversationListPage> {
                           'Try searching by user name, role, message, or conversation ID.',
                     )
                   else
-                    ...filteredConversations.asMap().entries.map((entry) {
-                      final conversation = entry.value;
+                    ...filteredConversations.map((conversation) {
                       final targetUserId = _targetUserIdFor(conversation);
-                      final isLast =
-                          entry.key == filteredConversations.length - 1;
 
                       return Column(
                         key: ValueKey<String>(
@@ -164,17 +161,6 @@ class _ConversationListPageState extends State<ConversationListPage> {
                             ),
                             onTap: () => _openConversation(conversation),
                           ),
-                          if (!isLast)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 68),
-                              child: Divider(
-                                height: 1,
-                                thickness: 1,
-                                color: PassengerUi.border.withValues(
-                                  alpha: 0.72,
-                                ),
-                              ),
-                            ),
                         ],
                       );
                     }),
@@ -588,12 +574,6 @@ class _ConversationTile extends StatelessWidget {
                 const SizedBox(height: 5),
                 Row(
                   children: <Widget>[
-                    Icon(
-                      Icons.chat_bubble_outline_rounded,
-                      color: hasUnread ? PassengerUi.title : PassengerUi.body,
-                      size: 15,
-                    ),
-                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         conversation.previewFor(currentUserId),

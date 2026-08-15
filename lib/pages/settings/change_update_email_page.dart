@@ -214,14 +214,6 @@ class _ChangeUpdateEmailPageState extends State<ChangeUpdateEmailPage> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  PassengerPageHeader(
-                    title: title,
-                    subtitle:
-                        'Use this only if your current email is unavailable or you want a new login email.',
-                    icon: Icons.alternate_email_rounded,
-                    accentColor: PassengerUi.accentBlue,
-                  ),
-                  const SizedBox(height: 16),
                   if (_errorMessage != null) ...<Widget>[
                     _ChangeUpdateEmailErrorBanner(
                       message: _errorMessage!,

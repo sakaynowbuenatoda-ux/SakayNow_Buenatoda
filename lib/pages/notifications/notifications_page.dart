@@ -217,14 +217,10 @@ class _NotificationTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
+              SizedBox(
                 width: 42,
                 height: 42,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: accent, size: 22),
+                child: Icon(icon, color: PassengerUi.dark, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(

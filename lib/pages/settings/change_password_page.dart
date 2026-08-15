@@ -51,14 +51,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              PassengerPageHeader(
-                title: 'Change Password',
-                subtitle:
-                    'Confirm your current password before setting a new one.',
-                icon: Icons.password_rounded,
-                accentColor: PassengerUi.accentBlue,
-              ),
-              const SizedBox(height: 16),
               PassengerSurfaceCard(
                 child: Column(
                   children: <Widget>[

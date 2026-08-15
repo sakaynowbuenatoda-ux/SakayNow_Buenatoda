@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sakaynow_buenatoda/models/login_activity_entry.dart';
 import 'package:sakaynow_buenatoda/pages/settings/login_activity_page.dart';
+import 'package:sakaynow_buenatoda/widgets/passenger_widgets/passenger_ui.dart';
 
 void main() {
   testWidgets('shows previous successful logins in newest-first order', (
@@ -43,6 +44,15 @@ void main() {
     expect(find.text('Email and password'), findsNWidgets(2));
     expect(find.text('August 12, 2026 at 2:35 PM'), findsOneWidget);
     expect(find.text('August 10, 2026 at 8:05 AM'), findsOneWidget);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.alternate_email_rounded)).color,
+      PassengerUi.dark,
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.android_rounded)).color,
+      PassengerUi.dark,
+    );
+    expect(find.byType(Divider), findsNothing);
   });
 
   testWidgets('explains when no recorded login history exists', (tester) async {

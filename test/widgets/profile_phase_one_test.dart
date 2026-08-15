@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sakaynow_buenatoda/pages/profile/models/profile_view_data.dart';
 import 'package:sakaynow_buenatoda/pages/profile/widgets/profile_details_link_card.dart';
 import 'package:sakaynow_buenatoda/pages/profile/widgets/profile_hero_card.dart';
+import 'package:sakaynow_buenatoda/widgets/passenger_widgets/passenger_ui.dart';
 
 void main() {
   testWidgets('minimal profile preserves identity and driver statistics', (
@@ -41,6 +42,17 @@ void main() {
     expect(find.text('Rank'), findsOneWidget);
     expect(find.text('Rank Score'), findsOneWidget);
     expect(find.byIcon(Icons.verified_rounded), findsOneWidget);
+    final identitySection = tester.widget<Container>(
+      find.byKey(const Key('profile-hero-identity')),
+    );
+    expect(
+      (identitySection.decoration! as BoxDecoration).color,
+      PassengerUi.dark,
+    );
+    expect(
+      tester.widget<Text>(find.text('Juan Dela Cruz')).style?.color,
+      Colors.white,
+    );
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.byTooltip('Change profile picture'));
@@ -93,6 +105,30 @@ void main() {
 
     expect(detailsTapCount, 1);
     expect(settingsTapCount, 1);
+  });
+
+  testWidgets('profile action list uses bare dark icons without dividers', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _actionHost(onDetails: () {}, onSettings: () {}, onLogout: () async {}),
+    );
+
+    expect(find.byType(Divider), findsNothing);
+    expect(find.byIcon(Icons.chevron_right_rounded), findsNothing);
+
+    for (final key in <Key>[
+      const Key('profile-details-action'),
+      const Key('profile-settings-action'),
+      const Key('profile-logout-action'),
+    ]) {
+      final leadingIcon = tester
+          .widgetList<Icon>(
+            find.descendant(of: find.byKey(key), matching: find.byType(Icon)),
+          )
+          .first;
+      expect(leadingIcon.color, PassengerUi.dark);
+    }
   });
 
   testWidgets('embedded admin action list omits Settings and Logout', (

@@ -139,14 +139,6 @@ class PrivacyPolicyPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            PassengerPageHeader(
-              title: 'Privacy Policy',
-              subtitle:
-                  'What data is collected, how it is used, and the rights available to users.',
-              icon: Icons.policy_rounded,
-              accentColor: PassengerUi.primary,
-            ),
-            SizedBox(height: 16),
             ..._sections.map(
               (section) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),

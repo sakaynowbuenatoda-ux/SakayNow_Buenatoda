@@ -194,16 +194,6 @@ class _PassengerDocumentVerificationPageState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    PassengerPageHeader(
-                      title: 'Document Verification',
-                      subtitle:
-                          'Upload your valid student or senior citizen ID and selfie to apply for verified status and discount eligibility.',
-                      icon: Icons.document_scanner_rounded,
-                      accentColor: _isVerified
-                          ? PassengerUi.secondary
-                          : PassengerUi.highlightAmber,
-                    ),
-                    const SizedBox(height: 16),
                     _buildStatusCard(),
                     const SizedBox(height: 20),
                     _buildUploadSection(
@@ -276,14 +266,11 @@ class _PassengerDocumentVerificationPageState
 
   Widget _buildStatusCard() {
     String statusLabel = 'Pending Submission';
-    Color badgeColor = PassengerUi.highlightAmber;
 
     if (_isVerified) {
       statusLabel = 'Verified';
-      badgeColor = PassengerUi.secondary;
     } else if (_uploadStatus == 'uploaded') {
       statusLabel = 'In Review (Uploaded)';
-      badgeColor = PassengerUi.accentBlue;
     }
 
     return Container(
@@ -303,17 +290,14 @@ class _PassengerDocumentVerificationPageState
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
+          SizedBox(
+            width: 52,
+            height: 52,
             child: Icon(
               _isVerified
                   ? Icons.verified_rounded
                   : Icons.pending_actions_rounded,
-              color: badgeColor,
+              color: PassengerUi.dark,
               size: 28,
             ),
           ),

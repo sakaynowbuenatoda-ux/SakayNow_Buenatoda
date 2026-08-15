@@ -47,13 +47,6 @@ class LoginActivityPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            PassengerPageHeader(
-              title: 'Login Activity',
-              subtitle: 'Review successful sign-ins to your SakayNow account.',
-              icon: Icons.devices_rounded,
-              accentColor: PassengerUi.accentBlue,
-            ),
-            const SizedBox(height: 16),
             PassengerSurfaceCard(
               padding: EdgeInsets.zero,
               child: _AccountRow(
@@ -130,16 +123,12 @@ class _LoginHistoryCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
+          SizedBox(
             width: compact ? 42 : 46,
             height: compact ? 42 : 46,
-            decoration: BoxDecoration(
-              color: PassengerUi.blueSoft,
-              borderRadius: BorderRadius.circular(14),
-            ),
             child: Icon(
               _platformIcon(entry.platform),
-              color: PassengerUi.accentBlue,
+              color: PassengerUi.dark,
               size: 23,
             ),
           ),
@@ -284,14 +273,10 @@ class _AccountRow extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          Container(
+          SizedBox(
             width: compact ? 38 : 40,
             height: compact ? 38 : 40,
-            decoration: BoxDecoration(
-              color: PassengerUi.blueSoft,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, size: 20, color: PassengerUi.accentBlue),
+            child: Icon(icon, size: 20, color: PassengerUi.dark),
           ),
           const SizedBox(width: 12),
           Expanded(

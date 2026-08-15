@@ -772,14 +772,10 @@ class _InformationKeyTile extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Container(
+        SizedBox(
           width: 38,
           height: 38,
-          decoration: BoxDecoration(
-            color: PassengerUi.blueSoft,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(item.icon, color: PassengerUi.accentBlue, size: 20),
+          child: Icon(item.icon, color: PassengerUi.dark, size: 20),
         ),
         SizedBox(width: 12),
         Expanded(

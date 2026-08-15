@@ -45,13 +45,6 @@ class _DriverPayoutAccountsPageState extends State<DriverPayoutAccountsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            PassengerPageHeader(
-              title: 'Payout Accounts',
-              subtitle: '',
-              icon: Icons.payments_rounded,
-              accentColor: PassengerUi.accentBlue,
-            ),
-            const SizedBox(height: 16),
             StreamBuilder<List<DriverPayoutAccount>>(
               stream: widget.payoutAccountService.watchPayoutAccounts(
                 widget.driverId,

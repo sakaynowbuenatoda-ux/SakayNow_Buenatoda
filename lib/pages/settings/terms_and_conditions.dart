@@ -92,31 +92,15 @@ class TermsAndConditionsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _PolicyScaffold(
-      title: 'Terms and Conditions',
-      headerIcon: Icons.gavel_rounded,
-      headerTitle: 'Terms and Conditions',
-      headerSubtitle:
-          'Responsibilities, limits, and expected conduct for everyone using SakayNow Buenatoda.',
-      sections: _sections,
-    );
+    return _PolicyScaffold(title: 'Terms and Conditions', sections: _sections);
   }
 }
 
 class _PolicyScaffold extends StatelessWidget {
   final String title;
-  final IconData headerIcon;
-  final String headerTitle;
-  final String headerSubtitle;
   final List<_PolicySection> sections;
 
-  const _PolicyScaffold({
-    required this.title,
-    required this.headerIcon,
-    required this.headerTitle,
-    required this.headerSubtitle,
-    required this.sections,
-  });
+  const _PolicyScaffold({required this.title, required this.sections});
 
   @override
   Widget build(BuildContext context) {
@@ -137,13 +121,6 @@ class _PolicyScaffold extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            PassengerPageHeader(
-              title: headerTitle,
-              subtitle: headerSubtitle,
-              icon: headerIcon,
-              accentColor: PassengerUi.primary,
-            ),
-            SizedBox(height: 16),
             ...sections.map(
               (section) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),

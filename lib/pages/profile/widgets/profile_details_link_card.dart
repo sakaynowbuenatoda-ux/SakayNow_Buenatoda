@@ -36,7 +36,6 @@ class _ProfileActionListState extends State<ProfileActionList> {
             onTap: widget.onProfileDetailsTap,
           ),
           if (widget.onSettingsTap != null) ...<Widget>[
-            _divider,
             _ProfileActionRow(
               key: const Key('profile-settings-action'),
               icon: Icons.settings_outlined,
@@ -46,7 +45,6 @@ class _ProfileActionListState extends State<ProfileActionList> {
             ),
           ],
           if (widget.onLogout != null) ...<Widget>[
-            _divider,
             _ProfileActionRow(
               key: const Key('profile-logout-action'),
               icon: Icons.logout_rounded,
@@ -71,9 +69,6 @@ class _ProfileActionListState extends State<ProfileActionList> {
       ),
     );
   }
-
-  Widget get _divider =>
-      Divider(height: 1, thickness: 1, indent: 64, color: PassengerUi.border);
 
   Future<void> _confirmLogout() async {
     if (_isLoggingOut || widget.onLogout == null) {
@@ -159,20 +154,10 @@ class _ProfileActionRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: <Widget>[
-              Container(
+              SizedBox(
                 width: 36,
                 height: 36,
-                decoration: BoxDecoration(
-                  color: foregroundColor == null
-                      ? PassengerUi.blueSoft
-                      : PassengerUi.dangerSoft,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Icon(
-                  icon,
-                  size: 19,
-                  color: foregroundColor ?? PassengerUi.accentBlue,
-                ),
+                child: Icon(icon, size: 19, color: PassengerUi.dark),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -196,8 +181,10 @@ class _ProfileActionRow extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              trailing ?? Icon(Icons.chevron_right_rounded, color: color),
+              if (trailing != null) ...<Widget>[
+                const SizedBox(width: 8),
+                trailing!,
+              ],
             ],
           ),
         ),

@@ -20,18 +20,7 @@ class SettingsSectionCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
               child: Text(title!, style: PassengerUi.cardTitle),
             ),
-          ...items.asMap().entries.map(
-            (entry) => Column(
-              children: <Widget>[
-                SettingsListTile(item: entry.value),
-                if (entry.key != items.length - 1)
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 18),
-                    child: Divider(height: 1, color: PassengerUi.border),
-                  ),
-              ],
-            ),
-          ),
+          ...items.map((item) => SettingsListTile(item: item)),
         ],
       ),
     );
@@ -47,7 +36,6 @@ class SettingsListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact = PassengerUi.isCompactWidth(context);
     final enabled = item.isEnabled && item.onTap != null;
-    final accentColor = enabled ? item.accentColor : PassengerUi.body;
 
     return Opacity(
       opacity: enabled ? 1 : 0.78,
@@ -61,14 +49,14 @@ class SettingsListTile extends StatelessWidget {
           ),
           child: Row(
             children: <Widget>[
-              Container(
+              SizedBox(
                 width: compact ? 40 : 42,
                 height: compact ? 40 : 42,
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
+                child: Icon(
+                  item.icon,
+                  color: enabled ? PassengerUi.dark : PassengerUi.body,
+                  size: 22,
                 ),
-                child: Icon(item.icon, color: accentColor, size: 22),
               ),
               SizedBox(width: 14),
               Expanded(
@@ -85,24 +73,13 @@ class SettingsListTile extends StatelessWidget {
                   ],
                 ),
               ),
-              SizedBox(width: 10),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  if (item.statusLabel != null && item.statusLabel!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _SettingsStatusBadge(
-                        label: item.statusLabel!,
-                        enabled: enabled,
-                      ),
-                    ),
-                  Icon(
-                    enabled ? Icons.chevron_right_rounded : Icons.lock_rounded,
-                    color: enabled ? PassengerUi.accentBlue : PassengerUi.body,
-                  ),
-                ],
-              ),
+              if (item.statusLabel != null && item.statusLabel!.isNotEmpty) ...[
+                const SizedBox(width: 10),
+                _SettingsStatusBadge(
+                  label: item.statusLabel!,
+                  enabled: enabled,
+                ),
+              ],
             ],
           ),
         ),

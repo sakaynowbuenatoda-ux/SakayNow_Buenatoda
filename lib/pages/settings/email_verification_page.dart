@@ -181,17 +181,6 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  PassengerPageHeader(
-                    title: 'Email Verification',
-                    subtitle: status?.isVerified == true
-                        ? 'Your login email is confirmed.'
-                        : 'Confirm your login email for account security.',
-                    icon: Icons.mark_email_read_outlined,
-                    accentColor: status?.isVerified == true
-                        ? PassengerUi.secondary
-                        : PassengerUi.highlightAmber,
-                  ),
-                  const SizedBox(height: 16),
                   if (_errorMessage != null) ...<Widget>[
                     _EmailVerificationErrorBanner(
                       message: _errorMessage!,
@@ -253,26 +242,19 @@ class _EmailVerificationStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isVerified = status.isVerified;
-    final color = isVerified
-        ? PassengerUi.secondary
-        : PassengerUi.highlightAmber;
 
     return PassengerSurfaceCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
+          SizedBox(
             width: 44,
             height: 44,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
-            ),
             child: Icon(
               isVerified
                   ? Icons.verified_rounded
                   : Icons.mark_email_unread_outlined,
-              color: color,
+              color: PassengerUi.dark,
             ),
           ),
           const SizedBox(width: 12),
@@ -447,17 +429,10 @@ class _EmailVerifiedCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
+          SizedBox(
             width: 42,
             height: 42,
-            decoration: BoxDecoration(
-              color: PassengerUi.successBackground,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              Icons.check_circle_rounded,
-              color: PassengerUi.successText,
-            ),
+            child: Icon(Icons.check_circle_rounded, color: PassengerUi.dark),
           ),
           const SizedBox(width: 12),
           Expanded(

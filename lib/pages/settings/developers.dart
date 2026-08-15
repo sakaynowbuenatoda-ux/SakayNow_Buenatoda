@@ -76,14 +76,10 @@ class _DevelopersHeader extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       child: Row(
         children: <Widget>[
-          Container(
+          SizedBox(
             width: 46,
             height: 46,
-            decoration: BoxDecoration(
-              color: PassengerUi.mutedSurface,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.groups_rounded, color: PassengerUi.primary),
+            child: Icon(Icons.groups_rounded, color: PassengerUi.dark),
           ),
           SizedBox(width: 14),
           Expanded(

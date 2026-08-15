@@ -23,14 +23,10 @@ class PassengerPaymentMethodCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: <Widget>[
-          Container(
+          SizedBox(
             width: 48,
             height: 48,
-            decoration: BoxDecoration(
-              color: method.type.accentColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(method.type.icon, color: method.type.accentColor),
+            child: Icon(method.type.icon, color: PassengerUi.dark),
           ),
           const SizedBox(width: 14),
           Expanded(

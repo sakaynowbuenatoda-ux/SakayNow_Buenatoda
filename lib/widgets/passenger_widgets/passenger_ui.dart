@@ -4,7 +4,9 @@ import '../../core/preferences/app_preferences_controller.dart';
 class PassengerUi {
   const PassengerUi._();
 
-  static const double pageBottomSpacing = 68;
+  // Keeps the final page content above the floating navigation bar and its
+  // center-docked action button when the shell extends beneath them.
+  static const double pageBottomSpacing = 96;
   static const double settingsContentWidth = 760;
 
   static bool get isDarkMode => AppPreferencesController.instance.isDarkMode;

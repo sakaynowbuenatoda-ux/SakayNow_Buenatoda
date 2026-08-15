@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sakaynow_buenatoda/pages/settings/change_update_email_page.dart';
 import 'package:sakaynow_buenatoda/pages/settings/email_verification_page.dart';
 import 'package:sakaynow_buenatoda/services/email_verification_service.dart';
+import 'package:sakaynow_buenatoda/widgets/passenger_widgets/passenger_ui.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +26,10 @@ void main() {
     expect(find.text('Send Verification Email'), findsOneWidget);
     expect(find.text('Refresh Status'), findsOneWidget);
     expect(_newEmailField(), findsNothing);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.mark_email_unread_outlined)).color,
+      PassengerUi.dark,
+    );
 
     await tester.tap(find.text('Change Email'));
     await tester.pumpAndSettle();
@@ -49,6 +54,10 @@ void main() {
     expect(find.text('Update Email'), findsOneWidget);
     expect(find.text('Send Verification Email'), findsNothing);
     expect(_newEmailField(), findsNothing);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.check_circle_rounded)).color,
+      PassengerUi.dark,
+    );
 
     await tester.tap(find.text('Update Email'));
     await tester.pumpAndSettle();

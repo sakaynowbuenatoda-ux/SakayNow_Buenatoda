@@ -133,13 +133,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  PassengerPageHeader(
-                    title: 'Notifications',
-                    subtitle: '',
-                    icon: Icons.notifications_rounded,
-                    accentColor: PassengerUi.secondary,
-                  ),
-                  SizedBox(height: 16),
                   if (_errorMessage != null) ...<Widget>[
                     _NotificationErrorBanner(
                       message: _errorMessage!,
@@ -198,7 +191,6 @@ class _NotificationCategoryCard extends StatelessWidget {
             onChanged: (value) =>
                 onChanged(preferences.copyWith(bookingUpdatesEnabled: value)),
           ),
-          _DividerLine(),
           _NotificationSwitchTile(
             title: 'Messages',
             subtitle: 'Ride chat and support conversation alerts.',
@@ -208,7 +200,6 @@ class _NotificationCategoryCard extends StatelessWidget {
             onChanged: (value) =>
                 onChanged(preferences.copyWith(messageUpdatesEnabled: value)),
           ),
-          _DividerLine(),
           _NotificationSwitchTile(
             title: 'Account Alerts',
             subtitle: 'Verification, restrictions, and account access notices.',
@@ -218,7 +209,6 @@ class _NotificationCategoryCard extends StatelessWidget {
             onChanged: (value) =>
                 onChanged(preferences.copyWith(accountUpdatesEnabled: value)),
           ),
-          _DividerLine(),
           _NotificationSwitchTile(
             title: 'System Updates',
             subtitle: 'Reviews, admin notices, and general app updates.',
@@ -287,8 +277,6 @@ class _NotificationSwitchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = PassengerUi.isCompactWidth(context);
-    final accentColor = value ? PassengerUi.secondary : PassengerUi.body;
-
     return Opacity(
       opacity: enabled ? 1 : 0.62,
       child: Padding(
@@ -298,14 +286,14 @@ class _NotificationSwitchTile extends StatelessWidget {
         ),
         child: Row(
           children: <Widget>[
-            Container(
+            SizedBox(
               width: compact ? 40 : 42,
               height: compact ? 40 : 42,
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(14),
+              child: Icon(
+                icon,
+                color: enabled ? PassengerUi.dark : PassengerUi.body,
+                size: 22,
               ),
-              child: Icon(icon, color: accentColor, size: 22),
             ),
             SizedBox(width: 14),
             Expanded(
@@ -313,7 +301,7 @@ class _NotificationSwitchTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(title, style: PassengerUi.valueText),
-                  SizedBox(height: 3),
+                  const SizedBox(height: 3),
                   Text(
                     subtitle,
                     maxLines: 2,
@@ -389,16 +377,6 @@ class _NotificationLoadingState extends StatelessWidget {
           Text('Loading notification settings...', style: PassengerUi.bodyText),
         ],
       ),
-    );
-  }
-}
-
-class _DividerLine extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Divider(height: 1, color: PassengerUi.border),
     );
   }
 }

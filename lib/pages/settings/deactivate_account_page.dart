@@ -46,14 +46,6 @@ class _DeactivateAccountPageState extends State<DeactivateAccountPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              PassengerPageHeader(
-                title: 'Deactivate Account',
-                subtitle:
-                    'Confirm your password to start the 60-day restoration window.',
-                icon: Icons.person_off_rounded,
-                accentColor: Colors.red.shade600,
-              ),
-              const SizedBox(height: 16),
               const _NoticeCard(),
               const SizedBox(height: 14),
               PassengerSurfaceCard(
@@ -258,14 +250,10 @@ class _NoticeCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
+          SizedBox(
             width: 42,
             height: 42,
-            decoration: BoxDecoration(
-              color: PassengerUi.dangerSoft,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(Icons.privacy_tip_outlined, color: Colors.red.shade600),
+            child: Icon(Icons.privacy_tip_outlined, color: PassengerUi.dark),
           ),
           const SizedBox(width: 12),
           Expanded(

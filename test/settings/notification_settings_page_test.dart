@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sakaynow_buenatoda/models/notification_preferences.dart';
 import 'package:sakaynow_buenatoda/pages/settings/notification_settings_page.dart';
+import 'package:sakaynow_buenatoda/widgets/passenger_widgets/passenger_ui.dart';
 
 void main() {
   testWidgets(
@@ -29,6 +30,16 @@ void main() {
       expect(find.text('Messages'), findsOneWidget);
       expect(find.text('Account Alerts'), findsOneWidget);
       expect(find.text('System Updates'), findsOneWidget);
+      expect(find.text('Notifications'), findsOneWidget);
+      expect(
+        find.text('Bookings, driver status, cancellations, and trips.'),
+        findsOneWidget,
+      );
+      expect(find.byType(Divider), findsNothing);
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.local_taxi_rounded)).color,
+        PassengerUi.dark,
+      );
 
       await tester.tap(find.byType(Switch).at(1));
       await tester.pumpAndSettle();

@@ -45,13 +45,6 @@ class _PassengerPaymentMethodsPageState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            PassengerPageHeader(
-              title: 'Payment Methods',
-              subtitle: '',
-              icon: Icons.credit_card_rounded,
-              accentColor: PassengerUi.accentBlue,
-            ),
-            const SizedBox(height: 16),
             StreamBuilder<List<PassengerPaymentMethod>>(
               stream: widget.paymentMethodService.watchPaymentMethods(
                 widget.userId,

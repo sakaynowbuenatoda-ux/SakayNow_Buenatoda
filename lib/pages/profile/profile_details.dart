@@ -166,7 +166,6 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
                       icon: Icons.calendar_today_outlined,
                       label: 'Joined At',
                       value: _profile.joinedAtLabel,
-                      isLast: true,
                     ),
                   ],
                 ),
@@ -594,14 +593,10 @@ class _EditProfileDetailsDialogState extends State<_EditProfileDetailsDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
         children: <Widget>[
-          Container(
+          SizedBox(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(
-              color: PassengerUi.accentBlue.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.edit_outlined, color: PassengerUi.accentBlue),
+            child: Icon(Icons.edit_outlined, color: PassengerUi.dark),
           ),
           const SizedBox(width: 12),
           Expanded(child: Text('Edit Details', style: PassengerUi.cardTitle)),
@@ -701,28 +696,19 @@ class _DetailRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final bool isLast;
 
   const _DetailRow({
     required this.icon,
     required this.label,
     required this.value,
-    this.isLast = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final resolvedValue = value.isEmpty ? 'Not set' : value;
 
-    return Container(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: isLast ? Colors.transparent : PassengerUi.border,
-          ),
-        ),
-      ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isTight = constraints.maxWidth < 390;
@@ -788,14 +774,10 @@ class _DetailIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: 34,
       height: 34,
-      decoration: BoxDecoration(
-        color: PassengerUi.blueSoft,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Icon(icon, size: 18, color: PassengerUi.accentBlue),
+      child: Icon(icon, size: 18, color: PassengerUi.dark),
     );
   }
 }

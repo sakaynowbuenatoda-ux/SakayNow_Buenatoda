@@ -46,21 +46,11 @@ class _PrivacySecurityPageState extends State<PrivacySecurityPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            PassengerPageHeader(
-              title: 'Privacy and Security',
-              subtitle:
-                  'Account safeguards and privacy controls for your profile.',
-              icon: Icons.shield_rounded,
-              accentColor: PassengerUi.primary,
-            ),
-            const SizedBox(height: 16),
             _PrivacyActionCard(
               title: 'Login Activity',
               subtitle: 'Review the history of successful account logins.',
               icon: Icons.manage_history_rounded,
-              accentColor: PassengerUi.accentBlue,
               actionLabel: 'View',
-              actionIcon: Icons.chevron_right_rounded,
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const LoginActivityPage()),
               ),
@@ -184,7 +174,6 @@ class _PrivacyToggleCard extends StatelessWidget {
                   title: title,
                   subtitle: subtitle,
                   icon: icon,
-                  accentColor: value ? accentColor : PassengerUi.body,
                 ),
               ),
               const SizedBox(width: 10),
@@ -215,18 +204,14 @@ class _PrivacyActionCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final IconData icon;
-  final Color accentColor;
   final String actionLabel;
-  final IconData actionIcon;
   final VoidCallback onPressed;
 
   const _PrivacyActionCard({
     required this.title,
     required this.subtitle,
     required this.icon,
-    required this.accentColor,
     required this.actionLabel,
-    this.actionIcon = Icons.delete_outline_rounded,
     required this.onPressed,
   });
 
@@ -240,15 +225,10 @@ class _PrivacyActionCard extends StatelessWidget {
               title: title,
               subtitle: subtitle,
               icon: icon,
-              accentColor: accentColor,
             ),
           ),
           const SizedBox(width: 10),
-          OutlinedButton.icon(
-            onPressed: onPressed,
-            icon: Icon(actionIcon, size: 18),
-            label: Text(actionLabel),
-          ),
+          OutlinedButton(onPressed: onPressed, child: Text(actionLabel)),
         ],
       ),
     );
@@ -300,27 +280,21 @@ class _PrivacyCardHeader extends StatelessWidget {
   final String title;
   final String subtitle;
   final IconData icon;
-  final Color accentColor;
 
   const _PrivacyCardHeader({
     required this.title,
     required this.subtitle,
     required this.icon,
-    required this.accentColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        Container(
+        SizedBox(
           width: 42,
           height: 42,
-          decoration: BoxDecoration(
-            color: accentColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: accentColor, size: 22),
+          child: Icon(icon, color: PassengerUi.dark, size: 22),
         ),
         const SizedBox(width: 12),
         Expanded(

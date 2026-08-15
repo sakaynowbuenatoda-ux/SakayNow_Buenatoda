@@ -137,6 +137,7 @@ class _DriverInfoHubPageState extends State<DriverInfoHubPage> {
                 'Keep your Driver\'s License and OR/CR current to continue receiving bookings.',
             icon: Icons.verified_rounded,
             accentColor: PassengerUi.highlightAmber,
+            showIcon: false,
           ),
           const SizedBox(height: 16),
           DriverRenewalStatusCard(status: status),
@@ -363,14 +364,10 @@ class DriverRenewalStatusCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
+          SizedBox(
             width: 48,
             height: 48,
-            decoration: BoxDecoration(
-              color: presentation.background,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(presentation.icon, color: presentation.foreground),
+            child: Icon(presentation.icon, color: PassengerUi.dark),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -417,6 +414,7 @@ class _BasicInfoTab extends StatelessWidget {
             subtitle: 'Basic driver account information',
             icon: Icons.account_circle_rounded,
             accentColor: PassengerUi.primary,
+            showIcon: false,
           ),
           const SizedBox(height: 16),
           PassengerSurfaceCard(
@@ -430,7 +428,6 @@ class _BasicInfoTab extends StatelessWidget {
                   value: profile.isVerified
                       ? 'Verified'
                       : 'Pending verification',
-                  isLast: true,
                 ),
               ],
             ),
@@ -479,6 +476,7 @@ class _RequirementsTab extends StatelessWidget {
                 'Add missing credentials or replace an existing image. Changes are sent to admins for verification.',
             icon: Icons.description_rounded,
             accentColor: PassengerUi.accentBlue,
+            showIcon: false,
           ),
           const SizedBox(height: 16),
           ...documents.map(
@@ -827,6 +825,7 @@ class _VehicleDetailsTab extends StatelessWidget {
             subtitle: 'The identification passengers see for assigned rides.',
             icon: Icons.local_taxi_rounded,
             accentColor: PassengerUi.secondary,
+            showIcon: false,
           ),
           const SizedBox(height: 16),
           PassengerSurfaceCard(
@@ -840,7 +839,6 @@ class _VehicleDetailsTab extends StatelessWidget {
                 _HubValueRow(
                   label: 'Plate / Franchise No.',
                   value: profile.plateNumber,
-                  isLast: true,
                 ),
               ],
             ),
@@ -878,6 +876,7 @@ class _PayoutReferenceTab extends StatelessWidget {
             subtitle: 'Accounts used for online ride payouts.',
             icon: Icons.payments_rounded,
             accentColor: PassengerUi.accentBlue,
+            showIcon: false,
           ),
           Align(
             alignment: Alignment.centerRight,
@@ -924,7 +923,7 @@ class _PayoutReferenceTab extends StatelessWidget {
                             contentPadding: EdgeInsets.zero,
                             leading: Icon(
                               account.type.icon,
-                              color: account.type.accentColor,
+                              color: PassengerUi.dark,
                             ),
                             title: Text(account.displayLabel),
                             subtitle: Text(account.accountLabel),
@@ -1059,24 +1058,14 @@ class _DocumentExpiryCard extends StatelessWidget {
 class _HubValueRow extends StatelessWidget {
   final String label;
   final String value;
-  final bool isLast;
 
-  const _HubValueRow({
-    required this.label,
-    required this.value,
-    this.isLast = false,
-  });
+  const _HubValueRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     final display = value.trim().isEmpty ? 'Not provided' : value.trim();
-    return Container(
+    return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        border: isLast
-            ? null
-            : Border(bottom: BorderSide(color: PassengerUi.border)),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[

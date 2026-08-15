@@ -24,8 +24,15 @@ class ProfileHeroCard extends StatelessWidget {
       padding: EdgeInsets.zero,
       child: Column(
         children: <Widget>[
-          Padding(
+          Container(
+            key: const Key('profile-hero-identity'),
             padding: EdgeInsets.all(compact ? 16 : 20),
+            decoration: BoxDecoration(
+              color: PassengerUi.dark,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
+            ),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final isTight = constraints.maxWidth < 340;
@@ -142,7 +149,7 @@ class _HeroDetails extends StatelessWidget {
                 style: TextStyle(
                   fontSize: compact ? 20 : 22,
                   fontWeight: FontWeight.w800,
-                  color: PassengerUi.title,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -157,7 +164,7 @@ class _HeroDetails extends StatelessWidget {
           profile.email,
           style: TextStyle(
             fontSize: compact ? 13 : 13.5,
-            color: PassengerUi.body,
+            color: Colors.white.withValues(alpha: 0.72),
             height: 1.35,
           ),
         ),

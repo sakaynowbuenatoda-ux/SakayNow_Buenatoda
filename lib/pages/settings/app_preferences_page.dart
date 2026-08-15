@@ -36,16 +36,6 @@ class _AppPreferencesPageState extends State<AppPreferencesPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  'App Preferences',
-                  style: PassengerUi.sectionTitle.copyWith(fontSize: 22),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'Adjust appearance and reading size preferences for the app experience.',
-                  style: PassengerUi.bodyText,
-                ),
-                SizedBox(height: 18),
                 _PreferenceGroupCard<AppThemePreference>(
                   title: 'Appearance',
                   subtitle: 'Choose how the interface should look.',
@@ -138,20 +128,23 @@ class _PreferenceGroupCard<T> extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Container(
+              SizedBox(
                 width: 44,
                 height: 44,
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: accentColor),
+                child: Icon(icon, color: PassengerUi.dark),
               ),
               SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[Text(title, style: PassengerUi.cardTitle)],
+                  children: <Widget>[
+                    Text(title, style: PassengerUi.cardTitle),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -209,19 +202,10 @@ class _PreferenceChoiceTile<T> extends StatelessWidget {
         ),
         child: Row(
           children: <Widget>[
-            Container(
+            SizedBox(
               width: 42,
               height: 42,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? accentColor.withValues(alpha: 0.16)
-                    : PassengerUi.surface,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                option.icon,
-                color: isSelected ? accentColor : PassengerUi.body,
-              ),
+              child: Icon(option.icon, color: PassengerUi.dark),
             ),
             SizedBox(width: 12),
             Expanded(
@@ -233,6 +217,13 @@ class _PreferenceChoiceTile<T> extends StatelessWidget {
                     style: PassengerUi.valueText.copyWith(
                       color: isSelected ? accentColor : PassengerUi.title,
                     ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    option.subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
                   ),
                 ],
               ),

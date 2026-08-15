@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sakaynow_buenatoda/models/chat_conversation.dart';
@@ -12,6 +13,38 @@ void main() {
       firestore = FakeFirebaseFirestore();
       service = ChatService(
         firestore: firestore,
+        rideConversationCreator: (bookingId) async {
+          const conversationId = 'ride_pair_passenger-1_driver-1';
+          final reference = firestore
+              .collection('conversations')
+              .doc(conversationId);
+          final existing = (await reference.get()).data();
+          final existingBookingIds = existing?['booking_ids'];
+          final bookingIds = existingBookingIds is Iterable
+              ? existingBookingIds.map((value) => value.toString()).toList()
+              : <String>[];
+          if (!bookingIds.contains(bookingId)) {
+            bookingIds.add(bookingId);
+          }
+          await reference.set(<String, dynamic>{
+            'conversation_id': conversationId,
+            'type': ConversationType.ride.firestoreValue,
+            'booking_id': bookingId,
+            'booking_ids': bookingIds,
+            'passenger_id': 'passenger-1',
+            'driver_id': 'driver-1',
+            'participant_ids': <String>['passenger-1', 'driver-1'],
+            'participant_names': <String, String>{
+              'passenger-1': 'Ana Passenger',
+              'driver-1': 'Juan Driver',
+            },
+            'participant_roles': <String, String>{
+              'passenger-1': 'passenger',
+              'driver-1': 'driver',
+            },
+          }, SetOptions(merge: true));
+          return conversationId;
+        },
         adminDirectConversationCreator: (targetAdminId) async {
           const currentAdminId = 'admin-1';
           final participantIds = <String>[currentAdminId, targetAdminId]
@@ -36,45 +69,88 @@ void main() {
       );
     });
 
+    test('routes ride conversations through the secured creator', () async {
+      final conversationId = await service.createRideConversationFromBooking(
+        'booking-1',
+      );
+
+      final snapshot = await firestore
+          .collection('conversations')
+          .doc(conversationId)
+          .get();
+      final conversation = ChatConversation.fromDocument(snapshot);
+
+      expect(conversationId, 'ride_pair_passenger-1_driver-1');
+      expect(conversation.type, ConversationType.ride);
+      expect(conversation.bookingId, 'booking-1');
+      expect(conversation.bookingIds, <String>['booking-1']);
+      expect(
+        conversation.participantIds,
+        containsAll(<String>['passenger-1', 'driver-1']),
+      );
+      expect(conversation.participantNames['passenger-1'], 'Ana Passenger');
+      expect(conversation.participantRoles['driver-1'], 'driver');
+    });
+
+    test('treats a legacy booking ID as conversation history', () async {
+      final reference = firestore.collection('conversations').doc('legacy');
+      await reference.set(<String, dynamic>{
+        'conversation_id': 'legacy',
+        'type': 'ride',
+        'booking_id': 'legacy-booking',
+        'participant_ids': <String>['passenger-1', 'driver-1'],
+      });
+
+      final conversation = ChatConversation.fromDocument(await reference.get());
+
+      expect(conversation.bookingId, 'legacy-booking');
+      expect(conversation.bookingIds, <String>['legacy-booking']);
+    });
+
+    test('rejects an empty ride booking before calling the backend', () async {
+      await expectLater(
+        service.createRideConversationFromBooking('  '),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
     test(
-      'creates stable ride conversations with passenger and driver participants',
+      'reuses the creator conversation and preserves its messages',
       () async {
-        final conversationId = await service.ensureRideConversation(
-          bookingId: 'booking-1',
-          passengerId: 'passenger-1',
-          passengerName: 'Ana Passenger',
-          driverId: 'driver-1',
-          driverName: 'Juan Driver',
+        final firstId = await service.createRideConversationFromBooking(
+          'booking-1',
+        );
+        await service.sendMessage(
+          conversationId: firstId,
+          senderId: 'passenger-1',
+          senderRole: 'passenger',
+          text: 'Previous ride message',
         );
 
-        final snapshot = await firestore
+        final secondId = await service.createRideConversationFromBooking(
+          'booking-2',
+        );
+        final conversation = ChatConversation.fromDocument(
+          await firestore.collection('conversations').doc(secondId).get(),
+        );
+        final messages = await firestore
             .collection('conversations')
-            .doc(conversationId)
+            .doc(secondId)
+            .collection('messages')
             .get();
-        final conversation = ChatConversation.fromDocument(snapshot);
 
-        expect(conversationId, 'ride_booking-1');
-        expect(conversation.type, ConversationType.ride);
-        expect(conversation.bookingId, 'booking-1');
-        expect(
-          conversation.participantIds,
-          containsAll(<String>['passenger-1', 'driver-1']),
-        );
-        expect(conversation.participantNames['passenger-1'], 'Ana Passenger');
-        expect(conversation.participantRoles['driver-1'], 'driver');
+        expect(secondId, firstId);
+        expect(conversation.bookingId, 'booking-2');
+        expect(conversation.bookingIds, <String>['booking-1', 'booking-2']);
+        expect(messages.docs.single.data()['text'], 'Previous ride message');
       },
     );
 
     test(
       'lists only ride and support conversations for user inboxes',
       () async {
-        final rideConversationId = await service.ensureRideConversation(
-          bookingId: 'booking-1',
-          passengerId: 'passenger-1',
-          passengerName: 'Ana Passenger',
-          driverId: 'driver-1',
-          driverName: 'Juan Driver',
-        );
+        final rideConversationId = await service
+            .createRideConversationFromBooking('booking-1');
         final supportConversationId = await service.ensureSupportConversation(
           userId: 'passenger-1',
           userName: 'Ana Passenger',
@@ -113,12 +189,8 @@ void main() {
     );
 
     test('sends trimmed messages and updates unread counters', () async {
-      final conversationId = await service.ensureRideConversation(
-        bookingId: 'booking-1',
-        passengerId: 'passenger-1',
-        passengerName: 'Ana Passenger',
-        driverId: 'driver-1',
-        driverName: 'Juan Driver',
+      final conversationId = await service.createRideConversationFromBooking(
+        'booking-1',
       );
 
       await service.sendMessage(
@@ -160,12 +232,8 @@ void main() {
     });
 
     test('rejects empty, oversized, and non-participant messages', () async {
-      final conversationId = await service.ensureRideConversation(
-        bookingId: 'booking-1',
-        passengerId: 'passenger-1',
-        passengerName: 'Ana Passenger',
-        driverId: 'driver-1',
-        driverName: 'Juan Driver',
+      final conversationId = await service.createRideConversationFromBooking(
+        'booking-1',
       );
 
       await expectLater(
@@ -198,13 +266,8 @@ void main() {
     });
 
     test('marks only ride and support user conversations as read', () async {
-      final rideConversationId = await service.ensureRideConversation(
-        bookingId: 'booking-1',
-        passengerId: 'passenger-1',
-        passengerName: 'Ana Passenger',
-        driverId: 'driver-1',
-        driverName: 'Juan Driver',
-      );
+      final rideConversationId = await service
+          .createRideConversationFromBooking('booking-1');
       final supportConversationId = await service.ensureSupportConversation(
         userId: 'passenger-1',
         userName: 'Ana Passenger',

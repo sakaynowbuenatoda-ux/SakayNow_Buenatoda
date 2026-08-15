@@ -163,6 +163,10 @@ service cloud.firestore {
       return conversationData.type == 'support';
     }
 
+    function isRideConversation(conversationData) {
+      return conversationData.type == 'ride';
+    }
+
     function isAdminDirectConversation(conversationData) {
       return conversationData.type == 'admin_direct';
     }
@@ -197,9 +201,8 @@ service cloud.firestore {
         );
     }
 
-    function isAdminCreatedSupportConversation(conversationId) {
-      return isAdmin()
-        && request.resource.data.type == 'support'
+    function isValidSupportConversationCreate(conversationId) {
+      return request.resource.data.type == 'support'
         && request.resource.data.support_user_id is string
         && request.resource.data.support_user_id.size() > 0
         && conversationId == 'support_' + request.resource.data.support_user_id
@@ -211,15 +214,32 @@ service cloud.firestore {
         ];
     }
 
+    function isAdminCreatedSupportConversation(conversationId) {
+      return isAdmin() && isValidSupportConversationCreate(conversationId);
+    }
+
     function hasStableConversationUpdate(conversationData) {
       return request.resource.data.conversation_id == conversationData.conversation_id
         && request.resource.data.type == conversationData.type
         && request.resource.data.participant_ids == conversationData.participant_ids
         && (
-          !isAdminDirectConversation(conversationData)
+          (
+            !isAdminDirectConversation(conversationData)
+            && !isRideConversation(conversationData)
+          )
           || (
             request.resource.data.participant_names == conversationData.participant_names
             && request.resource.data.participant_roles == conversationData.participant_roles
+          )
+        )
+        && (
+          !isRideConversation(conversationData)
+          || (
+            request.resource.data.passenger_id == conversationData.passenger_id
+            && request.resource.data.driver_id == conversationData.driver_id
+            && request.resource.data.booking_id == conversationData.booking_id
+            && request.resource.data.get('booking_ids', [])
+              == conversationData.get('booking_ids', [])
           )
         );
     }
@@ -1330,12 +1350,12 @@ service cloud.firestore {
       allow read: if canReadConversation(resource.data);
       allow create: if signedIn()
         && request.resource.data.conversation_id == conversationId
-        && request.resource.data.type in ['ride', 'support']
+        && request.resource.data.type == 'support'
         && request.resource.data.participant_ids is list
+        && isValidSupportConversationCreate(conversationId)
         && (
           (
-            request.resource.data.type in ['ride', 'support']
-            && request.auth.uid in request.resource.data.participant_ids
+            request.resource.data.support_user_id == request.auth.uid
           )
           || isAdminCreatedSupportConversation(conversationId)
         );

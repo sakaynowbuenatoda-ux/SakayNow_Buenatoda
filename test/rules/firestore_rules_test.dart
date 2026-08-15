@@ -273,9 +273,19 @@ void main() {
       );
       expect(rules, contains("conversationData.type in ['ride', 'support']"));
       expect(rules, contains('&& isUserVisibleConversation(conversationData)'));
+      expect(rules, contains("request.resource.data.type == 'support'"));
+      expect(rules, contains('function isRideConversation(conversationData)'));
       expect(
         rules,
-        contains('request.auth.uid in request.resource.data.participant_ids'),
+        contains(
+          'request.resource.data.passenger_id == conversationData.passenger_id',
+        ),
+      );
+      expect(
+        rules,
+        contains(
+          "request.resource.data.get('booking_ids', [])\n              == conversationData.get('booking_ids', [])",
+        ),
       );
       expect(
         rules,
@@ -421,10 +431,7 @@ void main() {
         rules,
         contains('function isAdminDirectConversation(conversationData)'),
       );
-      expect(
-        rules,
-        contains("request.resource.data.type in ['ride', 'support']"),
-      );
+      expect(rules, contains("request.resource.data.type == 'support'"));
       expect(rules, isNot(contains('isAdminCreatedAdminDirectConversation')));
       expect(
         rules,

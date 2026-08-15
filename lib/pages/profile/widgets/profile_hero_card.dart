@@ -24,21 +24,8 @@ class ProfileHeroCard extends StatelessWidget {
       padding: EdgeInsets.zero,
       child: Column(
         children: <Widget>[
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.fromLTRB(
-              compact ? 16 : 18,
-              compact ? 16 : 18,
-              compact ? 16 : 18,
-              compact ? 18 : 20,
-            ),
-            decoration: BoxDecoration(
-              gradient: PassengerUi.darkActionGradient,
-              borderRadius: BorderRadius.only(
-                topLeft: PassengerUi.cardRadius.topLeft,
-                topRight: PassengerUi.cardRadius.topRight,
-              ),
-            ),
+          Padding(
+            padding: EdgeInsets.all(compact ? 16 : 20),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final isTight = constraints.maxWidth < 340;
@@ -77,8 +64,9 @@ class ProfileHeroCard extends StatelessWidget {
               },
             ),
           ),
+          Divider(height: 1, thickness: 1, color: PassengerUi.border),
           Padding(
-            padding: EdgeInsets.all(compact ? 16 : 18),
+            padding: EdgeInsets.all(compact ? 14 : 16),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final isTight = constraints.maxWidth < 340;
@@ -87,8 +75,8 @@ class ProfileHeroCard extends StatelessWidget {
                     : (constraints.maxWidth - 12) / 2;
 
                 return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                  spacing: 10,
+                  runSpacing: 10,
                   children: <Widget>[
                     SizedBox(
                       width: cardWidth,
@@ -154,7 +142,7 @@ class _HeroDetails extends StatelessWidget {
                 style: TextStyle(
                   fontSize: compact ? 20 : 22,
                   fontWeight: FontWeight.w800,
-                  color: Colors.white,
+                  color: PassengerUi.title,
                 ),
               ),
             ),
@@ -169,7 +157,7 @@ class _HeroDetails extends StatelessWidget {
           profile.email,
           style: TextStyle(
             fontSize: compact ? 13 : 13.5,
-            color: Colors.white70,
+            color: PassengerUi.body,
             height: 1.35,
           ),
         ),
@@ -179,7 +167,7 @@ class _HeroDetails extends StatelessWidget {
           style: TextStyle(
             fontSize: compact ? 12.5 : 13,
             fontWeight: FontWeight.w700,
-            color: Colors.white,
+            color: PassengerUi.accentBlue,
           ),
         ),
       ],
@@ -235,12 +223,9 @@ class _ProfileAvatar extends StatelessWidget {
       width: avatarSize,
       height: avatarSize,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
+        color: PassengerUi.blueSoft,
         shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.45),
-          width: 2,
-        ),
+        border: Border.all(color: PassengerUi.border, width: 2),
       ),
       child: ClipOval(
         child: Stack(
@@ -291,10 +276,7 @@ class _ProfileAvatar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: PassengerUi.surface,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.70),
-                    width: 1.4,
-                  ),
+                  border: Border.all(color: PassengerUi.border, width: 1.4),
                   boxShadow: <BoxShadow>[
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.16),
@@ -342,14 +324,14 @@ class _AvatarFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.white.withValues(alpha: 0.14),
+      color: PassengerUi.blueSoft,
       alignment: Alignment.center,
       child: Text(
         initials,
         style: TextStyle(
           fontSize: compact ? 24 : 28,
           fontWeight: FontWeight.w800,
-          color: Colors.white,
+          color: PassengerUi.accentBlue,
         ),
       ),
     );
@@ -370,20 +352,42 @@ class _MainInfoItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
-        color: PassengerUi.mutedSurface,
-        borderRadius: BorderRadius.circular(16),
+        color: PassengerUi.surface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: PassengerUi.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: <Widget>[
-          Icon(icon, size: 18, color: PassengerUi.accentBlue),
-          SizedBox(height: 10),
-          Text(label, style: PassengerUi.bodyText.copyWith(fontSize: 12.5)),
-          SizedBox(height: 2),
-          Text(value, style: PassengerUi.valueText),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: PassengerUi.blueSoft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 17, color: PassengerUi.accentBlue),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  label,
+                  style: PassengerUi.bodyText.copyWith(fontSize: 11.5),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: PassengerUi.valueText.copyWith(fontSize: 13.5),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

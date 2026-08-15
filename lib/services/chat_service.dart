@@ -10,15 +10,18 @@ import '../models/chat_participant_profile.dart';
 
 typedef AdminDirectConversationCreator =
     Future<String> Function(String targetAdminId);
+typedef RideConversationCreator = Future<String> Function(String bookingId);
 
 class ChatService {
   ChatService({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
     AdminDirectConversationCreator? adminDirectConversationCreator,
+    RideConversationCreator? rideConversationCreator,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _functions = functions,
-       _adminDirectConversationCreator = adminDirectConversationCreator;
+       _adminDirectConversationCreator = adminDirectConversationCreator,
+       _rideConversationCreator = rideConversationCreator;
 
   static const int maxMessageLength = 1000;
   static final List<String> _userVisibleConversationTypes = <String>[
@@ -29,6 +32,7 @@ class ChatService {
   final FirebaseFirestore _firestore;
   final FirebaseFunctions? _functions;
   final AdminDirectConversationCreator? _adminDirectConversationCreator;
+  final RideConversationCreator? _rideConversationCreator;
 
   CollectionReference<Map<String, dynamic>> get _conversations =>
       _firestore.collection('conversations');
@@ -245,69 +249,27 @@ class ChatService {
   }
 
   Future<String> createRideConversationFromBooking(String bookingId) async {
-    final bookingSnapshot = await _firestore
-        .collection('bookings')
-        .doc(bookingId)
-        .get();
-    final bookingData = bookingSnapshot.data() ?? <String, dynamic>{};
-    final passengerId = _readRequiredId(
-      bookingData['passenger_id'],
-      'Passenger',
-    );
-    final driverId = _readRequiredId(bookingData['driver_id'], 'Driver');
-
-    final passenger = await _loadUserSummary(passengerId);
-    final driver = await _loadUserSummary(driverId);
-
-    return ensureRideConversation(
-      bookingId: bookingId,
-      passengerId: passengerId,
-      passengerName: passenger.displayName,
-      driverId: driverId,
-      driverName: driver.displayName,
-    );
-  }
-
-  Future<String> ensureRideConversation({
-    required String bookingId,
-    required String passengerId,
-    required String passengerName,
-    required String driverId,
-    required String driverName,
-  }) async {
     final normalizedBookingId = bookingId.trim();
-    final normalizedPassengerId = passengerId.trim();
-    final normalizedDriverId = driverId.trim();
-    if (normalizedBookingId.isEmpty ||
-        normalizedPassengerId.isEmpty ||
-        normalizedDriverId.isEmpty) {
-      throw ArgumentError('Ride conversations require a booking and users.');
+    if (normalizedBookingId.isEmpty) {
+      throw ArgumentError('Choose a booking to open its conversation.');
     }
 
-    final conversationId = 'ride_$normalizedBookingId';
-    final conversationRef = _conversations.doc(conversationId);
+    final creator = _rideConversationCreator;
+    if (creator != null) {
+      return creator(normalizedBookingId);
+    }
 
-    await conversationRef.set(<String, dynamic>{
-      'conversation_id': conversationId,
-      'type': ConversationType.ride.firestoreValue,
+    final functions =
+        _functions ?? FirebaseFunctions.instanceFor(region: 'asia-southeast1');
+    final callable = functions.httpsCallable('ensureRideConversation');
+    final result = await callable.call<Map<String, dynamic>>({
       'booking_id': normalizedBookingId,
-      'passenger_id': normalizedPassengerId,
-      'driver_id': normalizedDriverId,
-      'participant_ids': <String>[normalizedPassengerId, normalizedDriverId],
-      'participant_names': <String, String>{
-        normalizedPassengerId: _normalizeName(
-          passengerName,
-          fallback: 'Passenger',
-        ),
-        normalizedDriverId: _normalizeName(driverName, fallback: 'Driver'),
-      },
-      'participant_roles': <String, String>{
-        normalizedPassengerId: 'passenger',
-        normalizedDriverId: 'driver',
-      },
-      'updated_at': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
+    });
+    final conversationId =
+        result.data['conversation_id']?.toString().trim() ?? '';
+    if (conversationId.isEmpty) {
+      throw StateError('Ride conversation was created without an ID.');
+    }
     return conversationId;
   }
 
@@ -454,24 +416,6 @@ class ChatService {
     }
   }
 
-  Future<_ChatUserSummary> _loadUserSummary(String userId) async {
-    final profile = await loadParticipantProfile(userId);
-
-    return _ChatUserSummary(
-      displayName: profile?.displayName ?? 'SakayNow User',
-      role: profile?.role ?? 'passenger',
-    );
-  }
-
-  static String _readRequiredId(Object? value, String label) {
-    final text = value?.toString().trim() ?? '';
-    if (text.isEmpty || text == 'null') {
-      throw StateError('$label is missing for this ride.');
-    }
-
-    return text;
-  }
-
   static String _normalizeName(String value, {required String fallback}) {
     final text = value.trim();
     return text.isEmpty ? fallback : text;
@@ -501,11 +445,4 @@ class ChatService {
         .where('participant_ids', arrayContains: userId)
         .where('type', whereIn: _userVisibleConversationTypes);
   }
-}
-
-class _ChatUserSummary {
-  final String displayName;
-  final String role;
-
-  const _ChatUserSummary({required this.displayName, required this.role});
 }

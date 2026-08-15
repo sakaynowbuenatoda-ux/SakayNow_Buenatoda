@@ -42,6 +42,13 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   fake_cloud_firestore: ^4.1.1
 
+# Keep the transitive Firebase core packages on the generation used by
+# firebase_core 4.8.x. Newer releases add recaptchaSiteKey to FirebaseOptions,
+# which is incompatible with this generation's native codec.
+dependency_overrides:
+  firebase_core_platform_interface: 7.0.1
+  firebase_core_web: 3.6.1
+
 flutter:
   uses-material-design: true
 

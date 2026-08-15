@@ -41,7 +41,7 @@ class PassengerHomepage extends StatefulWidget {
   final int notificationUnreadCount;
   final VoidCallback onNotificationsTap;
   final VoidCallback? onBrandTap;
-  final ValueChanged<String>? onProfileSelected;
+  final VoidCallback? onProfileTap;
   final VoidCallback onOpenHistory;
 
   const PassengerHomepage({
@@ -54,7 +54,7 @@ class PassengerHomepage extends StatefulWidget {
     this.notificationUnreadCount = 0,
     required this.onNotificationsTap,
     this.onBrandTap,
-    this.onProfileSelected,
+    this.onProfileTap,
     required this.onOpenHistory,
   });
 
@@ -101,7 +101,7 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
             notificationUnreadCount: widget.notificationUnreadCount,
             onNotificationsTap: widget.onNotificationsTap,
             onBrandTap: widget.onBrandTap,
-            onProfileSelected: widget.onProfileSelected,
+            onProfileTap: widget.onProfileTap,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,15 +128,27 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
                   ),
                 )
               else
-                PassengerBookingHeroCard(
-                  content: const _PassengerBookingCallout(),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PassengerBookRidePage(
-                        passengerId: widget.userId,
-                        passengerType: widget.passengerType,
-                        isVerified: widget.isVerified,
+                Center(
+                  child: FractionallySizedBox(
+                    widthFactor: PassengerUi.isCompactWidth(context)
+                        ? 0.82
+                        : 0.68,
+                    child: SizedBox(
+                      height: PassengerUi.isCompactWidth(context) ? 52 : 56,
+                      child: PassengerBookingPrimaryButton(
+                        label: 'Book Now',
+                        icon: Icons.navigation_rounded,
+                        borderRadius: 28,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PassengerBookRidePage(
+                              passengerId: widget.userId,
+                              passengerType: widget.passengerType,
+                              isVerified: widget.isVerified,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -583,38 +595,10 @@ class _AnimatedOneTapBookingCardState extends State<_AnimatedOneTapBookingCard>
   }
 }
 
-class _OneTapBookingHeader extends StatefulWidget {
+class _OneTapBookingHeader extends StatelessWidget {
   final VoidCallback onActionTap;
 
   const _OneTapBookingHeader({required this.onActionTap});
-
-  @override
-  State<_OneTapBookingHeader> createState() => _OneTapBookingHeaderState();
-}
-
-class _OneTapBookingHeaderState extends State<_OneTapBookingHeader>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _iconController;
-  late final Animation<double> _iconGlowAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _iconController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..repeat(reverse: true);
-
-    _iconGlowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _iconController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _iconController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -624,98 +608,29 @@ class _OneTapBookingHeaderState extends State<_OneTapBookingHeader>
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
-        AnimatedBuilder(
-          animation: _iconGlowAnimation,
-          builder: (context, child) {
-            final glow = _iconGlowAnimation.value;
-
-            return Container(
-              width: compact ? 40 : 44,
-              height: compact ? 40 : 44,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: <Color>[
-                    Color.lerp(
-                      isDark
-                          ? const Color(0xFF064E3B)
-                          : const Color(0xFFDCFCE7),
-                      isDark
-                          ? const Color(0xFF065F46)
-                          : const Color(0xFFC6F6D5),
-                      glow,
-                    )!,
-                    Color.lerp(
-                      isDark
-                          ? const Color(0xFF053B2C)
-                          : const Color(0xFFE7F8EF),
-                      isDark
-                          ? const Color(0xFF064E3B)
-                          : const Color(0xFFDCFCE7),
-                      glow,
-                    )!,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(13),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: PassengerUi.successText.withValues(
-                      alpha: 0.12 + (glow * 0.08),
-                    ),
-                    blurRadius: 8 + (glow * 4),
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: child,
-            );
-          },
-          child: Icon(
-            Icons.flash_on_rounded,
-            color: PassengerUi.successText,
-            size: compact ? 22 : 24,
-          ),
-        ),
-        const SizedBox(width: 12),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Container(
-                    width: 3,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: PassengerUi.successText,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      'One-tap booking',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: PassengerUi.cardTitle.copyWith(
-                        fontSize: compact ? 15.5 : 17,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
-                        height: 1.12,
-                      ),
-                    ),
-                  ),
-                ],
+              Container(
+                width: 3,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: PassengerUi.successText,
+                  borderRadius: BorderRadius.circular(999),
+                ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Pick a saved destination and ride faster.',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: PassengerUi.bodyText.copyWith(
-                  fontSize: compact ? 11.5 : 12.5,
-                  color: PassengerUi.body.withValues(alpha: 0.85),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'One-tap booking',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: PassengerUi.cardTitle.copyWith(
+                    fontSize: compact ? 15.5 : 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                    height: 1.12,
+                  ),
                 ),
               ),
             ],
@@ -727,7 +642,7 @@ class _OneTapBookingHeaderState extends State<_OneTapBookingHeader>
           borderRadius: BorderRadius.circular(999),
           child: InkWell(
             borderRadius: BorderRadius.circular(999),
-            onTap: widget.onActionTap,
+            onTap: onActionTap,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               child: Row(
@@ -782,11 +697,6 @@ class _PassengerInformationKeySection extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              SizedBox(height: 6),
-              Text(
-                'Helpful fare, payment, and discount details before you ride.',
-                style: PassengerUi.bodyText,
-              ),
               SizedBox(height: 14),
               ...items.asMap().entries.map(
                 (MapEntry<int, _InformationKeyItem> entry) => Padding(
@@ -813,8 +723,7 @@ class _PassengerInformationKeySection extends StatelessWidget {
       const _InformationKeyItem(
         icon: Icons.payments_rounded,
         title: 'Approved payment methods',
-        description:
-            'Cash, GCash, Maya, and Xendit checkout are supported when available.',
+        description: 'Cash, GCash, and Maya are accepted.',
       ),
       _InformationKeyItem(
         icon: Icons.person_outline_rounded,
@@ -941,46 +850,6 @@ class _OneTapBookingProcessingDialog extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _PassengerBookingCallout extends StatelessWidget {
-  const _PassengerBookingCallout();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: PassengerUi.blueSoft,
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: Icon(Icons.my_location_rounded, color: PassengerUi.accentBlue),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                'Ready when you are',
-                style: PassengerUi.cardTitle.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Choose a pickup and destination to request your ride.',
-                style: PassengerUi.bodyText,
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

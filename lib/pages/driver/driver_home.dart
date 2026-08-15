@@ -39,7 +39,7 @@ class DriverHomePage extends StatelessWidget {
   final int notificationUnreadCount;
   final VoidCallback onNotificationsTap;
   final VoidCallback? onBrandTap;
-  final ValueChanged<String>? onProfileSelected;
+  final VoidCallback? onProfileTap;
   final VoidCallback onOpenQueue;
   final VoidCallback onOpenHistory;
 
@@ -54,7 +54,7 @@ class DriverHomePage extends StatelessWidget {
     this.notificationUnreadCount = 0,
     required this.onNotificationsTap,
     this.onBrandTap,
-    this.onProfileSelected,
+    this.onProfileTap,
     required this.onOpenQueue,
     required this.onOpenHistory,
   });
@@ -78,7 +78,7 @@ class DriverHomePage extends StatelessWidget {
         notificationUnreadCount: notificationUnreadCount,
         onNotificationsTap: onNotificationsTap,
         onBrandTap: onBrandTap,
-        onProfileSelected: onProfileSelected,
+        onProfileTap: onProfileTap,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

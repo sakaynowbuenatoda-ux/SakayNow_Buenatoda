@@ -2,9 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/session/session_service.dart';
 import '../../services/profile_picture_service.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../settings/email_verification_page.dart';
+import '../settings/settings_page.dart';
 import 'models/profile_view_data.dart';
 import 'profile_details.dart';
 import 'profile_picture_sheet.dart';
@@ -91,8 +93,11 @@ class _ProfilePageState extends State<ProfilePage> {
           maxContentWidth: _maxContentWidth,
           isUploadingProfilePicture: _isUploadingProfilePicture,
           showEmailVerificationPrompt: isCurrentUserProfile && !isEmailVerified,
+          showAccountActions: isCurrentUserProfile && !widget.embeddedInAdmin,
           onVerifyEmailTap: _openEmailVerificationPage,
           onProfilePictureTap: () => _changeProfilePicture(profile),
+          onSettingsTap: () => _openSettings(profile),
+          onLogout: SessionService.signOut,
         );
       },
     );
@@ -197,6 +202,19 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
+  void _openSettings(ProfileViewData profile) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SettingsPage(
+          userId: profile.userId,
+          role: profile.role,
+          isVerified: profile.isVerified,
+          passengerType: profile.passengerType,
+        ),
+      ),
+    );
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
@@ -229,8 +247,11 @@ class _ProfileContent extends StatelessWidget {
   final double? maxContentWidth;
   final bool isUploadingProfilePicture;
   final bool showEmailVerificationPrompt;
+  final bool showAccountActions;
   final VoidCallback onVerifyEmailTap;
   final VoidCallback onProfilePictureTap;
+  final VoidCallback onSettingsTap;
+  final Future<void> Function() onLogout;
 
   const _ProfileContent({
     required this.profile,
@@ -238,8 +259,11 @@ class _ProfileContent extends StatelessWidget {
     required this.maxContentWidth,
     required this.isUploadingProfilePicture,
     required this.showEmailVerificationPrompt,
+    required this.showAccountActions,
     required this.onVerifyEmailTap,
     required this.onProfilePictureTap,
+    required this.onSettingsTap,
+    required this.onLogout,
   });
 
   @override
@@ -261,12 +285,14 @@ class _ProfileContent extends StatelessWidget {
             onAvatarTap: onProfilePictureTap,
           ),
           const SizedBox(height: 14),
-          ProfileDetailsLinkCard(
-            onTap: () => Navigator.of(context).push(
+          ProfileActionList(
+            onProfileDetailsTap: () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => ProfileDetailsPage(profile: profile),
               ),
             ),
+            onSettingsTap: showAccountActions ? onSettingsTap : null,
+            onLogout: showAccountActions ? onLogout : null,
           ),
           const SizedBox(height: 18),
           ProfileReviewsCard(profile: profile),

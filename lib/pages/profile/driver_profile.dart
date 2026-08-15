@@ -8,7 +8,8 @@ import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/reviews/review_dialogs.dart';
 import '../../widgets/reports/report_user_sheet.dart';
-import '../../widgets/time_ago_text.dart';
+import 'models/profile_review_item.dart';
+import 'widgets/profile_reviews_section.dart';
 
 class DriverProfilePage extends StatefulWidget {
   final String driverId;
@@ -30,7 +31,6 @@ class DriverProfilePage extends StatefulWidget {
 
 class _DriverProfilePageState extends State<DriverProfilePage> {
   final RideTrackingService _rideTrackingService = RideTrackingService();
-  bool _reviewsExpanded = false;
   bool _isSaving = false;
   bool _openedInitialReview = false;
   int _reviewEligibilityRefresh = 0;
@@ -118,11 +118,8 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                   const SizedBox(height: 18),
                 ],
                 _ReviewsPanel(
-                  driverId: driver.driverId,
-                  expanded: _reviewsExpanded,
-                  onToggle: () {
-                    setState(() => _reviewsExpanded = !_reviewsExpanded);
-                  },
+                  driver: driver,
+                  rideTrackingService: _rideTrackingService,
                 ),
               ],
             ),
@@ -667,118 +664,27 @@ class _DriverActions extends StatelessWidget {
 }
 
 class _ReviewsPanel extends StatelessWidget {
-  final String driverId;
-  final bool expanded;
-  final VoidCallback onToggle;
+  final DriverReviewProfile driver;
+  final RideTrackingService rideTrackingService;
 
   const _ReviewsPanel({
-    required this.driverId,
-    required this.expanded,
-    required this.onToggle,
+    required this.driver,
+    required this.rideTrackingService,
   });
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<DriverReviewRecord>>(
-      stream: RideTrackingService().watchDriverReviews(driverId),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return PassengerEmptyState(
-            icon: Icons.error_outline_rounded,
-            title: 'Unable to load reviews',
-            description: 'Reviews could not be loaded. Please try again.',
-          );
-        }
-
-        if (!snapshot.hasData) {
-          return const PassengerSurfaceCard(
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final reviews = snapshot.data!;
-        final visibleReviews = expanded
-            ? reviews
-            : reviews.take(3).toList(growable: false);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            PassengerSectionHeader(
-              title: 'Recent Reviews',
-              actionLabel: reviews.length > 3
-                  ? (expanded ? 'See less' : 'See more')
-                  : '',
-              onActionTap: reviews.length > 3 ? onToggle : null,
-            ),
-            const SizedBox(height: 12),
-            if (reviews.isEmpty)
-              const PassengerEmptyState(
-                icon: Icons.reviews_outlined,
-                title: 'No reviews yet',
-                description: 'Passenger reviews will appear here.',
-              )
-            else
-              ...visibleReviews.map(
-                (review) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _ReviewCard(review: review),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _ReviewCard extends StatelessWidget {
-  final DriverReviewRecord review;
-
-  const _ReviewCard({required this.review});
-
-  @override
-  Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  review.reviewerName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: PassengerUi.cardTitle,
-                ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(
-                  5,
-                  (index) => Icon(
-                    index < review.rating
-                        ? Icons.star_rounded
-                        : Icons.star_border_rounded,
-                    size: 18,
-                    color: PassengerUi.highlightAmber,
-                  ),
-                ),
-              ),
-            ],
+    return ProfileReviewsPreview(
+      title: 'Recent Reviews',
+      profileName: driver.fullName,
+      emptyDescription: 'Passenger reviews will appear here.',
+      reviewsLoader: () => rideTrackingService
+          .watchDriverReviews(driver.driverId)
+          .map(
+            (reviews) => reviews
+                .map(ProfileReviewItem.fromRideReview)
+                .toList(growable: false),
           ),
-          if (review.comment.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 8),
-            Text(review.comment, style: PassengerUi.bodyText),
-          ],
-          const SizedBox(height: 8),
-          TimeAgoText(
-            dateTime: review.updatedAt ?? review.createdAt,
-            style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
-          ),
-        ],
-      ),
     );
   }
 }

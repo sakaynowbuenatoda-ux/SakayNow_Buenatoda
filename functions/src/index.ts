@@ -20,6 +20,11 @@ import {defineSecret} from "firebase-functions/params";
 import {HttpsError, onCall, onRequest} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 
+import {
+  canonicalRideConversationId,
+  selectMostRecentRideConversation,
+} from "./chat_conversations";
+
 initializeApp();
 
 const firestore = getFirestore();
@@ -729,6 +734,125 @@ export const ensureAdminDirectConversation = onCall(
       },
       {merge: true},
     );
+
+    return {conversation_id: conversationId};
+  },
+);
+
+export const ensureRideConversation = onCall(
+  {
+    region: "asia-southeast1",
+  },
+  async (request) => {
+    const requesterId = request.auth?.uid;
+    if (!requesterId) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in to start this ride conversation.",
+      );
+    }
+
+    const bookingId = readRequiredString(request.data, "booking_id");
+    const bookingSnapshot = await firestore
+      .collection("bookings")
+      .doc(bookingId)
+      .get();
+    const booking = bookingSnapshot.data();
+    if (!bookingSnapshot.exists || !booking) {
+      throw new HttpsError("not-found", "The selected booking was not found.");
+    }
+
+    const passengerId = readOptionalString(booking.passenger_id);
+    const driverId = readOptionalString(booking.driver_id);
+    if (!passengerId || !driverId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This booking does not have an assigned passenger and driver.",
+      );
+    }
+    if (requesterId !== passengerId && requesterId !== driverId) {
+      throw new HttpsError(
+        "permission-denied",
+        "You are not part of this ride.",
+      );
+    }
+
+    const [passengerSnapshot, driverSnapshot, conversationSnapshot] =
+      await Promise.all([
+        firestore.collection("users").doc(passengerId).get(),
+        firestore.collection("users").doc(driverId).get(),
+        firestore
+          .collection("conversations")
+          .where("passenger_id", "==", passengerId)
+          .where("driver_id", "==", driverId)
+          .get(),
+      ]);
+    const candidates = conversationSnapshot.docs
+      .filter((document) => {
+        const data = document.data();
+        const participantIds = readStringArray(data.participant_ids);
+        return readOptionalString(data.type) === "ride" &&
+          participantIds.length === 2 &&
+          participantIds.includes(passengerId) &&
+          participantIds.includes(driverId);
+      })
+      .map((document) => ({
+        id: document.id,
+        activityAtMillis: conversationActivityMillis(document.data()),
+      }));
+    const selected = selectMostRecentRideConversation(candidates);
+    const conversationId = selected?.id ??
+      canonicalRideConversationId(passengerId, driverId);
+    const conversationRef = firestore
+      .collection("conversations")
+      .doc(conversationId);
+    const passenger = passengerSnapshot.data() ?? {};
+    const driver = driverSnapshot.data() ?? {};
+
+    await firestore.runTransaction(async (transaction) => {
+      const currentSnapshot = await transaction.get(conversationRef);
+      if (currentSnapshot.exists) {
+        const current = currentSnapshot.data() ?? {};
+        const currentParticipantIds = readStringArray(current.participant_ids);
+        if (
+          readOptionalString(current.type) !== "ride" ||
+          currentParticipantIds.length !== 2 ||
+          !currentParticipantIds.includes(passengerId) ||
+          !currentParticipantIds.includes(driverId)
+        ) {
+          throw new HttpsError(
+            "failed-precondition",
+            "The ride conversation ID conflicts with an existing record.",
+          );
+        }
+      }
+
+      transaction.set(
+        conversationRef,
+        {
+          conversation_id: conversationId,
+          type: "ride",
+          booking_id: bookingId,
+          booking_ids: FieldValue.arrayUnion(bookingId),
+          passenger_id: passengerId,
+          driver_id: driverId,
+          participant_ids: [passengerId, driverId],
+          participant_names: {
+            [passengerId]: rideParticipantName(passenger, "Passenger"),
+            [driverId]: rideParticipantName(driver, "Driver"),
+          },
+          participant_roles: {
+            [passengerId]: "passenger",
+            [driverId]: "driver",
+          },
+          ...(currentSnapshot.exists ? {} : {
+            created_at: FieldValue.serverTimestamp(),
+          }),
+          updated_at: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+    });
 
     return {conversation_id: conversationId};
   },
@@ -3526,6 +3650,35 @@ function readStringArray(value: unknown) {
   return value
     .map((item) => item?.toString().trim() ?? "")
     .filter((item) => item.length > 0);
+}
+
+function conversationActivityMillis(data: Record<string, unknown>) {
+  for (const value of [
+    data.last_message_at,
+    data.updated_at,
+    data.created_at,
+  ]) {
+    const timestamp = timestampFromUnknown(value);
+    if (timestamp) {
+      return timestamp.toMillis();
+    }
+  }
+
+  return 0;
+}
+
+function rideParticipantName(
+  data: Record<string, unknown>,
+  fallback: string,
+) {
+  const name = `${readOptionalString(data.first_name) ?? ""} ${
+    readOptionalString(data.last_name) ?? ""
+  }`.trim();
+  if (name.length > 0) {
+    return name;
+  }
+
+  return readOptionalString(data.email) ?? fallback;
 }
 
 function readNumber(value: unknown) {

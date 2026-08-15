@@ -15,7 +15,6 @@ import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../notifications/notifications_page.dart';
 import '../profile/profile_page.dart';
 import '../rides/ride_monitoring_page.dart';
-import '../settings/settings_page.dart';
 import 'passenger_home.dart';
 import 'passenger_messages.dart';
 import 'passenger_history.dart';
@@ -44,7 +43,6 @@ class PassengerShell extends StatefulWidget {
 
 class _PassengerShellState extends State<PassengerShell> {
   static const int _messagesIndex = 1;
-  static const int _dashboardIndex = 2;
   static const int _profileIndex = 3;
 
   int _currentIndex = 0;
@@ -97,31 +95,6 @@ class _PassengerShellState extends State<PassengerShell> {
     }
   }
 
-  void _handleProfileSelected(String value) {
-    if (value == 'profile') {
-      _selectTab(_profileIndex);
-    } else if (value == 'settings') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => SettingsPage(
-            userId: widget.userId,
-            role: 'passenger',
-            isVerified: widget.isVerified,
-            passengerType: widget.passengerType,
-          ),
-        ),
-      );
-    } else if (value == 'dashboard') {
-      _selectTab(_dashboardIndex);
-    } else if (value == 'home') {
-      setState(() => _currentIndex = 0);
-    } else if (value == 'messages') {
-      _selectTab(_messagesIndex);
-    } else if (value == 'history') {
-      _openHistory();
-    }
-  }
-
   Future<void> _handleRefresh() async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
   }
@@ -143,7 +116,7 @@ class _PassengerShellState extends State<PassengerShell> {
         notificationUnreadCount: _notificationUnreadCount,
         onNotificationsTap: _openNotifications,
         onBrandTap: () => _selectTab(0),
-        onProfileSelected: _handleProfileSelected,
+        onProfileTap: () => _selectTab(_profileIndex),
         onOpenHistory: _openHistory,
       ),
       PassengerMessages(

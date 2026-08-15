@@ -7,8 +7,10 @@ import '../../core/session/user_roles.dart';
 import '../../models/chat_conversation.dart';
 import '../../models/chat_message.dart';
 import '../../models/chat_participant_profile.dart';
+import '../../models/chat_quick_replies.dart';
 import '../../services/chat_service.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/chat_quick_reply_bar.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/time_ago_text.dart';
@@ -127,6 +129,11 @@ class _ChatPageState extends State<ChatPage> {
           isSending: _isSending,
           canSend: _hasText && !_isSending,
           onSend: _sendMessage,
+          quickReplies: ChatQuickReplies.forConversation(
+            conversation: conversation,
+            currentUserRole: widget.currentUserRole,
+          ),
+          onQuickReply: _sendQuickReply,
           embedded: widget.embedded,
         ),
       ],
@@ -295,8 +302,19 @@ class _ChatPageState extends State<ChatPage> {
     setState(() => _hasText = nextHasText);
   }
 
-  Future<void> _sendMessage() async {
-    final message = _messageController.text.trim();
+  Future<void> _sendMessage() {
+    return _sendMessageText(_messageController.text, clearComposer: true);
+  }
+
+  void _sendQuickReply(String message) {
+    unawaited(_sendMessageText(message));
+  }
+
+  Future<void> _sendMessageText(
+    String rawMessage, {
+    bool clearComposer = false,
+  }) async {
+    final message = rawMessage.trim();
     if (message.isEmpty || _isSending) {
       return;
     }
@@ -318,9 +336,13 @@ class _ChatPageState extends State<ChatPage> {
     setState(() {
       _isSending = true;
       _pendingMessages.add(pendingMessage);
-      _hasText = false;
+      if (clearComposer) {
+        _hasText = false;
+      }
     });
-    _messageController.clear();
+    if (clearComposer) {
+      _messageController.clear();
+    }
     _scheduleScrollToBottom();
 
     try {
@@ -911,6 +933,8 @@ class _MessageComposer extends StatelessWidget {
   final bool isSending;
   final bool canSend;
   final VoidCallback onSend;
+  final List<String> quickReplies;
+  final ValueChanged<String> onQuickReply;
   final bool embedded;
 
   const _MessageComposer({
@@ -918,6 +942,8 @@ class _MessageComposer extends StatelessWidget {
     required this.isSending,
     required this.canSend,
     required this.onSend,
+    required this.quickReplies,
+    required this.onQuickReply,
     required this.embedded,
   });
 
@@ -937,78 +963,97 @@ class _MessageComposer extends StatelessWidget {
         border: Border(top: BorderSide(color: PassengerUi.border, width: 1.2)),
       ),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(14, 10, 14, bottomPadding),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        padding: EdgeInsets.only(top: 8, bottom: bottomPadding),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 50),
-                decoration: BoxDecoration(
-                  color: PassengerUi.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: PassengerUi.primary, width: 1.4),
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: TextField(
-                  controller: controller,
-                  minLines: 1,
-                  maxLines: 5,
-                  textInputAction: TextInputAction.newline,
-                  style: PassengerUi.bodyText.copyWith(
-                    color: PassengerUi.title,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Type a message',
-                    hintStyle: PassengerUi.bodyText.copyWith(
-                      color: PassengerUi.accentBlue,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    filled: false,
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                  ),
-                ),
-              ),
+            ChatQuickReplyBar(
+              messages: quickReplies,
+              enabled: !isSending,
+              onSelected: onQuickReply,
             ),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 52,
-              height: 52,
-              child: IconButton(
-                onPressed: canSend ? onSend : null,
-                style: IconButton.styleFrom(
-                  backgroundColor: canSend
-                      ? PassengerUi.primary
-                      : PassengerUi.mutedSurface,
-                  foregroundColor: canSend ? Colors.white : PassengerUi.body,
-                  disabledBackgroundColor: PassengerUi.mutedSurface,
-                  disabledForegroundColor: PassengerUi.body,
-                  shape: const CircleBorder(),
-                ),
-                icon: isSending
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: PassengerUi.surface,
+            if (quickReplies.isNotEmpty) const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: <Widget>[
+                  Expanded(
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 50),
+                      decoration: BoxDecoration(
+                        color: PassengerUi.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: PassengerUi.primary,
+                          width: 1.4,
                         ),
-                      )
-                    : const Icon(Icons.send_rounded),
-                tooltip: 'Send',
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        controller: controller,
+                        minLines: 1,
+                        maxLines: 5,
+                        textInputAction: TextInputAction.newline,
+                        style: PassengerUi.bodyText.copyWith(
+                          color: PassengerUi.title,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Type a message',
+                          hintStyle: PassengerUi.bodyText.copyWith(
+                            color: PassengerUi.accentBlue,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 52,
+                    height: 52,
+                    child: IconButton(
+                      onPressed: canSend ? onSend : null,
+                      style: IconButton.styleFrom(
+                        backgroundColor: canSend
+                            ? PassengerUi.primary
+                            : PassengerUi.mutedSurface,
+                        foregroundColor: canSend
+                            ? Colors.white
+                            : PassengerUi.body,
+                        disabledBackgroundColor: PassengerUi.mutedSurface,
+                        disabledForegroundColor: PassengerUi.body,
+                        shape: const CircleBorder(),
+                      ),
+                      icon: isSending
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: PassengerUi.surface,
+                              ),
+                            )
+                          : const Icon(Icons.send_rounded),
+                      tooltip: 'Send',
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

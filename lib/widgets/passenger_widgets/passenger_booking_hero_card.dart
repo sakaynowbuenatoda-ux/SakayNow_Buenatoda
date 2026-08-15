@@ -28,6 +28,31 @@ class PassengerBookingHeroCard extends StatefulWidget {
       _PassengerBookingHeroCardState();
 }
 
+class PassengerBookingPrimaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  final IconData? icon;
+  final double borderRadius;
+
+  const PassengerBookingPrimaryButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.icon,
+    this.borderRadius = 14,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _PrimaryHeroButton(
+      label: label,
+      icon: icon,
+      borderRadius: borderRadius,
+      onTap: onTap,
+    );
+  }
+}
+
 class _PassengerBookingHeroCardState extends State<PassengerBookingHeroCard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _entranceController;
@@ -50,15 +75,13 @@ class _PassengerBookingHeroCardState extends State<PassengerBookingHeroCard>
       ),
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.06),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _entranceController,
-        curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic),
-      ),
-    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _entranceController,
+            curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic),
+          ),
+        );
 
     _scaleAnimation = Tween<double>(begin: 0.97, end: 1).animate(
       CurvedAnimation(
@@ -222,11 +245,7 @@ class _HeroActions extends StatelessWidget {
         children: <Widget>[
           SizedBox(width: double.infinity, height: 52, child: primaryButton),
           const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: secondaryButton,
-          ),
+          SizedBox(width: double.infinity, height: 48, child: secondaryButton),
         ],
       );
     }
@@ -235,10 +254,7 @@ class _HeroActions extends StatelessWidget {
       children: <Widget>[
         Expanded(flex: 3, child: SizedBox(height: 56, child: primaryButton)),
         const SizedBox(width: 10),
-        Expanded(
-          flex: 2,
-          child: SizedBox(height: 56, child: secondaryButton),
-        ),
+        Expanded(flex: 2, child: SizedBox(height: 56, child: secondaryButton)),
       ],
     );
   }
@@ -246,13 +262,15 @@ class _HeroActions extends StatelessWidget {
 
 class _PrimaryHeroButton extends StatefulWidget {
   final String label;
-  final IconData icon;
+  final IconData? icon;
+  final double borderRadius;
   final VoidCallback onTap;
 
   const _PrimaryHeroButton({
     required this.label,
     required this.icon,
     required this.onTap,
+    this.borderRadius = 14,
   });
 
   @override
@@ -273,10 +291,7 @@ class _PrimaryHeroButtonState extends State<_PrimaryHeroButton>
     )..repeat(reverse: true);
 
     _pulseAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _pulseController,
-        curve: Curves.easeInOut,
-      ),
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
 
@@ -323,13 +338,12 @@ class _PrimaryHeroButtonState extends State<_PrimaryHeroButton>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(widget.borderRadius),
             boxShadow: <BoxShadow>[
               BoxShadow(
-                color: (isDark
-                        ? const Color(0xFF2563EB)
-                        : const Color(0xFF030213))
-                    .withValues(alpha: 0.18 + (pulseValue * 0.06)),
+                color:
+                    (isDark ? const Color(0xFF2563EB) : const Color(0xFF030213))
+                        .withValues(alpha: 0.18 + (pulseValue * 0.06)),
                 blurRadius: 12 + (pulseValue * 4),
                 offset: const Offset(0, 4),
               ),
@@ -338,26 +352,37 @@ class _PrimaryHeroButtonState extends State<_PrimaryHeroButton>
           child: child,
         );
       },
-      child: ElevatedButton.icon(
+      child: ElevatedButton(
         onPressed: widget.onTap,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(widget.borderRadius),
           ),
         ),
-        icon: Icon(widget.icon, size: 20),
-        label: Text(
-          widget.label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.poppins(
-            fontSize: compact ? 15 : 16,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.2,
-          ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            if (widget.icon != null) ...<Widget>[
+              Icon(widget.icon, size: 20),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Text(
+                widget.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: compact ? 15 : 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -385,16 +410,10 @@ class _SecondaryHeroButton extends StatelessWidget {
         side: BorderSide(
           color: isDark ? const Color(0xFF2A3040) : const Color(0xFFD1D5DB),
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       icon: Icon(icon, size: 20),
-      label: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
     );
   }
 }

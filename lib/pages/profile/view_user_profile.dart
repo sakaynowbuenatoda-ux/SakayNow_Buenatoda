@@ -9,6 +9,8 @@ import '../admin/admin_models.dart';
 import '../admin/admin_service.dart';
 import '../admin/widgets/admin_shared.dart';
 import '../admin/widgets/admin_message_user_button.dart';
+import 'models/profile_review_item.dart';
+import 'widgets/profile_reviews_section.dart';
 
 class ViewUserProfilePage extends StatefulWidget {
   final String adminId;
@@ -395,10 +397,7 @@ class _BasicInfoCard extends StatelessWidget {
           _InfoRow(label: 'Last Name', value: user.lastName),
           _InfoRow(label: 'Role', value: user.roleLabel),
           if (user.isPassenger)
-            _InfoRow(
-              label: 'Passenger Type',
-              value: user.passengerTypeLabel,
-            ),
+            _InfoRow(label: 'Passenger Type', value: user.passengerTypeLabel),
           _InfoRow(label: 'Gender', value: user.genderLabel),
           _InfoRow(label: 'Age', value: user.ageLabel),
           _InfoTimeRow(label: 'Joined', value: user.createdAt),
@@ -472,92 +471,17 @@ class _DriverReviewsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<AdminReviewRecord>>(
-      stream: AdminService.watchReviewsForUser(user.userId),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return AdminErrorCard(
-            message:
-                'Unable to load driver reviews. Please try again in a moment.',
-          );
-        }
-
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final reviews = snapshot.data!;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Ratings and Reviews', style: PassengerUi.sectionTitle),
-            SizedBox(height: 12),
-            if (reviews.isEmpty)
-              const AdminEmptyCollection(
-                icon: Icons.reviews_outlined,
-                title: 'No driver reviews yet',
-                description:
-                    'Driver reviews will appear here after passengers submit feedback.',
-              )
-            else
-              ...reviews.map(
-                (review) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _ReviewCard(review: review),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _ReviewCard extends StatelessWidget {
-  final AdminReviewRecord review;
-
-  const _ReviewCard({required this.review});
-
-  @override
-  Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${review.rating}/5 rating',
-                  style: PassengerUi.cardTitle,
-                ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(
-                  5,
-                  (index) => Icon(
-                    index < review.rating
-                        ? Icons.star_rounded
-                        : Icons.star_border_rounded,
-                    size: 18,
-                    color: PassengerUi.highlightAmber,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (review.comment.isNotEmpty) ...[
-            SizedBox(height: 8),
-            Text(review.comment, style: PassengerUi.bodyText),
-          ],
-          SizedBox(height: 8),
-          TimeAgoText(
-            dateTime: review.updatedAt ?? review.createdAt,
-            style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
-          ),
-        ],
+    return ProfileReviewsPreview(
+      title: 'Ratings and Reviews',
+      profileName: user.fullName,
+      emptyTitle: 'No driver reviews yet',
+      emptyDescription:
+          'Driver reviews will appear here after passengers submit feedback.',
+      allReviewsMaxContentWidth: AdminUi.detailContentWidth,
+      reviewsLoader: () => AdminService.watchReviewsForUser(user.userId).map(
+        (reviews) => reviews
+            .map(ProfileReviewItem.fromAdminReview)
+            .toList(growable: false),
       ),
     );
   }

@@ -3,8 +3,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_assets.dart';
-import '../core/session/session_service.dart';
-import '../utils/user_facing_error_message.dart';
 import 'passenger_widgets/passenger_ui.dart';
 
 class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
@@ -13,7 +11,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onNotificationsTap;
   final VoidCallback? onBrandTap;
   final int notificationUnreadCount;
-  final ValueChanged<String>? onProfileSelected;
+  final VoidCallback? onProfileTap;
 
   final bool isDriver;
   final bool showVerifiedBadge;
@@ -25,64 +23,10 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     required this.onNotificationsTap,
     this.onBrandTap,
     this.notificationUnreadCount = 0,
-    this.onProfileSelected,
+    this.onProfileTap,
     this.isDriver = false,
     this.showVerifiedBadge = false,
   });
-
-  Future<void> _logout(BuildContext context) async {
-    try {
-      await SessionService.signOut();
-    } catch (e) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            userFacingErrorMessage(
-              e,
-              fallback: 'Unable to log out. Please try again.',
-            ),
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  //logout confiurmation dialog
-  Future<void> _showLogoutConfirmation(BuildContext context) async {
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Confirm Logout'),
-        content: Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Logout'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldLogout == true) {
-      if (!context.mounted) return;
-      await _logout(context);
-    }
-  }
-
-  void _handleMenuAction(BuildContext context, String value) {
-    if (value == 'logout') {
-      _showLogoutConfirmation(context);
-    } else {
-      onProfileSelected?.call(value);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,11 +62,11 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
         ),
         if (!compact) _NameText(firstName: firstName),
         SizedBox(width: compact ? 6 : 10),
-        _ProfileAvatarMenu(
+        _ProfileAvatarButton(
           firstName: firstName,
           profileImageUrl: profileImageUrl,
           showVerifiedBadge: showVerifiedBadge,
-          onSelected: (value) => _handleMenuAction(context, value),
+          onTap: onProfileTap,
           compact: compact,
         ),
         SizedBox(width: compact ? 8 : 12),
@@ -141,7 +85,7 @@ class HomeMapHeader extends StatelessWidget {
   final VoidCallback onNotificationsTap;
   final VoidCallback? onBrandTap;
   final int notificationUnreadCount;
-  final ValueChanged<String>? onProfileSelected;
+  final VoidCallback? onProfileTap;
   final bool isDriver;
   final bool showVerifiedBadge;
 
@@ -153,63 +97,10 @@ class HomeMapHeader extends StatelessWidget {
     required this.onNotificationsTap,
     this.onBrandTap,
     this.notificationUnreadCount = 0,
-    this.onProfileSelected,
+    this.onProfileTap,
     this.isDriver = false,
     this.showVerifiedBadge = false,
   });
-
-  Future<void> _logout(BuildContext context) async {
-    try {
-      await SessionService.signOut();
-    } catch (error) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            userFacingErrorMessage(
-              error,
-              fallback: 'Unable to log out. Please try again.',
-            ),
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  Future<void> _showLogoutConfirmation(BuildContext context) async {
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldLogout == true && context.mounted) {
-      await _logout(context);
-    }
-  }
-
-  void _handleMenuAction(BuildContext context, String value) {
-    if (value == 'logout') {
-      _showLogoutConfirmation(context);
-      return;
-    }
-
-    onProfileSelected?.call(value);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -240,11 +131,11 @@ class HomeMapHeader extends StatelessWidget {
                     count: notificationUnreadCount,
                   ),
                   const SizedBox(width: 5),
-                  _ProfileAvatarMenu(
+                  _ProfileAvatarButton(
                     firstName: firstName,
                     profileImageUrl: profileImageUrl,
                     showVerifiedBadge: showVerifiedBadge,
-                    onSelected: (value) => _handleMenuAction(context, value),
+                    onTap: onProfileTap,
                     compact: true,
                   ),
                 ],
@@ -453,18 +344,18 @@ class _ModernIconButton extends StatelessWidget {
   }
 }
 
-class _ProfileAvatarMenu extends StatelessWidget {
+class _ProfileAvatarButton extends StatelessWidget {
   final String firstName;
   final String? profileImageUrl;
   final bool showVerifiedBadge;
-  final ValueChanged<String> onSelected;
+  final VoidCallback? onTap;
   final bool compact;
 
-  const _ProfileAvatarMenu({
+  const _ProfileAvatarButton({
     required this.firstName,
     required this.profileImageUrl,
     required this.showVerifiedBadge,
-    required this.onSelected,
+    required this.onTap,
     required this.compact,
   });
 
@@ -472,93 +363,70 @@ class _ProfileAvatarMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final initial = firstName.isNotEmpty ? firstName[0].toUpperCase() : '?';
 
-    return PopupMenuButton<String>(
-      onSelected: onSelected,
-      offset: Offset(0, 50),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'profile',
-          child: ListTile(
-            dense: true,
-            leading: Icon(Icons.person_outline_rounded),
-            title: Text('Profile'),
-            contentPadding: EdgeInsets.zero,
-          ),
-        ),
-        PopupMenuItem(
-          value: 'settings',
-          child: ListTile(
-            dense: true,
-            leading: Icon(Icons.settings_outlined),
-            title: Text('Settings'),
-            contentPadding: EdgeInsets.zero,
-          ),
-        ),
-        PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'logout',
-          child: ListTile(
-            dense: true,
-            leading: Icon(Icons.logout_rounded, color: PassengerUi.primary),
-            title: Text('Logout', style: TextStyle(color: PassengerUi.primary)),
-            contentPadding: EdgeInsets.zero,
-          ),
-        ),
-      ],
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: <Widget>[
-          Container(
-            margin: EdgeInsets.only(right: compact ? 1 : 4),
-            padding: EdgeInsets.all(compact ? 2 : 2.5),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: PassengerUi.surface.withValues(alpha: 0.9),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.07),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: CircleAvatar(
-              radius: compact ? 14 : 18,
-              backgroundColor: PassengerUi.surface.withValues(alpha: 0.76),
-              child: ClipOval(
-                child: _StableProfileAvatarImage(
-                  imageUrl: profileImageUrl,
-                  width: compact ? 28 : 36,
-                  height: compact ? 28 : 36,
-                  fallback: _AvatarFallback(initial: initial),
-                ),
-              ),
-            ),
-          ),
-          if (showVerifiedBadge)
-            Positioned(
-              right: compact ? -3 : 0,
-              bottom: -1,
-              child: Container(
-                width: compact ? 13 : 16,
-                height: compact ? 13 : 16,
+    return Tooltip(
+      message: 'Open profile',
+      child: Semantics(
+        button: true,
+        label: 'Open profile',
+        child: InkWell(
+          key: const Key('home-profile-avatar-button'),
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              Container(
+                margin: EdgeInsets.only(right: compact ? 1 : 4),
+                padding: EdgeInsets.all(compact ? 2 : 2.5),
                 decoration: BoxDecoration(
-                  color: PassengerUi.successText,
                   shape: BoxShape.circle,
-                  border: Border.all(color: PassengerUi.surface, width: 2),
+                  border: Border.all(
+                    color: PassengerUi.surface.withValues(alpha: 0.9),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.07),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
                 ),
-                child: Icon(
-                  Icons.check_rounded,
-                  size: compact ? 8 : 10,
-                  color: Colors.white,
+                child: CircleAvatar(
+                  radius: compact ? 14 : 18,
+                  backgroundColor: PassengerUi.surface.withValues(alpha: 0.76),
+                  child: ClipOval(
+                    child: _StableProfileAvatarImage(
+                      imageUrl: profileImageUrl,
+                      width: compact ? 28 : 36,
+                      height: compact ? 28 : 36,
+                      fallback: _AvatarFallback(initial: initial),
+                    ),
+                  ),
                 ),
               ),
-            ),
-        ],
+              if (showVerifiedBadge)
+                Positioned(
+                  right: compact ? -3 : 0,
+                  bottom: -1,
+                  child: Container(
+                    width: compact ? 13 : 16,
+                    height: compact ? 13 : 16,
+                    decoration: BoxDecoration(
+                      color: PassengerUi.successText,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: PassengerUi.surface, width: 2),
+                    ),
+                    child: Icon(
+                      Icons.check_rounded,
+                      size: compact ? 8 : 10,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

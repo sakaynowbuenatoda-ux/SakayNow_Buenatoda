@@ -10,6 +10,7 @@
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "npm run build && firebase deploy --only functions",
     "lint": "tsc --noEmit",
+    "test:unit": "npm run build && node --test test/ride_conversations.test.mjs",
     "test:rules": "npm run build && node --test --test-concurrency=1 test/admin_roles.rules.test.mjs test/super_admin_migration.test.mjs",
     "migrate:super-admin": "npm run build && node lib/migrate_super_admin.js"
   },

@@ -392,13 +392,8 @@ class _UnreadMessagePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: PassengerUi.mutedSurface,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: PassengerUi.border),
-      ),
       child: Text(
         unreadTotal > 99 ? '99+' : '$unreadTotal',
         maxLines: 1,
@@ -427,14 +422,9 @@ class _SupportIconButton extends StatelessWidget {
         child: InkWell(
           onTap: isLoading ? null : onTap,
           customBorder: const CircleBorder(),
-          child: Container(
+          child: SizedBox(
             width: 42,
             height: 42,
-            decoration: BoxDecoration(
-              color: PassengerUi.mutedSurface,
-              shape: BoxShape.circle,
-              border: Border.all(color: PassengerUi.border),
-            ),
             child: isLoading
                 ? Padding(
                     padding: const EdgeInsets.all(11),

@@ -17,7 +17,6 @@ import '../../utils/user_facing_error_message.dart';
 import '../notifications/notifications_page.dart';
 import '../profile/profile_page.dart';
 import '../rides/ride_monitoring_page.dart';
-import '../settings/settings_page.dart';
 import 'driver_dashboard.dart';
 import 'driver_history.dart';
 import 'driver_home.dart';
@@ -46,7 +45,6 @@ class DriverShell extends StatefulWidget {
 
 class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   static const int _messagesIndex = 1;
-  static const int _dashboardIndex = 2;
   static const int _profileIndex = 3;
 
   int _currentIndex = 0;
@@ -134,30 +132,6 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     }
   }
 
-  void _handleProfileSelected(String value) {
-    if (value == 'profile') {
-      _selectTab(_profileIndex);
-    } else if (value == 'settings') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => SettingsPage(
-            userId: widget.userId,
-            role: 'driver',
-            isVerified: widget.isVerified,
-          ),
-        ),
-      );
-    } else if (value == 'home') {
-      setState(() => _currentIndex = 0);
-    } else if (value == 'messages') {
-      _selectTab(_messagesIndex);
-    } else if (value == 'history') {
-      _openHistory();
-    } else if (value == 'dashboard') {
-      _selectTab(_dashboardIndex);
-    }
-  }
-
   Future<void> _handleRefresh() async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
   }
@@ -183,7 +157,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
             notificationUnreadCount: _notificationUnreadCount,
             onNotificationsTap: _openNotifications,
             onBrandTap: () => _selectTab(0),
-            onProfileSelected: _handleProfileSelected,
+            onProfileTap: () => _selectTab(_profileIndex),
             onOpenQueue: _openQueue,
             onOpenHistory: _openHistory,
           );

@@ -142,7 +142,7 @@ class _PassengerRideSummary extends StatelessWidget {
                 ),
               ],
             ),
-            SizedBox(height: 14),
+            SizedBox(height: 8),
             PassengerRecentTripsSection(
               passengerId: userId,
               limit: 3,

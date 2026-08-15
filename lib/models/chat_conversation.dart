@@ -26,6 +26,7 @@ class ChatConversation {
   final String conversationId;
   final ConversationType type;
   final String? bookingId;
+  final List<String> bookingIds;
   final String? passengerId;
   final String? driverId;
   final String? supportUserId;
@@ -45,6 +46,7 @@ class ChatConversation {
     required this.conversationId,
     required this.type,
     required this.bookingId,
+    required this.bookingIds,
     required this.passengerId,
     required this.driverId,
     required this.supportUserId,
@@ -75,6 +77,7 @@ class ChatConversation {
       conversationId: (data['conversation_id'] ?? document.id).toString(),
       type: conversationTypeFromString(data['type']),
       bookingId: _readNullableString(data['booking_id']),
+      bookingIds: _readBookingIds(data),
       passengerId: _readNullableString(data['passenger_id']),
       driverId: _readNullableString(data['driver_id']),
       supportUserId: _readNullableString(data['support_user_id']),
@@ -185,6 +188,15 @@ class ChatConversation {
     }
 
     return <String>[];
+  }
+
+  static List<String> _readBookingIds(Map<String, dynamic> data) {
+    final bookingIds = _readStringList(data['booking_ids']);
+    final latestBookingId = _readNullableString(data['booking_id']);
+    if (latestBookingId != null && !bookingIds.contains(latestBookingId)) {
+      bookingIds.add(latestBookingId);
+    }
+    return bookingIds;
   }
 
   static Map<String, String> _readStringMap(Object? value) {

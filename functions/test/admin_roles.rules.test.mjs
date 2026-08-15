@@ -74,6 +74,23 @@ beforeEach(async () => {
         "admin-2": "admin",
       },
     });
+    await setDoc(doc(firestore, "conversations", "ride_booking-1"), {
+      conversation_id: "ride_booking-1",
+      type: "ride",
+      booking_id: "booking-1",
+      booking_ids: ["booking-1"],
+      passenger_id: "passenger-1",
+      driver_id: "driver-1",
+      participant_ids: ["passenger-1", "driver-1"],
+      participant_names: {
+        "passenger-1": "Passenger One",
+        "driver-1": "Driver One",
+      },
+      participant_roles: {
+        "passenger-1": "passenger",
+        "driver-1": "driver",
+      },
+    });
   });
 });
 
@@ -132,6 +149,49 @@ test("clients cannot create admin-direct conversations", async () => {
         "admin-1": "admin",
         "super-1": "super_admin",
       },
+    }),
+  );
+});
+
+test("ride conversation creation and identity stay server-owned", async () => {
+  const passenger = environment.authenticatedContext("passenger-1").firestore();
+  await assertFails(
+    setDoc(doc(passenger, "conversations", "ride_booking-2"), {
+      conversation_id: "ride_booking-2",
+      type: "ride",
+      booking_id: "booking-2",
+      booking_ids: ["booking-2"],
+      passenger_id: "passenger-1",
+      driver_id: "driver-1",
+      participant_ids: ["passenger-1", "driver-1"],
+      participant_names: {
+        "passenger-1": "Passenger One",
+        "driver-1": "Driver One",
+      },
+      participant_roles: {
+        "passenger-1": "passenger",
+        "driver-1": "driver",
+      },
+    }),
+  );
+
+  const ride = doc(passenger, "conversations", "ride_booking-1");
+  await assertSucceeds(updateDoc(ride, {last_message_text: "On my way"}));
+  await assertFails(updateDoc(ride, {booking_id: "booking-2"}));
+  await assertFails(updateDoc(ride, {driver_id: "driver-2"}));
+});
+
+test("passengers can still create their stable support conversation", async () => {
+  const passenger = environment.authenticatedContext("passenger-1").firestore();
+  await assertSucceeds(
+    setDoc(doc(passenger, "conversations", "support_passenger-1"), {
+      conversation_id: "support_passenger-1",
+      type: "support",
+      support_user_id: "passenger-1",
+      admin_visible: true,
+      participant_ids: ["passenger-1"],
+      participant_names: {"passenger-1": "Passenger One"},
+      participant_roles: {"passenger-1": "passenger"},
     }),
   );
 });

@@ -55,11 +55,14 @@ class SakayGoogleMap extends StatefulWidget {
   final Set<Polyline> polylines;
   final Set<Circle> circles;
   final bool myLocationEnabled;
+  final bool? myLocationButtonEnabled;
   final bool zoomControlsEnabled;
   final bool autoMoveCamera;
   final bool autoMoveCameraOnUpdate;
   final bool preferInitialCameraTarget;
   final MapType mapType;
+  final Offset cameraTargetOffset;
+  final ValueChanged<GoogleMapController>? onMapCreated;
   final ValueChanged<LatLng>? onTap;
   final ValueChanged<LatLng>? onLongPress;
 
@@ -72,11 +75,14 @@ class SakayGoogleMap extends StatefulWidget {
     this.polylines = const <Polyline>{},
     this.circles = const <Circle>{},
     this.myLocationEnabled = false,
+    this.myLocationButtonEnabled,
     this.zoomControlsEnabled = false,
     this.autoMoveCamera = true,
     this.autoMoveCameraOnUpdate = true,
     this.preferInitialCameraTarget = false,
     this.mapType = MapType.normal,
+    this.cameraTargetOffset = Offset.zero,
+    this.onMapCreated,
     this.onTap,
     this.onLongPress,
   });
@@ -127,12 +133,15 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
       oldWidget.initialCameraTarget,
     );
     final mapTypeChanged = widget.mapType != oldWidget.mapType;
+    final cameraTargetOffsetChanged =
+        widget.cameraTargetOffset != oldWidget.cameraTargetOffset;
     final updateModeChanged =
         widget.autoMoveCameraOnUpdate != oldWidget.autoMoveCameraOnUpdate;
 
     if (updateModeChanged ||
         boundsChanged ||
         mapTypeChanged ||
+        cameraTargetOffsetChanged ||
         (widget.bounds == null && targetChanged) ||
         (widget.preferInitialCameraTarget && targetChanged)) {
       _scheduleMoveCamera();
@@ -183,7 +192,8 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
                 circles: widget.circles,
                 mapType: widget.mapType,
                 myLocationEnabled: widget.myLocationEnabled,
-                myLocationButtonEnabled: widget.myLocationEnabled,
+                myLocationButtonEnabled:
+                    widget.myLocationButtonEnabled ?? widget.myLocationEnabled,
                 zoomControlsEnabled: widget.zoomControlsEnabled,
                 mapToolbarEnabled: false,
                 compassEnabled: true,
@@ -202,6 +212,7 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
                 },
                 onMapCreated: (controller) {
                   _controller = controller;
+                  widget.onMapCreated?.call(controller);
                   if (widget.autoMoveCamera) {
                     _scheduleMoveCamera();
                   }
@@ -355,6 +366,7 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
         await controller.animateCamera(
           CameraUpdate.newLatLngBounds(bounds, 56),
         );
+        await _applyCameraTargetOffset(controller);
         return;
       }
 
@@ -366,9 +378,19 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
           ),
         ),
       );
+      await _applyCameraTargetOffset(controller);
     } catch (_) {
       // GoogleMap can reject camera bounds before the first layout pass.
     }
+  }
+
+  Future<void> _applyCameraTargetOffset(GoogleMapController controller) async {
+    final offset = widget.cameraTargetOffset;
+    if (offset == Offset.zero || _isDisposed || !mounted) {
+      return;
+    }
+
+    await controller.animateCamera(CameraUpdate.scrollBy(offset.dx, offset.dy));
   }
 
   void _scheduleSelectedProfilePinPositionUpdate() {

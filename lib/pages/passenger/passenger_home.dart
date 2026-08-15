@@ -997,6 +997,7 @@ class _PassengerHomeMap extends StatefulWidget {
 class _PassengerHomeMapState extends State<_PassengerHomeMap> {
   late final Future<LatLng> _currentLocationFuture;
   final LocationService _locationService = const LocationService();
+  GoogleMapController? _mapController;
 
   @override
   void initState() {
@@ -1007,6 +1008,23 @@ class _PassengerHomeMapState extends State<_PassengerHomeMap> {
   Future<LatLng> _loadCurrentLocation() async {
     final position = await _locationService.getCurrentPosition();
     return LatLng(position.latitude, position.longitude);
+  }
+
+  Future<void> _centerOnCurrentLocation(
+    LatLng location,
+    double verticalOffset,
+  ) async {
+    final controller = _mapController;
+    if (controller == null) {
+      return;
+    }
+
+    try {
+      await controller.animateCamera(CameraUpdate.newLatLng(location));
+      await controller.animateCamera(CameraUpdate.scrollBy(0, verticalOffset));
+    } on Exception {
+      // The native map can be unavailable briefly during a platform rebuild.
+    }
   }
 
   @override
@@ -1025,6 +1043,7 @@ class _PassengerHomeMapState extends State<_PassengerHomeMap> {
             final controlsTop =
                 MediaQuery.paddingOf(context).top +
                 (PassengerUi.isCompactWidth(context) ? 88 : 96);
+            final cameraVerticalOffset = constraints.maxHeight * 0.16;
 
             return Stack(
               fit: StackFit.expand,
@@ -1060,6 +1079,9 @@ class _PassengerHomeMapState extends State<_PassengerHomeMap> {
                           : _RideMonitoringPreview._polylinesFor(ride),
                       mapType: AppPreferencesController.instance.googleMapType,
                       myLocationEnabled: ride == null && hasLocation,
+                      myLocationButtonEnabled: false,
+                      cameraTargetOffset: Offset(0, cameraVerticalOffset),
+                      onMapCreated: (controller) => _mapController = controller,
                       autoMoveCamera: true,
                     );
                   },
@@ -1067,7 +1089,25 @@ class _PassengerHomeMapState extends State<_PassengerHomeMap> {
                 Positioned(
                   right: 8,
                   top: controlsTop,
-                  child: const MapTypeToggle(),
+                  child: Column(
+                    key: const Key('passenger-home-map-controls'),
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      const MapTypeToggle(),
+                      if (ride == null && hasLocation) ...<Widget>[
+                        const SizedBox(height: 8),
+                        MapCurrentLocationButton(
+                          key: const Key(
+                            'passenger-home-current-location-button',
+                          ),
+                          onPressed: () => _centerOnCurrentLocation(
+                            location,
+                            cameraVerticalOffset,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
                 Positioned(
                   left: 8,

@@ -62,6 +62,51 @@ class MapTypeToggle extends StatelessWidget {
   }
 }
 
+class MapCurrentLocationButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+
+  const MapCurrentLocationButton({super.key, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: PassengerUi.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: PassengerUi.border),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: PassengerUi.isDarkMode ? 0.28 : 0.15,
+            ),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Tooltip(
+          message: 'Current location',
+          child: IconButton(
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+            style: IconButton.styleFrom(
+              foregroundColor: PassengerUi.primary,
+              disabledForegroundColor: PassengerUi.body.withValues(alpha: 0.5),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: onPressed,
+            icon: const Icon(Icons.my_location_rounded, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MapTypeButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;

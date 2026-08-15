@@ -434,6 +434,7 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
   final LocationService _locationService = const LocationService();
   final _passengerProfileFutures = <String, Future<PassengerReviewProfile?>>{};
   late final Future<LatLng> _currentLocationFuture;
+  GoogleMapController? _mapController;
 
   @override
   void initState() {
@@ -444,6 +445,23 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
   Future<LatLng> _loadCurrentLocation() async {
     final position = await _locationService.getCurrentPosition();
     return LatLng(position.latitude, position.longitude);
+  }
+
+  Future<void> _centerOnCurrentLocation(
+    LatLng location,
+    double verticalOffset,
+  ) async {
+    final controller = _mapController;
+    if (controller == null) {
+      return;
+    }
+
+    try {
+      await controller.animateCamera(CameraUpdate.newLatLng(location));
+      await controller.animateCamera(CameraUpdate.scrollBy(0, verticalOffset));
+    } on Exception {
+      // The native map can be unavailable briefly during a platform rebuild.
+    }
   }
 
   @override
@@ -485,7 +503,10 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
                       .nonNulls,
                 ]);
 
-                Widget buildMapViewport(double? controlsTop) {
+                Widget buildMapViewport({
+                  required double? controlsTop,
+                  double cameraVerticalOffset = 0,
+                }) {
                   return Stack(
                     fit: StackFit.expand,
                     children: <Widget>[
@@ -511,6 +532,16 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
                                     .instance
                                     .googleMapType,
                                 myLocationEnabled: driverLocation != null,
+                                myLocationButtonEnabled:
+                                    !widget.expanded && driverLocation != null,
+                                cameraTargetOffset: Offset(
+                                  0,
+                                  cameraVerticalOffset,
+                                ),
+                                onMapCreated: widget.expanded
+                                    ? (controller) =>
+                                          _mapController = controller
+                                    : null,
                                 autoMoveCamera: true,
                               );
                             },
@@ -520,7 +551,28 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
                       Positioned(
                         top: controlsTop ?? 10,
                         right: widget.expanded ? 8 : 10,
-                        child: const MapTypeToggle(),
+                        child: Column(
+                          key: widget.expanded
+                              ? const Key('driver-home-map-controls')
+                              : null,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: <Widget>[
+                            const MapTypeToggle(),
+                            if (widget.expanded &&
+                                driverLocation != null) ...<Widget>[
+                              const SizedBox(height: 8),
+                              MapCurrentLocationButton(
+                                key: const Key(
+                                  'driver-home-current-location-button',
+                                ),
+                                onPressed: () => _centerOnCurrentLocation(
+                                  mapCenter,
+                                  cameraVerticalOffset,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                       Positioned(
                         left: widget.expanded ? 8 : 10,
@@ -549,7 +601,10 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
                       final controlsTop =
                           MediaQuery.paddingOf(context).top +
                           (PassengerUi.isCompactWidth(context) ? 88 : 96);
-                      return buildMapViewport(controlsTop);
+                      return buildMapViewport(
+                        controlsTop: controlsTop,
+                        cameraVerticalOffset: constraints.maxHeight * 0.16,
+                      );
                     },
                   );
                 }
@@ -561,7 +616,7 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
                       borderRadius: PassengerUi.cardRadius,
                       child: SizedBox(
                         height: PassengerUi.isCompactWidth(context) ? 260 : 300,
-                        child: buildMapViewport(null),
+                        child: buildMapViewport(controlsTop: null),
                       ),
                     ),
                     const SizedBox(height: 10),

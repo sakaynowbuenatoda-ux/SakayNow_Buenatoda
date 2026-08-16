@@ -7,15 +7,17 @@ import '../../services/ride_tracking_service.dart';
 import '../firebase_storage_image.dart';
 import '../maps/ride_location_preview_dialog.dart';
 import '../time_ago_text.dart';
+import '../trip_history_sort.dart';
 import 'passenger_ui.dart';
 
 class PassengerRecentTripsSection extends StatelessWidget {
   final String passengerId;
-  final int limit;
+  final int? limit;
   final String title;
   final String actionLabel;
   final VoidCallback? onViewAllTap;
   final QuickDestinationsController? quickDestinationsController;
+  final TripHistorySortOption sortOption;
 
   const PassengerRecentTripsSection({
     super.key,
@@ -25,6 +27,7 @@ class PassengerRecentTripsSection extends StatelessWidget {
     this.actionLabel = 'View all',
     this.onViewAllTap,
     this.quickDestinationsController,
+    this.sortOption = TripHistorySortOption.newest,
   });
 
   @override
@@ -75,7 +78,11 @@ class PassengerRecentTripsSection extends StatelessWidget {
           );
         }
 
-        final trips = snapshot.data ?? const <PassengerRecentTrip>[];
+        final trips = sortTripHistory<PassengerRecentTrip>(
+          trips: snapshot.data ?? const <PassengerRecentTrip>[],
+          rideOf: (trip) => trip.ride,
+          option: sortOption,
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

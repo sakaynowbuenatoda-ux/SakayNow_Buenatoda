@@ -24,6 +24,7 @@ import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/reviews/review_dialogs.dart';
 import '../../widgets/reports/report_user_sheet.dart';
 import '../../widgets/time_ago_text.dart';
+import '../../widgets/trip_history_sort.dart';
 import '../driver_ratings/driver_leaderboard_page.dart';
 import '../profile/passenger_profile.dart';
 import '../rides/ride_monitoring_page.dart';
@@ -1132,12 +1133,14 @@ class _LiveIncomingRequestsPreviewState
 
 class DriverRecentTripsSection extends StatelessWidget {
   final String driverId;
-  final int limit;
+  final int? limit;
+  final TripHistorySortOption sortOption;
 
   const DriverRecentTripsSection({
     super.key,
     required this.driverId,
     this.limit = 8,
+    this.sortOption = TripHistorySortOption.newest,
   });
 
   @override
@@ -1167,7 +1170,11 @@ class DriverRecentTripsSection extends StatelessWidget {
           );
         }
 
-        final trips = snapshot.data ?? const <DriverRecentTrip>[];
+        final trips = sortTripHistory<DriverRecentTrip>(
+          trips: snapshot.data ?? const <DriverRecentTrip>[],
+          rideOf: (trip) => trip.ride,
+          option: sortOption,
+        );
         if (trips.isEmpty) {
           return const PassengerEmptyState(
             icon: Icons.history_rounded,

@@ -708,7 +708,7 @@ class RideTrackingService {
 
   Stream<List<DriverRecentTrip>> watchDriverRecentTrips(
     String driverId, {
-    int limit = 8,
+    int? limit = 8,
   }) {
     return _bookings
         .where('driver_id', isEqualTo: driverId)
@@ -724,7 +724,9 @@ class RideTrackingService {
             return bDate.compareTo(aDate);
           });
 
-          final recentRides = rides.take(limit).toList(growable: false);
+          final recentRides = limit == null
+              ? rides
+              : rides.take(limit).toList(growable: false);
           final trips = <DriverRecentTrip>[];
 
           for (final ride in recentRides) {
@@ -747,7 +749,7 @@ class RideTrackingService {
 
   Stream<List<PassengerRecentTrip>> watchPassengerRecentTrips(
     String passengerId, {
-    int limit = 8,
+    int? limit = 8,
   }) {
     return _bookings
         .where('passenger_id', isEqualTo: passengerId)
@@ -763,7 +765,9 @@ class RideTrackingService {
             return bDate.compareTo(aDate);
           });
 
-          final recentRides = rides.take(limit).toList(growable: false);
+          final recentRides = limit == null
+              ? rides
+              : rides.take(limit).toList(growable: false);
           final trips = <PassengerRecentTrip>[];
 
           for (final ride in recentRides) {

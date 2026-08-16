@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
+
 import '../../core/preferences/app_preferences_controller.dart';
 import '../../models/chat_conversation.dart';
 import '../../models/ride.dart';
@@ -57,6 +59,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   StreamSubscription<int>? _notificationSubscription;
   StreamSubscription<List<Ride>>? _rideCancellationSubscription;
   StreamSubscription<bool>? _availabilitySubscription;
+  StreamSubscription<InternetStatus>? _internetStatusSubscription;
   final Map<String, RideStatus> _knownRideStatuses = <String, RideStatus>{};
   Timer? _inactivityTimer;
   Timer? _foregroundIdleTimer;
@@ -66,6 +69,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
   bool _isMarkingMessagesRead = false;
   bool _isChangingAvailability = false;
   bool _hasSeededRideStatuses = false;
+  bool _hasInternetConnection = true;
 
   bool get isActive => _isActiveNotifier.value;
 
@@ -79,6 +83,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     _watchUnreadMessages();
     _watchUnreadNotifications();
     _watchRideCancellations();
+    _watchInternetConnection();
   }
 
   @override
@@ -103,6 +108,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
     _notificationSubscription?.cancel();
     _rideCancellationSubscription?.cancel();
     _availabilitySubscription?.cancel();
+    _internetStatusSubscription?.cancel();
     _inactivityTimer?.cancel();
     _foregroundIdleTimer?.cancel();
     _isActiveNotifier.dispose();
@@ -151,6 +157,7 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
             userId: widget.userId,
             firstName: widget.firstName,
             isActive: isActive,
+            hasInternetConnection: _hasInternetConnection,
             isVerified: widget.isVerified,
             canReceiveBookings: widget.canReceiveBookings,
             profileImageUrl: widget.profileImageUrl,
@@ -336,6 +343,23 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
             _cancelBackgroundInactivityTimer();
           },
         );
+  }
+
+  void _watchInternetConnection() {
+    unawaited(_internetStatusSubscription?.cancel());
+    _internetStatusSubscription = InternetConnection().onStatusChange.listen(
+      (status) {
+        final hasInternetConnection = status == InternetStatus.connected;
+        if (!mounted || hasInternetConnection == _hasInternetConnection) {
+          return;
+        }
+
+        setState(() => _hasInternetConnection = hasInternetConnection);
+      },
+      onError: (_) {
+        // Keep the last confirmed state when a connectivity check itself fails.
+      },
+    );
   }
 
   void _setActiveState(bool value) {

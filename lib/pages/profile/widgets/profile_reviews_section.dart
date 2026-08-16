@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../../widgets/time_ago_text.dart';
 import '../models/profile_review_item.dart';
+import 'public_profile_components.dart';
 
 typedef ProfileReviewsLoader = Stream<List<ProfileReviewItem>> Function();
 
@@ -52,7 +53,7 @@ class ProfileReviewsPreview extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            PassengerSectionHeader(
+            _ProfileReviewsHeader(
               title: title,
               actionLabel: reviews.length > 3 ? 'See all reviews' : '',
               onActionTap: reviews.length > 3
@@ -67,9 +68,9 @@ class ProfileReviewsPreview extends StatelessWidget {
                     )
                   : null,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             if (reviews.isEmpty)
-              PassengerEmptyState(
+              _CompactProfileEmptyState(
                 icon: Icons.reviews_outlined,
                 title: emptyTitle,
                 description: emptyDescription,
@@ -78,7 +79,7 @@ class ProfileReviewsPreview extends StatelessWidget {
               ...visibleReviews.asMap().entries.map(
                 (entry) => Padding(
                   padding: EdgeInsets.only(
-                    bottom: entry.key == visibleReviews.length - 1 ? 0 : 12,
+                    bottom: entry.key == visibleReviews.length - 1 ? 0 : 8,
                   ),
                   child: ProfileReviewCard(review: entry.value),
                 ),
@@ -86,6 +87,108 @@ class ProfileReviewsPreview extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _ProfileReviewsHeader extends StatelessWidget {
+  final String title;
+  final String actionLabel;
+  final VoidCallback? onActionTap;
+
+  const _ProfileReviewsHeader({
+    required this.title,
+    required this.actionLabel,
+    required this.onActionTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        Expanded(
+          child: Semantics(
+            header: true,
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: PassengerUi.sectionTitle.copyWith(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.25,
+              ),
+            ),
+          ),
+        ),
+        if (actionLabel.isNotEmpty) ...<Widget>[
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: onActionTap,
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, 34),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              actionLabel,
+              style: TextStyle(
+                color: PassengerUi.primary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _CompactProfileEmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+
+  const _CompactProfileEmptyState({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PassengerSurfaceCard(
+      padding: const EdgeInsets.all(13),
+      child: Column(
+        children: <Widget>[
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: PassengerUi.mutedSurface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 21, color: PassengerUi.accentBlue),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: PassengerUi.cardTitle.copyWith(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: PassengerUi.bodyText.copyWith(fontSize: 11.5),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -113,15 +216,9 @@ class _AllReviewsPageState extends State<AllReviewsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: PassengerUi.background,
-      appBar: AppBar(
-        backgroundColor: PassengerUi.surface,
-        surfaceTintColor: PassengerUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: PassengerUi.title),
-        ),
-        title: Text('Reviews', style: PassengerUi.cardTitle),
+      appBar: PublicProfileAppBar(
+        title: 'Reviews',
+        onBack: () => Navigator.of(context).pop(),
       ),
       body: StreamBuilder<List<ProfileReviewItem>>(
         stream: widget.reviewsLoader(),
@@ -189,21 +286,21 @@ class _AllReviewsContent extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _ReviewsPageHeading(profileName: profileName),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         _RatingFilters(
           selectedRating: selectedRating,
           onRatingSelected: onRatingSelected,
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 9),
         Text(
           '${filteredReviews.length} ${filteredReviews.length == 1 ? 'review' : 'reviews'}',
           key: const Key('review-result-count'),
           style: PassengerUi.bodyText.copyWith(
-            fontSize: 12.5,
+            fontSize: 11,
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         _ReviewsResult(
           allReviews: allReviews,
           filteredReviews: filteredReviews,
@@ -231,15 +328,15 @@ class _ReviewsPageHeading extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(title, style: PassengerUi.sectionTitle),
-        const SizedBox(height: 6),
+        Text(title, style: PassengerUi.sectionTitle.copyWith(fontSize: 16)),
+        const SizedBox(height: 4),
         Row(
           children: <Widget>[
-            Icon(Icons.schedule_rounded, size: 16, color: PassengerUi.body),
-            const SizedBox(width: 6),
+            Icon(Icons.schedule_rounded, size: 13, color: PassengerUi.body),
+            const SizedBox(width: 4),
             Text(
               'Most recent',
-              style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
+              style: PassengerUi.bodyText.copyWith(fontSize: 11),
             ),
           ],
         ),
@@ -261,8 +358,8 @@ class _RatingFilters extends StatelessWidget {
   Widget build(BuildContext context) {
     return Wrap(
       alignment: WrapAlignment.center,
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 6,
+      runSpacing: 6,
       children: <Widget>[
         _RatingFilterChip(
           key: const Key('review-filter-all'),
@@ -308,10 +405,10 @@ class _RatingFilterChip extends StatelessWidget {
               children: <Widget>[
                 Icon(
                   Icons.star_rounded,
-                  size: 15,
+                  size: 13,
                   color: selected ? Colors.white : PassengerUi.highlightAmber,
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 Text(label),
               ],
             ),
@@ -323,9 +420,9 @@ class _RatingFilterChip extends StatelessWidget {
       labelStyle: TextStyle(
         color: foregroundColor,
         fontWeight: FontWeight.w700,
-        fontSize: 12.5,
+        fontSize: 11,
       ),
-      labelPadding: const EdgeInsets.symmetric(horizontal: 10),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 7),
       showCheckmark: false,
       visualDensity: VisualDensity.compact,
     );
@@ -346,7 +443,7 @@ class _ReviewsResult extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (allReviews.isEmpty) {
-      return const PassengerEmptyState(
+      return const _CompactProfileEmptyState(
         icon: Icons.reviews_outlined,
         title: 'No reviews yet',
         description: 'Reviews from completed trips will appear here.',
@@ -354,7 +451,7 @@ class _ReviewsResult extends StatelessWidget {
     }
 
     if (filteredReviews.isEmpty) {
-      return PassengerEmptyState(
+      return _CompactProfileEmptyState(
         icon: Icons.star_outline_rounded,
         title: 'No $selectedRating-star reviews',
         description: 'Choose another rating or select All to see every review.',
@@ -387,6 +484,7 @@ class ProfileReviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return PassengerSurfaceCard(
       key: ValueKey<String>('profile-review-${review.reviewId}'),
+      padding: const EdgeInsets.all(11),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -399,7 +497,7 @@ class ProfileReviewCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     identity,
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     stars,
                   ],
                 );
@@ -409,20 +507,23 @@ class ProfileReviewCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Expanded(child: identity),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   stars,
                 ],
               );
             },
           ),
           if (review.comment.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 8),
-            Text(review.comment, style: PassengerUi.bodyText),
+            const SizedBox(height: 6),
+            Text(
+              review.comment,
+              style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
+            ),
           ],
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           TimeAgoText(
             dateTime: review.updatedAt ?? review.createdAt,
-            style: PassengerUi.bodyText.copyWith(fontSize: 12),
+            style: PassengerUi.bodyText.copyWith(fontSize: 10.5),
           ),
         ],
       ),
@@ -444,13 +545,16 @@ class _ReviewIdentity extends StatelessWidget {
           review.reviewerLabel,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: PassengerUi.cardTitle.copyWith(fontSize: 14.5),
+          style: PassengerUi.cardTitle.copyWith(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         if (review.reviewerContext != null) ...<Widget>[
           const SizedBox(height: 2),
           Text(
             review.reviewerContext!,
-            style: PassengerUi.bodyText.copyWith(fontSize: 11.5),
+            style: PassengerUi.bodyText.copyWith(fontSize: 10.5),
           ),
         ],
       ],
@@ -471,7 +575,7 @@ class _ReviewStars extends StatelessWidget {
         5,
         (index) => Icon(
           index < rating ? Icons.star_rounded : Icons.star_border_rounded,
-          size: 17,
+          size: 15,
           color: PassengerUi.highlightAmber,
         ),
       ),

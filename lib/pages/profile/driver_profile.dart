@@ -4,12 +4,12 @@ import '../../models/ride.dart';
 import '../../pages/messages/chat_page.dart';
 import '../../services/chat_service.dart';
 import '../../services/ride_tracking_service.dart';
-import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/reviews/review_dialogs.dart';
 import '../../widgets/reports/report_user_sheet.dart';
 import 'models/profile_review_item.dart';
 import 'widgets/profile_reviews_section.dart';
+import 'widgets/public_profile_components.dart';
 
 class DriverProfilePage extends StatefulWidget {
   final String driverId;
@@ -41,15 +41,9 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: PassengerUi.background,
-      appBar: AppBar(
-        backgroundColor: PassengerUi.surface,
-        surfaceTintColor: PassengerUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: PassengerUi.title),
-        ),
-        title: Text('Driver Profile', style: PassengerUi.cardTitle),
+      appBar: PublicProfileAppBar(
+        title: 'Driver Profile',
+        onBack: () => Navigator.of(context).pop(),
       ),
       body: StreamBuilder<DriverReviewProfile>(
         stream: _rideTrackingService.watchDriverProfile(widget.driverId),
@@ -84,13 +78,14 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
           final showPassengerActions = _hasPassengerContext;
 
           return PassengerPageContainer(
+            maxContentWidth: PassengerUi.settingsContentWidth,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 _DriverHero(driver: driver),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 _DriverStats(driver: driver),
-                SizedBox(height: showPassengerActions ? 14 : 18),
+                SizedBox(height: showPassengerActions ? 10 : 12),
                 if (showPassengerActions) ...<Widget>[
                   FutureBuilder<Ride?>(
                     key: ValueKey(_reviewEligibilityRefresh),
@@ -115,7 +110,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                       );
                     },
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 12),
                 ],
                 _ReviewsPanel(
                   driver: driver,
@@ -326,151 +321,38 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
 }
 
 class _DriverHero extends StatelessWidget {
-  static const String _coverAssetPath = 'assets/images/full_logo.jpg';
-
   final DriverReviewProfile driver;
 
   const _DriverHero({required this.driver});
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: SizedBox(
-              height: 132,
-              width: double.infinity,
-              child: Image.asset(
-                _coverAssetPath,
-                fit: BoxFit.cover,
-                alignment: Alignment.center,
-                filterQuality: FilterQuality.medium,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Transform.translate(
-                  offset: const Offset(0, -44),
-                  child: _DriverAvatar(driver: driver),
-                ),
-                Transform.translate(
-                  offset: const Offset(0, -26),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              driver.fullName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: PassengerUi.sectionTitle.copyWith(
-                                fontSize: 24,
-                              ),
-                            ),
-                          ),
-                          if (driver.isVerified)
-                            Icon(
-                              Icons.verified_rounded,
-                              color: PassengerUi.accentBlue,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          PassengerStatusChip(
-                            label: 'Driver',
-                            textColor: PassengerUi.primary,
-                            backgroundColor: PassengerUi.dangerSoft,
-                          ),
-                          if (!driver.isVerified)
-                            PassengerStatusChip(
-                              label: 'Pending verification',
-                              textColor: PassengerUi.highlightAmber,
-                              backgroundColor: PassengerUi.warningSoft,
-                            ),
-                          if (driver.isBanned)
-                            PassengerStatusChip(
-                              label: 'Restricted',
-                              textColor: PassengerUi.primary,
-                              backgroundColor: PassengerUi.dangerSoft,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      _DriverRankingStrip(driver: driver),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DriverAvatar extends StatelessWidget {
-  final DriverReviewProfile driver;
-
-  const _DriverAvatar({required this.driver});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 98,
-      height: 98,
-      decoration: BoxDecoration(
-        color: PassengerUi.surface,
-        shape: BoxShape.circle,
-        border: Border.all(color: PassengerUi.surface, width: 4),
-        boxShadow: PassengerUi.cardShadow,
-      ),
-      child: ClipOval(
-        child: FirebaseStorageImage(
-          imageUrl: driver.profileImageUrl,
-          fit: BoxFit.cover,
-          fallback: Container(
-            color: PassengerUi.blueSoft,
-            alignment: Alignment.center,
-            child: Text(
-              _initials(driver.fullName),
-              style: PassengerUi.sectionTitle.copyWith(
-                color: PassengerUi.accentBlue,
-                fontSize: 30,
-              ),
-            ),
-          ),
+    return PublicProfileHeroCard(
+      name: driver.fullName,
+      imageUrl: driver.profileImageUrl,
+      fallbackInitial: 'D',
+      isVerified: driver.isVerified,
+      badges: <PublicProfileBadgeData>[
+        PublicProfileBadgeData(
+          label: 'Driver',
+          foregroundColor: PassengerUi.primary,
+          backgroundColor: PassengerUi.dangerSoft,
         ),
-      ),
+        if (!driver.isVerified)
+          PublicProfileBadgeData(
+            label: 'Pending verification',
+            foregroundColor: PassengerUi.highlightAmber,
+            backgroundColor: PassengerUi.warningSoft,
+          ),
+        if (driver.isBanned)
+          PublicProfileBadgeData(
+            label: 'Restricted',
+            foregroundColor: PassengerUi.primary,
+            backgroundColor: PassengerUi.dangerSoft,
+          ),
+      ],
+      footer: _DriverRankingStrip(driver: driver),
     );
-  }
-
-  String _initials(String name) {
-    final parts = name
-        .split(' ')
-        .where((part) => part.trim().isNotEmpty)
-        .take(2)
-        .toList(growable: false);
-
-    if (parts.isEmpty) {
-      return 'D';
-    }
-
-    return parts.map((part) => part[0].toUpperCase()).join();
   }
 }
 
@@ -486,8 +368,8 @@ class _DriverRankingStrip extends StatelessWidget {
         ratingRank != null && ratingRank >= 1 && ratingRank <= 20;
 
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 6,
+      runSpacing: 6,
       children: <Widget>[
         if (hasTop20Rank)
           _MiniRankChip(
@@ -519,7 +401,7 @@ class _MiniRankChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(999),
@@ -528,9 +410,15 @@ class _MiniRankChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 14, color: color),
+          Icon(icon, size: 13, color: color),
           const SizedBox(width: 4),
-          Text(label, style: PassengerUi.valueText.copyWith(fontSize: 11.5)),
+          Text(
+            label,
+            style: PassengerUi.valueText.copyWith(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -544,57 +432,21 @@ class _DriverStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: _StatCard(
-            icon: Icons.star_rate_rounded,
-            label: 'Rating',
-            value: driver.ratingLabel,
-            color: PassengerUi.highlightAmber,
-          ),
+    return PublicProfileStats(
+      metrics: <PublicProfileMetricData>[
+        PublicProfileMetricData(
+          icon: Icons.star_rate_rounded,
+          label: 'Rating',
+          value: driver.ratingLabel,
+          color: PassengerUi.highlightAmber,
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.reviews_outlined,
-            label: 'Reviews',
-            value: driver.reviewCount.toString(),
-            color: PassengerUi.accentBlue,
-          ),
+        PublicProfileMetricData(
+          icon: Icons.reviews_outlined,
+          label: 'Reviews',
+          value: driver.reviewCount.toString(),
+          color: PassengerUi.accentBlue,
         ),
       ],
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(icon, color: color),
-          const SizedBox(height: 8),
-          Text(value, style: PassengerUi.cardTitle),
-          const SizedBox(height: 2),
-          Text(label, style: PassengerUi.bodyText),
-        ],
-      ),
     );
   }
 }
@@ -618,48 +470,116 @@ class _DriverActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: <Widget>[
-          ElevatedButton.icon(
-            onPressed: isSaving ? null : onMessage,
-            icon: const Icon(Icons.chat_bubble_rounded, size: 18),
-            label: const Text('Message'),
-          ),
-          OutlinedButton.icon(
-            onPressed: isSaving || isCheckingReview || !canAddReview
-                ? null
-                : onAddReview,
-            icon: isCheckingReview
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(
-                    canAddReview
-                        ? Icons.rate_review_rounded
-                        : Icons.done_all_rounded,
-                    size: 18,
-                  ),
-            label: Text(
-              isCheckingReview
-                  ? 'Checking'
-                  : canAddReview
-                  ? 'Add Review'
-                  : 'No pending review',
-            ),
-          ),
-          OutlinedButton.icon(
-            onPressed: isSaving ? null : onReport,
-            icon: const Icon(Icons.report_gmailerrorred_rounded, size: 18),
-            label: const Text('Report'),
-          ),
-        ],
+    final messageButton = _ProfileActionButton(
+      child: ElevatedButton.icon(
+        onPressed: isSaving ? null : onMessage,
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        icon: const Icon(Icons.chat_bubble_rounded, size: 16),
+        label: const Text('Message'),
       ),
     );
+    final reviewButton = _ProfileActionButton(
+      child: OutlinedButton.icon(
+        onPressed: isSaving || isCheckingReview || !canAddReview
+            ? null
+            : onAddReview,
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        icon: isCheckingReview
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                canAddReview
+                    ? Icons.rate_review_rounded
+                    : Icons.done_all_rounded,
+                size: 16,
+              ),
+        label: Text(
+          isCheckingReview
+              ? 'Checking'
+              : canAddReview
+              ? 'Add Review'
+              : 'No pending review',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+    final reportButton = _ProfileActionButton(
+      child: OutlinedButton.icon(
+        onPressed: isSaving ? null : onReport,
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        icon: const Icon(Icons.report_gmailerrorred_rounded, size: 16),
+        label: const Text('Report'),
+      ),
+    );
+
+    return PassengerSurfaceCard(
+      padding: const EdgeInsets.all(10),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 600) {
+            return Row(
+              children: <Widget>[
+                Expanded(child: messageButton),
+                const SizedBox(width: 8),
+                Expanded(child: reviewButton),
+                const SizedBox(width: 8),
+                Expanded(child: reportButton),
+              ],
+            );
+          }
+
+          if (constraints.maxWidth >= 390) {
+            return Column(
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(child: messageButton),
+                    const SizedBox(width: 8),
+                    Expanded(child: reviewButton),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                reportButton,
+              ],
+            );
+          }
+
+          return Column(
+            children: <Widget>[
+              messageButton,
+              const SizedBox(height: 8),
+              reviewButton,
+              const SizedBox(height: 8),
+              reportButton,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ProfileActionButton extends StatelessWidget {
+  final Widget child;
+
+  const _ProfileActionButton({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(width: double.infinity, height: 40, child: child);
   }
 }
 

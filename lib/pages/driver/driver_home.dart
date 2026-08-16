@@ -34,6 +34,7 @@ class DriverHomePage extends StatelessWidget {
   final String userId;
   final String firstName;
   final bool isActive;
+  final bool hasInternetConnection;
   final bool isVerified;
   final bool canReceiveBookings;
   final String? profileImageUrl;
@@ -49,6 +50,7 @@ class DriverHomePage extends StatelessWidget {
     required this.userId,
     required this.firstName,
     required this.isActive,
+    this.hasInternetConnection = true,
     required this.isVerified,
     this.canReceiveBookings = false,
     this.profileImageUrl,
@@ -86,9 +88,8 @@ class DriverHomePage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           DriverStatusHeroCard(
-            firstName: firstName,
             isActive: isActive,
-            isVerified: isVerified,
+            hasInternetConnection: hasInternetConnection,
           ),
           DriverActiveRideShortcut(driverId: userId),
           const SizedBox(height: 20),
@@ -333,83 +334,125 @@ class DriverActiveRideShortcut extends StatelessWidget {
 }
 
 class DriverStatusHeroCard extends StatelessWidget {
-  final String firstName;
   final bool isActive;
-  final bool isVerified;
+  final bool hasInternetConnection;
 
   const DriverStatusHeroCard({
     super.key,
-    required this.firstName,
     required this.isActive,
-    required this.isVerified,
+    this.hasInternetConnection = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: PassengerUi.mutedSurface,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  isActive
-                      ? Icons.location_searching_rounded
-                      : Icons.signal_wifi_off_rounded,
-                  color: isActive
-                      ? PassengerUi.successText
-                      : PassengerUi.accentBlue,
-                  size: 22,
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'Current status',
-                      style: PassengerUi.cardTitle.copyWith(fontSize: 16),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      isVerified
-                          ? (isActive
-                                ? 'You are visible to passengers and ready to accept requests.'
-                                : 'Go active to receive new bookings around Buenavista.')
-                          : 'Your account is still pending admin verification, but you can already explore the driver workspace.',
-                      style: PassengerUi.bodyText,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    final showActiveState = hasInternetConnection && isActive;
+
+    return AnimatedContainer(
+      key: const Key('driver-status-card'),
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 128),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: BoxDecoration(
+        color: PassengerUi.surface,
+        borderRadius: PassengerUi.cardRadius,
+        border: Border.all(
+          color: showActiveState ? PassengerUi.successText : PassengerUi.border,
+          width: showActiveState ? 2 : 1,
+        ),
+        boxShadow: PassengerUi.cardShadow,
+      ),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        switchInCurve: Curves.easeOut,
+        switchOutCurve: Curves.easeIn,
+        child: !hasInternetConnection
+            ? const _NoInternetDriverStatus(key: ValueKey('no-internet'))
+            : isActive
+            ? const _ActiveDriverStatus(key: ValueKey('active'))
+            : const _OfflineDriverStatus(key: ValueKey('offline')),
+      ),
+    );
+  }
+}
+
+class _OfflineDriverStatus extends StatelessWidget {
+  const _OfflineDriverStatus({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        Icon(
+          Icons.power_settings_new_rounded,
+          key: const Key('driver-offline-icon'),
+          size: 34,
+          color: PassengerUi.isDarkMode ? Colors.white : Colors.black,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'You are currently offline',
+          textAlign: TextAlign.center,
+          style: PassengerUi.cardTitle.copyWith(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
           ),
-          SizedBox(height: 10),
-          PassengerStatusChip(
-            label: isVerified
-                ? (isActive ? 'Active for bookings' : 'Currently offline')
-                : 'Pending verification',
-            textColor: isVerified
-                ? (isActive ? PassengerUi.successText : PassengerUi.primary)
-                : PassengerUi.highlightAmber,
-            backgroundColor: isVerified
-                ? (isActive
-                      ? PassengerUi.successBackground
-                      : PassengerUi.dangerSoft)
-                : PassengerUi.warningSoft,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Go active to receive new bookings around Buenavista.',
+          textAlign: TextAlign.center,
+          style: PassengerUi.bodyText.copyWith(fontSize: 13),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActiveDriverStatus extends StatelessWidget {
+  const _ActiveDriverStatus({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        Text(
+          'Active State',
+          textAlign: TextAlign.center,
+          style: PassengerUi.cardTitle.copyWith(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.25,
           ),
-        ],
+        ),
+        const SizedBox(height: 7),
+        Text(
+          'You are visible to passengers and ready to accept requests.',
+          textAlign: TextAlign.center,
+          style: PassengerUi.bodyText.copyWith(fontSize: 13),
+        ),
+      ],
+    );
+  }
+}
+
+class _NoInternetDriverStatus extends StatelessWidget {
+  const _NoInternetDriverStatus({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        'No internet',
+        textAlign: TextAlign.center,
+        style: PassengerUi.cardTitle.copyWith(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

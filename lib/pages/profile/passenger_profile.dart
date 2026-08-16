@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../services/ride_tracking_service.dart';
-import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/reports/report_user_sheet.dart';
 import 'models/profile_review_item.dart';
 import 'widgets/profile_reviews_section.dart';
+import 'widgets/public_profile_components.dart';
 
 class PassengerProfilePage extends StatefulWidget {
   final String passengerId;
@@ -40,15 +40,9 @@ class _PassengerProfilePageState extends State<PassengerProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: PassengerUi.background,
-      appBar: AppBar(
-        backgroundColor: PassengerUi.surface,
-        surfaceTintColor: PassengerUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: PassengerUi.title),
-        ),
-        title: Text('Passenger Profile', style: PassengerUi.cardTitle),
+      appBar: PublicProfileAppBar(
+        title: 'Passenger Profile',
+        onBack: () => Navigator.of(context).pop(),
       ),
       body: StreamBuilder<PassengerReviewProfile>(
         stream: _rideTrackingService.watchPassengerProfile(widget.passengerId),
@@ -80,18 +74,19 @@ class _PassengerProfilePageState extends State<PassengerProfilePage> {
           }
 
           return PassengerPageContainer(
+            maxContentWidth: PassengerUi.settingsContentWidth,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 _PassengerHero(passenger: passenger),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 _PassengerStats(passenger: passenger),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 _PassengerActions(
                   isSaving: _isSaving,
                   onReport: () => _handleReport(passenger),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 12),
                 _ReviewsPanel(
                   passenger: passenger,
                   rideTrackingService: _rideTrackingService,
@@ -152,133 +147,33 @@ class _PassengerProfilePageState extends State<PassengerProfilePage> {
 }
 
 class _PassengerHero extends StatelessWidget {
-  static const String _coverAssetPath = 'assets/images/full_logo.jpg';
-
   final PassengerReviewProfile passenger;
 
   const _PassengerHero({required this.passenger});
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: SizedBox(
-              height: 132,
-              width: double.infinity,
-              child: Image.asset(
-                _coverAssetPath,
-                fit: BoxFit.cover,
-                alignment: Alignment.center,
-                filterQuality: FilterQuality.medium,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Transform.translate(
-                  offset: const Offset(0, -44),
-                  child: _PassengerAvatar(passenger: passenger),
-                ),
-                Transform.translate(
-                  offset: const Offset(0, -26),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              passenger.fullName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: PassengerUi.sectionTitle.copyWith(
-                                fontSize: 24,
-                              ),
-                            ),
-                          ),
-                          if (passenger.isVerified)
-                            Icon(
-                              Icons.verified_rounded,
-                              color: PassengerUi.accentBlue,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          PassengerStatusChip(
-                            label: passenger.roleLabel,
-                            textColor: PassengerUi.accentBlue,
-                            backgroundColor: PassengerUi.blueSoft,
-                          ),
-                          PassengerStatusChip(
-                            label: passenger.isVerified
-                                ? 'Verified'
-                                : 'Pending verification',
-                            textColor: passenger.isVerified
-                                ? PassengerUi.successText
-                                : PassengerUi.highlightAmber,
-                            backgroundColor: passenger.isVerified
-                                ? PassengerUi.successBackground
-                                : PassengerUi.warningSoft,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PassengerAvatar extends StatelessWidget {
-  final PassengerReviewProfile passenger;
-
-  const _PassengerAvatar({required this.passenger});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 98,
-      height: 98,
-      decoration: BoxDecoration(
-        color: PassengerUi.surface,
-        shape: BoxShape.circle,
-        border: Border.all(color: PassengerUi.surface, width: 4),
-        boxShadow: PassengerUi.cardShadow,
-      ),
-      child: ClipOval(
-        child: FirebaseStorageImage(
-          imageUrl: passenger.profileImageUrl,
-          fit: BoxFit.cover,
-          fallback: Container(
-            color: PassengerUi.blueSoft,
-            alignment: Alignment.center,
-            child: Text(
-              _initials(passenger.fullName),
-              style: PassengerUi.sectionTitle.copyWith(
-                color: PassengerUi.accentBlue,
-                fontSize: 30,
-              ),
-            ),
-          ),
+    return PublicProfileHeroCard(
+      name: passenger.fullName,
+      imageUrl: passenger.profileImageUrl,
+      fallbackInitial: 'P',
+      isVerified: passenger.isVerified,
+      badges: <PublicProfileBadgeData>[
+        PublicProfileBadgeData(
+          label: passenger.roleLabel,
+          foregroundColor: PassengerUi.accentBlue,
+          backgroundColor: PassengerUi.blueSoft,
         ),
-      ),
+        PublicProfileBadgeData(
+          label: passenger.isVerified ? 'Verified' : 'Pending verification',
+          foregroundColor: passenger.isVerified
+              ? PassengerUi.successText
+              : PassengerUi.highlightAmber,
+          backgroundColor: passenger.isVerified
+              ? PassengerUi.successBackground
+              : PassengerUi.warningSoft,
+        ),
+      ],
     );
   }
 }
@@ -290,57 +185,21 @@ class _PassengerStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: _StatCard(
-            icon: Icons.star_rate_rounded,
-            label: 'Rating',
-            value: passenger.ratingLabel,
-            color: PassengerUi.highlightAmber,
-          ),
+    return PublicProfileStats(
+      metrics: <PublicProfileMetricData>[
+        PublicProfileMetricData(
+          icon: Icons.star_rate_rounded,
+          label: 'Rating',
+          value: passenger.ratingLabel,
+          color: PassengerUi.highlightAmber,
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.reviews_outlined,
-            label: 'Reviews',
-            value: passenger.reviewCount.toString(),
-            color: PassengerUi.accentBlue,
-          ),
+        PublicProfileMetricData(
+          icon: Icons.reviews_outlined,
+          label: 'Reviews',
+          value: passenger.reviewCount.toString(),
+          color: PassengerUi.accentBlue,
         ),
       ],
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(icon, color: color),
-          const SizedBox(height: 8),
-          Text(value, style: PassengerUi.cardTitle),
-          const SizedBox(height: 2),
-          Text(label, style: PassengerUi.bodyText),
-        ],
-      ),
     );
   }
 }
@@ -354,16 +213,22 @@ class _PassengerActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PassengerSurfaceCard(
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: <Widget>[
-          OutlinedButton.icon(
-            onPressed: isSaving ? null : onReport,
-            icon: const Icon(Icons.report_gmailerrorred_rounded, size: 18),
-            label: Text(isSaving ? 'Submitting' : 'Report'),
+      padding: const EdgeInsets.all(10),
+      child: SizedBox(
+        width: double.infinity,
+        height: 40,
+        child: OutlinedButton.icon(
+          onPressed: isSaving ? null : onReport,
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            textStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ],
+          icon: const Icon(Icons.report_gmailerrorred_rounded, size: 16),
+          label: Text(isSaving ? 'Submitting' : 'Report'),
+        ),
       ),
     );
   }
@@ -393,18 +258,4 @@ class _ReviewsPanel extends StatelessWidget {
           ),
     );
   }
-}
-
-String _initials(String name) {
-  final parts = name
-      .split(' ')
-      .where((part) => part.trim().isNotEmpty)
-      .take(2)
-      .toList(growable: false);
-
-  if (parts.isEmpty) {
-    return 'P';
-  }
-
-  return parts.map((part) => part[0].toUpperCase()).join();
 }

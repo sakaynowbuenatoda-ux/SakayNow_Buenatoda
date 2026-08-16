@@ -5,6 +5,7 @@ import '../../models/chat_participant_profile.dart';
 import '../../services/chat_service.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/confirmation_dialog.dart';
+import '../../widgets/conversation_actions_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/time_ago_text.dart';
 import '../messages/chat_page.dart';
@@ -306,8 +307,32 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
       isDeleting: _deletingConversationIds.contains(
         conversation.conversationId,
       ),
-      onDelete: () => _deleteConversation(conversation),
+      onShowActions: () => _showConversationActions(conversation),
     );
+  }
+
+  Future<void> _showConversationActions(ChatConversation conversation) async {
+    if (_deletingConversationIds.contains(conversation.conversationId)) {
+      return;
+    }
+
+    final action = await showConversationActionsDialog(
+      context,
+      conversationTitle: conversation.titleFor(
+        currentUserId: widget.adminId,
+        currentUserRole: widget.adminRole,
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+
+    switch (action) {
+      case ConversationAction.delete:
+        await _deleteConversation(conversation);
+      case null:
+        return;
+    }
   }
 
   Future<void> _deleteConversation(ChatConversation conversation) async {
@@ -860,7 +885,7 @@ class _AdminConversationTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final bool isDeleting;
-  final VoidCallback onDelete;
+  final VoidCallback onShowActions;
 
   const _AdminConversationTile({
     required this.conversation,
@@ -871,7 +896,7 @@ class _AdminConversationTile extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.isDeleting,
-    required this.onDelete,
+    required this.onShowActions,
   });
 
   @override
@@ -898,6 +923,7 @@ class _AdminConversationTile extends StatelessWidget {
       selected: selected,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       onTap: onTap,
+      onLongPress: isDeleting ? null : onShowActions,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -958,7 +984,7 @@ class _AdminConversationTile extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 2),
                 Row(
                   children: <Widget>[
                     Icon(
@@ -985,7 +1011,6 @@ class _AdminConversationTile extends StatelessWidget {
                       const SizedBox(width: 8),
                       _AdminUnreadCountBadge(unreadCount: unreadCount),
                     ],
-                    const SizedBox(width: 4),
                     if (isDeleting)
                       const SizedBox(
                         width: 32,
@@ -994,24 +1019,6 @@ class _AdminConversationTile extends StatelessWidget {
                           padding: EdgeInsets.all(8),
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                      )
-                    else
-                      PopupMenuButton<String>(
-                        tooltip: 'Conversation actions',
-                        onSelected: (_) => onDelete(),
-                        itemBuilder: (_) => const <PopupMenuEntry<String>>[
-                          PopupMenuItem<String>(
-                            value: 'delete',
-                            child: Row(
-                              children: <Widget>[
-                                Icon(Icons.delete_outline_rounded),
-                                SizedBox(width: 10),
-                                Text('Delete conversation'),
-                              ],
-                            ),
-                          ),
-                        ],
-                        icon: const Icon(Icons.more_vert_rounded, size: 20),
                       ),
                   ],
                 ),
@@ -1027,6 +1034,7 @@ class _AdminConversationTile extends StatelessWidget {
 class _AdminConversationTapTarget extends StatelessWidget {
   final Widget child;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final EdgeInsetsGeometry padding;
   final String semanticLabel;
   final bool highlighted;
@@ -1035,6 +1043,7 @@ class _AdminConversationTapTarget extends StatelessWidget {
   const _AdminConversationTapTarget({
     required this.child,
     required this.onTap,
+    required this.onLongPress,
     required this.padding,
     required this.semanticLabel,
     required this.highlighted,
@@ -1047,6 +1056,7 @@ class _AdminConversationTapTarget extends StatelessWidget {
       button: true,
       selected: selected,
       label: semanticLabel,
+      hint: onLongPress == null ? null : 'Long press for conversation options',
       child: Material(
         color: selected
             ? AdminUi.blueSoft
@@ -1057,6 +1067,7 @@ class _AdminConversationTapTarget extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
+          onLongPress: onLongPress,
           hoverColor: AdminUi.mutedSurface.withValues(alpha: 0.72),
           focusColor: AdminUi.blueSoft,
           splashColor: AdminUi.accentBlue.withValues(alpha: 0.08),

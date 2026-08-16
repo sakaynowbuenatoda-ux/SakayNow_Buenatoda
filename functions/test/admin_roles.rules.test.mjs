@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import {after, before, beforeEach, test} from "node:test";
@@ -8,12 +9,19 @@ import {
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import {
+  Timestamp,
+  collection,
+  deleteDoc,
   deleteField,
   doc,
   getDoc,
+  getDocs,
+  orderBy,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import {getBytes, ref, uploadBytes} from "firebase/storage";
 
@@ -247,6 +255,89 @@ test("passengers can still create their stable support conversation", async () =
       participant_roles: {"passenger-1": "passenger"},
     }),
   );
+});
+
+test("conversation deletion cutoffs hide only the deleting user's old messages", async () => {
+  const conversationPath = "conversations/ride_booking-1";
+  const oldMessagePath = `${conversationPath}/messages/message-old`;
+  const newMessagePath = `${conversationPath}/messages/message-new`;
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const firestore = context.firestore();
+    await updateDoc(doc(firestore, conversationPath), {
+      deleted_at_by: {"passenger-1": Timestamp.fromMillis(2_000)},
+      last_message_at: Timestamp.fromMillis(3_000),
+    });
+    for (const [messageId, createdAt] of [
+      ["message-old", Timestamp.fromMillis(1_000)],
+      ["message-new", Timestamp.fromMillis(3_000)],
+    ]) {
+      await setDoc(doc(firestore, `${conversationPath}/messages/${messageId}`), {
+        message_id: messageId,
+        conversation_id: "ride_booking-1",
+        sender_id: "driver-1",
+        sender_role: "driver",
+        type: "text",
+        text: messageId,
+        read_by: {"driver-1": true},
+        created_at: createdAt,
+      });
+    }
+  });
+
+  const passenger = environment.authenticatedContext("passenger-1").firestore();
+  await assertFails(getDoc(doc(passenger, oldMessagePath)));
+  await assertSucceeds(getDoc(doc(passenger, newMessagePath)));
+  const visibleSnapshot = await assertSucceeds(
+    getDocs(query(
+      collection(passenger, `${conversationPath}/messages`),
+      where("created_at", ">", Timestamp.fromMillis(2_000)),
+      orderBy("created_at"),
+    )),
+  );
+  assert.equal(visibleSnapshot.docs.length, 1);
+  assert.equal(visibleSnapshot.docs[0].id, "message-new");
+
+  const driver = environment.authenticatedContext("driver-1").firestore();
+  await assertSucceeds(getDoc(doc(driver, oldMessagePath)));
+  await assertSucceeds(getDoc(doc(driver, newMessagePath)));
+});
+
+test("clients cannot spoof conversation deletion or unsent tombstones", async () => {
+  const conversationPath = "conversations/ride_booking-1";
+  const passenger = environment.authenticatedContext("passenger-1").firestore();
+  await assertFails(
+    updateDoc(doc(passenger, conversationPath), {
+      "deleted_at_by.passenger-1": serverTimestamp(),
+    }),
+  );
+
+  const messagePath = `${conversationPath}/messages/message-1`;
+  await assertFails(
+    setDoc(doc(passenger, messagePath), {
+      message_id: "message-1",
+      conversation_id: "ride_booking-1",
+      sender_id: "passenger-1",
+      sender_role: "passenger",
+      type: "unsent",
+      unsent_by: "passenger-1",
+      text: "hidden",
+      created_at: serverTimestamp(),
+    }),
+  );
+
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), messagePath), {
+      message_id: "message-1",
+      conversation_id: "ride_booking-1",
+      sender_id: "passenger-1",
+      sender_role: "passenger",
+      type: "text",
+      text: "Original message",
+      created_at: Timestamp.fromMillis(1_000),
+    });
+  });
+  await assertFails(updateDoc(doc(passenger, messagePath), {type: "unsent"}));
+  await assertFails(deleteDoc(doc(passenger, messagePath)));
 });
 
 test("admin accounts cannot be managed through client writes", async () => {

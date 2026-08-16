@@ -11,6 +11,9 @@ import '../models/chat_participant_profile.dart';
 typedef AdminDirectConversationCreator =
     Future<String> Function(String targetAdminId);
 typedef RideConversationCreator = Future<String> Function(String bookingId);
+typedef ChatMessageUnsender =
+    Future<void> Function(String conversationId, String messageId);
+typedef ConversationDeleter = Future<void> Function(String conversationId);
 
 class ChatService {
   ChatService({
@@ -18,10 +21,14 @@ class ChatService {
     FirebaseFunctions? functions,
     AdminDirectConversationCreator? adminDirectConversationCreator,
     RideConversationCreator? rideConversationCreator,
+    ChatMessageUnsender? chatMessageUnsender,
+    ConversationDeleter? conversationDeleter,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _functions = functions,
        _adminDirectConversationCreator = adminDirectConversationCreator,
-       _rideConversationCreator = rideConversationCreator;
+       _rideConversationCreator = rideConversationCreator,
+       _chatMessageUnsender = chatMessageUnsender,
+       _conversationDeleter = conversationDeleter;
 
   static const int maxMessageLength = 1000;
   static final List<String> _userVisibleConversationTypes = <String>[
@@ -33,6 +40,8 @@ class ChatService {
   final FirebaseFunctions? _functions;
   final AdminDirectConversationCreator? _adminDirectConversationCreator;
   final RideConversationCreator? _rideConversationCreator;
+  final ChatMessageUnsender? _chatMessageUnsender;
+  final ConversationDeleter? _conversationDeleter;
 
   CollectionReference<Map<String, dynamic>> get _conversations =>
       _firestore.collection('conversations');
@@ -51,27 +60,31 @@ class ChatService {
     ) {
       final conversations = snapshot.docs
           .map(ChatConversation.fromDocument)
+          .where((conversation) => conversation.isVisibleTo(normalizedUserId))
           .toList();
       conversations.sort(_compareConversationsByActivity);
       return conversations;
     });
   }
 
-  Stream<List<ChatConversation>> watchAdminSupportConversations() {
+  Stream<List<ChatConversation>> watchAdminSupportConversations(
+    String adminId,
+  ) {
     return _conversations
         .where('type', isEqualTo: ConversationType.support.firestoreValue)
         .snapshots()
         .map((snapshot) {
           final conversations = snapshot.docs
               .map(ChatConversation.fromDocument)
+              .where((conversation) => conversation.isVisibleTo(adminId))
               .toList();
           conversations.sort(_compareConversationsByActivity);
           return conversations;
         });
   }
 
-  Stream<int> watchAdminSupportUnreadCount() {
-    return watchAdminSupportConversations().map((conversations) {
+  Stream<int> watchAdminSupportUnreadCount(String adminId) {
+    return watchAdminSupportConversations(adminId).map((conversations) {
       return conversations.fold<int>(
         0,
         (total, conversation) => total + conversation.adminUnreadCount,
@@ -92,6 +105,9 @@ class ChatService {
         .map((snapshot) {
           final conversations = snapshot.docs
               .map(ChatConversation.fromDocument)
+              .where(
+                (conversation) => conversation.isVisibleTo(normalizedAdminId),
+              )
               .toList();
           conversations.sort(_compareConversationsByActivity);
           return conversations;
@@ -102,7 +118,7 @@ class ChatService {
     var support = <ChatConversation>[];
     var direct = <ChatConversation>[];
     final updates = StreamController<void>();
-    final supportSubscription = watchAdminSupportConversations().listen((
+    final supportSubscription = watchAdminSupportConversations(adminId).listen((
       value,
     ) {
       support = value;
@@ -145,15 +161,23 @@ class ChatService {
     });
   }
 
-  Stream<List<ChatMessage>> watchMessages(String conversationId) {
-    return _conversations
+  Stream<List<ChatMessage>> watchMessages(
+    String conversationId, {
+    DateTime? visibleAfter,
+  }) {
+    Query<Map<String, dynamic>> query = _conversations
         .doc(conversationId)
-        .collection('messages')
-        .orderBy('created_at')
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map(ChatMessage.fromDocument).toList();
-        });
+        .collection('messages');
+    if (visibleAfter != null) {
+      query = query.where(
+        'created_at',
+        isGreaterThan: Timestamp.fromDate(visibleAfter),
+      );
+    }
+
+    return query.orderBy('created_at').snapshots().map((snapshot) {
+      return snapshot.docs.map(ChatMessage.fromDocument).toList();
+    });
   }
 
   Stream<ChatConversation?> watchConversation(String conversationId) {
@@ -326,6 +350,8 @@ class ChatService {
 
       final updates = <String, dynamic>{
         'last_message_text': normalizedText,
+        'last_message_id': messageRef.id,
+        'last_message_type': 'text',
         'last_message_sender_id': senderId,
         'last_message_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
@@ -350,6 +376,51 @@ class ChatService {
       }
 
       transaction.update(conversationRef, updates);
+    });
+  }
+
+  Future<void> unsendMessage({
+    required String conversationId,
+    required String messageId,
+  }) async {
+    final normalizedConversationId = conversationId.trim();
+    final normalizedMessageId = messageId.trim();
+    if (normalizedConversationId.isEmpty || normalizedMessageId.isEmpty) {
+      throw ArgumentError('Choose a message to unsend.');
+    }
+
+    final unsender = _chatMessageUnsender;
+    if (unsender != null) {
+      await unsender(normalizedConversationId, normalizedMessageId);
+      return;
+    }
+
+    final functions =
+        _functions ?? FirebaseFunctions.instanceFor(region: 'asia-southeast1');
+    final callable = functions.httpsCallable('unsendChatMessage');
+    await callable.call<Map<String, dynamic>>(<String, dynamic>{
+      'conversation_id': normalizedConversationId,
+      'message_id': normalizedMessageId,
+    });
+  }
+
+  Future<void> deleteConversationForMe({required String conversationId}) async {
+    final normalizedConversationId = conversationId.trim();
+    if (normalizedConversationId.isEmpty) {
+      throw ArgumentError('Choose a conversation to delete.');
+    }
+
+    final deleter = _conversationDeleter;
+    if (deleter != null) {
+      await deleter(normalizedConversationId);
+      return;
+    }
+
+    final functions =
+        _functions ?? FirebaseFunctions.instanceFor(region: 'asia-southeast1');
+    final callable = functions.httpsCallable('deleteChatConversationForMe');
+    await callable.call<Map<String, dynamic>>(<String, dynamic>{
+      'conversation_id': normalizedConversationId,
     });
   }
 
@@ -396,6 +467,9 @@ class ChatService {
 
     for (final document in snapshot.docs) {
       final conversation = ChatConversation.fromDocument(document);
+      if (!conversation.isVisibleTo(normalizedUserId)) {
+        continue;
+      }
       final unreadCount = conversation.unreadCountFor(
         currentUserId: normalizedUserId,
         currentUserRole: normalizedUserRole,

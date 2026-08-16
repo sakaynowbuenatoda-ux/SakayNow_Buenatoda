@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sakaynow_buenatoda/models/chat_conversation.dart';
+import 'package:sakaynow_buenatoda/models/chat_message.dart';
 import 'package:sakaynow_buenatoda/services/chat_service.dart';
 
 void main() {
@@ -224,12 +225,187 @@ void main() {
         'passenger-1': true,
       });
       expect(conversation['last_message_text'], 'Hello driver');
+      expect(conversation['last_message_id'], messages.docs.single.id);
+      expect(conversation['last_message_type'], 'text');
       expect(conversation['last_message_sender_id'], 'passenger-1');
       expect(conversation['unread_counts'], <String, dynamic>{
         'passenger-1': 0,
         'driver-1': 1,
       });
     });
+
+    test(
+      'filters deleted conversations until a newer message arrives',
+      () async {
+        final conversationId = await service.createRideConversationFromBooking(
+          'booking-1',
+        );
+        final conversationRef = firestore
+            .collection('conversations')
+            .doc(conversationId);
+        final deletionAt = DateTime.utc(2026, 8, 16, 10);
+        await conversationRef.update(<String, dynamic>{
+          'last_message_at': Timestamp.fromDate(
+            deletionAt.subtract(const Duration(minutes: 1)),
+          ),
+          'deleted_at_by': <String, dynamic>{
+            'passenger-1': Timestamp.fromDate(deletionAt),
+          },
+        });
+
+        var conversations = await service
+            .watchUserConversations('passenger-1')
+            .first;
+        expect(conversations, isEmpty);
+
+        await conversationRef.update(<String, dynamic>{
+          'last_message_text': 'New message',
+          'last_message_at': Timestamp.fromDate(
+            deletionAt.add(const Duration(minutes: 1)),
+          ),
+        });
+        conversations = await service
+            .watchUserConversations('passenger-1')
+            .first;
+        expect(conversations.single.conversationId, conversationId);
+      },
+    );
+
+    test('watches only messages created after a deletion cutoff', () async {
+      final conversationId = await service.createRideConversationFromBooking(
+        'booking-1',
+      );
+      final cutoff = DateTime.utc(2026, 8, 16, 10);
+      final messages = firestore
+          .collection('conversations')
+          .doc(conversationId)
+          .collection('messages');
+      await messages.doc('old').set(<String, dynamic>{
+        'message_id': 'old',
+        'conversation_id': conversationId,
+        'sender_id': 'driver-1',
+        'sender_role': 'driver',
+        'text': 'Old',
+        'type': 'text',
+        'created_at': Timestamp.fromDate(
+          cutoff.subtract(const Duration(seconds: 1)),
+        ),
+      });
+      await messages.doc('new').set(<String, dynamic>{
+        'message_id': 'new',
+        'conversation_id': conversationId,
+        'sender_id': 'driver-1',
+        'sender_role': 'driver',
+        'text': 'New',
+        'type': 'text',
+        'created_at': Timestamp.fromDate(
+          cutoff.add(const Duration(seconds: 1)),
+        ),
+      });
+
+      final visibleMessages = await service
+          .watchMessages(conversationId, visibleAfter: cutoff)
+          .first;
+      expect(visibleMessages.map((message) => message.messageId), <String>[
+        'new',
+      ]);
+    });
+
+    test('keeps support deletion private to the acting admin', () async {
+      final conversationId = await service.ensureSupportConversation(
+        userId: 'passenger-1',
+        userName: 'Ana Passenger',
+        userRole: 'passenger',
+      );
+      final deletionAt = DateTime.utc(2026, 8, 16, 10);
+      await firestore.collection('conversations').doc(conversationId).update(
+        <String, dynamic>{
+          'last_message_text': 'Old support request',
+          'last_message_at': Timestamp.fromDate(
+            deletionAt.subtract(const Duration(minutes: 1)),
+          ),
+          'deleted_at_by': <String, dynamic>{
+            'admin-1': Timestamp.fromDate(deletionAt),
+          },
+        },
+      );
+
+      final firstAdminInbox = await service.watchAdminInbox('admin-1').first;
+      final secondAdminInbox = await service
+          .watchAdminInbox('admin-2')
+          .firstWhere((conversations) => conversations.isNotEmpty);
+
+      expect(firstAdminInbox, isEmpty);
+      expect(secondAdminInbox.single.conversationId, conversationId);
+    });
+
+    test('parses unsent messages without retaining original text', () async {
+      final reference = firestore
+          .collection('conversations')
+          .doc('conversation-1')
+          .collection('messages')
+          .doc('message-1');
+      await reference.set(<String, dynamic>{
+        'message_id': 'message-1',
+        'conversation_id': 'conversation-1',
+        'sender_id': 'passenger-1',
+        'sender_role': 'passenger',
+        'type': 'unsent',
+        'unsent_by': 'passenger-1',
+        'unsent_at': Timestamp.fromDate(DateTime.utc(2026, 8, 16)),
+        'created_at': Timestamp.fromDate(DateTime.utc(2026, 8, 15)),
+      });
+
+      final message = ChatMessage.fromDocument(await reference.get());
+      expect(message.isUnsent, isTrue);
+      expect(message.text, isEmpty);
+      expect(message.unsentBy, 'passenger-1');
+      expect(message.unsentAt?.toUtc(), DateTime.utc(2026, 8, 16));
+    });
+
+    test('uses sender-aware unsent conversation previews', () async {
+      final reference = firestore.collection('conversations').doc('preview');
+      await reference.set(<String, dynamic>{
+        'conversation_id': 'preview',
+        'type': 'ride',
+        'participant_ids': <String>['passenger-1', 'driver-1'],
+        'last_message_type': 'unsent',
+        'last_message_sender_id': 'passenger-1',
+      });
+
+      final conversation = ChatConversation.fromDocument(await reference.get());
+      expect(conversation.previewFor('passenger-1'), 'You unsent a message');
+      expect(conversation.previewFor('driver-1'), 'Unsent a message');
+    });
+
+    test(
+      'routes unsend and delete actions through secured operations',
+      () async {
+        final calls = <String>[];
+        final actionService = ChatService(
+          firestore: firestore,
+          chatMessageUnsender: (conversationId, messageId) async {
+            calls.add('unsend:$conversationId:$messageId');
+          },
+          conversationDeleter: (conversationId) async {
+            calls.add('delete:$conversationId');
+          },
+        );
+
+        await actionService.unsendMessage(
+          conversationId: ' conversation-1 ',
+          messageId: ' message-1 ',
+        );
+        await actionService.deleteConversationForMe(
+          conversationId: ' conversation-1 ',
+        );
+
+        expect(calls, <String>[
+          'unsend:conversation-1:message-1',
+          'delete:conversation-1',
+        ]);
+      },
+    );
 
     test('rejects empty, oversized, and non-participant messages', () async {
       final conversationId = await service.createRideConversationFromBooking(

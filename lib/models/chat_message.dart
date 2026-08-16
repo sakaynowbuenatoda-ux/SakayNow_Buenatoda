@@ -10,6 +10,8 @@ class ChatMessage {
   final String? clientMessageId;
   final Map<String, bool> readBy;
   final DateTime? createdAt;
+  final DateTime? unsentAt;
+  final String? unsentBy;
 
   const ChatMessage({
     required this.messageId,
@@ -21,10 +23,13 @@ class ChatMessage {
     this.clientMessageId,
     required this.readBy,
     required this.createdAt,
+    this.unsentAt,
+    this.unsentBy,
   });
 
   bool isMine(String currentUserId) => senderId == currentUserId;
   bool isReadBy(String userId) => readBy[userId] == true;
+  bool get isUnsent => type == 'unsent';
 
   factory ChatMessage.fromDocument(
     DocumentSnapshot<Map<String, dynamic>> document,
@@ -41,6 +46,8 @@ class ChatMessage {
       clientMessageId: _readNullableString(data['client_message_id']),
       readBy: _readBoolMap(data['read_by']),
       createdAt: _readDate(data['created_at']),
+      unsentAt: _readDate(data['unsent_at']),
+      unsentBy: _readNullableString(data['unsent_by']),
     );
   }
 

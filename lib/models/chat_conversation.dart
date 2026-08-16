@@ -34,11 +34,14 @@ class ChatConversation {
   final Map<String, String> participantNames;
   final Map<String, String> participantRoles;
   final String lastMessageText;
+  final String? lastMessageId;
+  final String lastMessageType;
   final String? lastMessageSenderId;
   final DateTime? lastMessageAt;
   final Map<String, int> unreadCounts;
   final int adminUnreadCount;
   final Map<String, DateTime> lastReadAt;
+  final Map<String, DateTime> deletedAtBy;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -54,11 +57,14 @@ class ChatConversation {
     required this.participantNames,
     required this.participantRoles,
     required this.lastMessageText,
+    this.lastMessageId,
+    this.lastMessageType = 'text',
     required this.lastMessageSenderId,
     required this.lastMessageAt,
     required this.unreadCounts,
     required this.adminUnreadCount,
     required this.lastReadAt,
+    this.deletedAtBy = const <String, DateTime>{},
     required this.createdAt,
     required this.updatedAt,
   });
@@ -66,7 +72,8 @@ class ChatConversation {
   bool get isSupport => type == ConversationType.support;
   bool get isRide => type == ConversationType.ride;
   bool get isAdminDirect => type == ConversationType.adminDirect;
-  bool get hasMessages => lastMessageText.trim().isNotEmpty;
+  bool get hasMessages =>
+      lastMessageType == 'unsent' || lastMessageText.trim().isNotEmpty;
 
   factory ChatConversation.fromDocument(
     DocumentSnapshot<Map<String, dynamic>> document,
@@ -85,11 +92,14 @@ class ChatConversation {
       participantNames: _readStringMap(data['participant_names']),
       participantRoles: _readStringMap(data['participant_roles']),
       lastMessageText: (data['last_message_text'] ?? '').toString(),
+      lastMessageId: _readNullableString(data['last_message_id']),
+      lastMessageType: (data['last_message_type'] ?? 'text').toString(),
       lastMessageSenderId: _readNullableString(data['last_message_sender_id']),
       lastMessageAt: _readDate(data['last_message_at']),
       unreadCounts: _readIntMap(data['unread_counts']),
       adminUnreadCount: _readInt(data['admin_unread_count']),
       lastReadAt: _readDateMap(data['last_read_at']),
+      deletedAtBy: _readDateMap(data['deleted_at_by']),
       createdAt: _readDate(data['created_at']),
       updatedAt: _readDate(data['updated_at']),
     );
@@ -144,6 +154,12 @@ class ChatConversation {
   }
 
   String previewFor(String currentUserId) {
+    if (lastMessageType == 'unsent') {
+      return lastMessageSenderId == currentUserId
+          ? 'You unsent a message'
+          : 'Unsent a message';
+    }
+
     if (!hasMessages) {
       if (isSupport) return 'No support messages yet.';
       if (isAdminDirect) return 'No admin messages yet.';
@@ -167,6 +183,18 @@ class ChatConversation {
   }
 
   DateTime? get latestActivityAt => lastMessageAt ?? updatedAt ?? createdAt;
+
+  DateTime? deletedAtFor(String userId) => deletedAtBy[userId];
+
+  bool isVisibleTo(String userId) {
+    final deletedAt = deletedAtFor(userId);
+    if (deletedAt == null) {
+      return true;
+    }
+
+    final messageAt = lastMessageAt;
+    return messageAt != null && messageAt.isAfter(deletedAt);
+  }
 
   String? otherParticipantId(String currentUserId) {
     return participantIds

@@ -858,6 +858,134 @@ export const ensureRideConversation = onCall(
   },
 );
 
+export const unsendChatMessage = onCall(
+  {
+    region: "asia-southeast1",
+  },
+  async (request) => {
+    const requesterId = request.auth?.uid;
+    if (!requesterId) {
+      throw new HttpsError("unauthenticated", "Sign in to unsend a message.");
+    }
+
+    const conversationId = readRequiredString(
+      request.data,
+      "conversation_id",
+    );
+    const messageId = readRequiredString(request.data, "message_id");
+    const conversationRef = firestore
+      .collection("conversations")
+      .doc(conversationId);
+    const messageRef = conversationRef.collection("messages").doc(messageId);
+    const requesterSnapshot = await firestore
+      .collection("users")
+      .doc(requesterId)
+      .get();
+    const requester = requesterSnapshot.data();
+
+    await firestore.runTransaction(async (transaction) => {
+      const [conversationSnapshot, messageSnapshot] = await Promise.all([
+        transaction.get(conversationRef),
+        transaction.get(messageRef),
+      ]);
+      const conversation = conversationSnapshot.data();
+      const message = messageSnapshot.data();
+      if (!conversationSnapshot.exists || !conversation) {
+        throw new HttpsError("not-found", "Conversation was not found.");
+      }
+      if (!messageSnapshot.exists || !message) {
+        throw new HttpsError("not-found", "Message was not found.");
+      }
+      if (!canAccessChatConversation(conversation, requesterId, requester)) {
+        throw new HttpsError(
+          "permission-denied",
+          "You do not have access to this conversation.",
+        );
+      }
+      if (readOptionalString(message.sender_id) !== requesterId) {
+        throw new HttpsError(
+          "permission-denied",
+          "You can only unsend your own messages.",
+        );
+      }
+
+      if (readOptionalString(message.type) === "unsent") {
+        return;
+      }
+
+      transaction.update(messageRef, {
+        type: "unsent",
+        text: FieldValue.delete(),
+        unsent_at: FieldValue.serverTimestamp(),
+        unsent_by: requesterId,
+      });
+
+      if (isCurrentConversationMessage(conversation, message, messageId)) {
+        transaction.update(conversationRef, {
+          last_message_text: FieldValue.delete(),
+          last_message_id: messageId,
+          last_message_type: "unsent",
+        });
+      }
+    });
+
+    return {conversation_id: conversationId, message_id: messageId};
+  },
+);
+
+export const deleteChatConversationForMe = onCall(
+  {
+    region: "asia-southeast1",
+  },
+  async (request) => {
+    const requesterId = request.auth?.uid;
+    if (!requesterId) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in to delete this conversation.",
+      );
+    }
+
+    const conversationId = readRequiredString(
+      request.data,
+      "conversation_id",
+    );
+    const conversationRef = firestore
+      .collection("conversations")
+      .doc(conversationId);
+    const requesterSnapshot = await firestore
+      .collection("users")
+      .doc(requesterId)
+      .get();
+    const requester = requesterSnapshot.data();
+
+    await firestore.runTransaction(async (transaction) => {
+      const conversationSnapshot = await transaction.get(conversationRef);
+      const conversation = conversationSnapshot.data();
+      if (!conversationSnapshot.exists || !conversation) {
+        throw new HttpsError("not-found", "Conversation was not found.");
+      }
+      if (!canAccessChatConversation(conversation, requesterId, requester)) {
+        throw new HttpsError(
+          "permission-denied",
+          "You do not have access to this conversation.",
+        );
+      }
+
+      const updates: Record<string, unknown> = {
+        [`deleted_at_by.${requesterId}`]: FieldValue.serverTimestamp(),
+        [`last_read_at.${requesterId}`]: FieldValue.serverTimestamp(),
+      };
+      if (readStringArray(conversation.participant_ids).includes(requesterId)) {
+        updates[`unread_counts.${requesterId}`] = 0;
+      }
+      transaction.update(conversationRef, updates);
+    });
+
+    return {conversation_id: conversationId};
+  },
+);
+
 export const payMongoWebhook = onRequest(
   {
     region: "asia-southeast1",
@@ -3650,6 +3778,44 @@ function readStringArray(value: unknown) {
   return value
     .map((item) => item?.toString().trim() ?? "")
     .filter((item) => item.length > 0);
+}
+
+function canAccessChatConversation(
+  conversation: Record<string, unknown>,
+  requesterId: string,
+  requester: Record<string, unknown> | undefined,
+) {
+  const conversationType = readOptionalString(conversation.type);
+  const participantIds = readStringArray(conversation.participant_ids);
+  if (
+    participantIds.includes(requesterId) &&
+    ["ride", "support", "admin_direct"].includes(conversationType ?? "")
+  ) {
+    return true;
+  }
+
+  return conversationType === "support" &&
+    requester !== undefined &&
+    isAdminStaff(requester);
+}
+
+function isCurrentConversationMessage(
+  conversation: Record<string, unknown>,
+  message: Record<string, unknown>,
+  messageId: string,
+) {
+  const currentMessageId = readOptionalString(conversation.last_message_id);
+  if (currentMessageId) {
+    return currentMessageId === messageId;
+  }
+
+  const conversationTimestamp = timestampFromUnknown(
+    conversation.last_message_at,
+  );
+  const messageTimestamp = timestampFromUnknown(message.created_at);
+  return conversationTimestamp !== undefined &&
+    messageTimestamp !== undefined &&
+    conversationTimestamp.isEqual(messageTimestamp);
 }
 
 function conversationActivityMillis(data: Record<string, unknown>) {

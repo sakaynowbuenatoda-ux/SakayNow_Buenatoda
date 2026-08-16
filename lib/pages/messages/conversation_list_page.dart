@@ -6,6 +6,8 @@ import '../../core/session/user_roles.dart';
 import '../../models/chat_conversation.dart';
 import '../../models/chat_participant_profile.dart';
 import '../../services/chat_service.dart';
+import '../../utils/user_facing_error_message.dart';
+import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/time_ago_text.dart';
@@ -39,6 +41,7 @@ class _ConversationListPageState extends State<ConversationListPage> {
   final Map<String, Future<ChatParticipantProfile?>> _profileFutures =
       <String, Future<ChatParticipantProfile?>>{};
   bool _isOpeningSupport = false;
+  final Set<String> _deletingConversationIds = <String>{};
   String _query = '';
 
   @override
@@ -160,6 +163,10 @@ class _ConversationListPageState extends State<ConversationListPage> {
                               targetUserId,
                             ),
                             onTap: () => _openConversation(conversation),
+                            isDeleting: _deletingConversationIds.contains(
+                              conversation.conversationId,
+                            ),
+                            onDelete: () => _deleteConversation(conversation),
                           ),
                         ],
                       );
@@ -234,6 +241,58 @@ class _ConversationListPageState extends State<ConversationListPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _deleteConversation(ChatConversation conversation) async {
+    final conversationId = conversation.conversationId;
+    if (_deletingConversationIds.contains(conversationId)) {
+      return;
+    }
+
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Delete conversation?',
+      message:
+          'This removes the conversation and its current message history only for you. It will reappear if a new message arrives.',
+      confirmLabel: 'Delete',
+      cancelLabel: 'Keep',
+      icon: Icons.delete_outline_rounded,
+      confirmColor: Colors.red.shade700,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    setState(() => _deletingConversationIds.add(conversationId));
+    try {
+      await _chatService.deleteConversationForMe(
+        conversationId: conversationId,
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Conversation deleted for you.')),
+      );
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback: 'Unable to delete this conversation. Try again.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _deletingConversationIds.remove(conversationId));
+      }
+    }
   }
 
   String _messageErrorDescription(Object? error) {
@@ -477,6 +536,8 @@ class _ConversationTile extends StatelessWidget {
   final String avatarIdentity;
   final Future<ChatParticipantProfile?>? targetProfileFuture;
   final VoidCallback onTap;
+  final bool isDeleting;
+  final VoidCallback onDelete;
 
   const _ConversationTile({
     required this.conversation,
@@ -485,6 +546,8 @@ class _ConversationTile extends StatelessWidget {
     required this.avatarIdentity,
     required this.targetProfileFuture,
     required this.onTap,
+    required this.isDeleting,
+    required this.onDelete,
   });
 
   @override
@@ -594,6 +657,34 @@ class _ConversationTile extends StatelessWidget {
                       const SizedBox(width: 8),
                       _UnreadCountBadge(unreadCount: unreadCount),
                     ],
+                    const SizedBox(width: 4),
+                    if (isDeleting)
+                      const SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: Padding(
+                          padding: EdgeInsets.all(8),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    else
+                      PopupMenuButton<String>(
+                        tooltip: 'Conversation actions',
+                        onSelected: (_) => onDelete(),
+                        itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                          PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Row(
+                              children: <Widget>[
+                                Icon(Icons.delete_outline_rounded),
+                                SizedBox(width: 10),
+                                Text('Delete conversation'),
+                              ],
+                            ),
+                          ),
+                        ],
+                        icon: const Icon(Icons.more_vert_rounded, size: 20),
+                      ),
                   ],
                 ),
               ],

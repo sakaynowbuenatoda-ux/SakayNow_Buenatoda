@@ -201,6 +201,25 @@ service cloud.firestore {
         );
     }
 
+    function conversationDeletionCutoff(conversationData) {
+      return conversationData
+        .get('deleted_at_by', {})
+        .get(request.auth.uid, null);
+    }
+
+    function canReadConversationMessage(conversationData, messageData) {
+      let cutoff = conversationDeletionCutoff(conversationData);
+      return signedIn()
+        && canReadConversation(conversationData)
+        && (
+          !(cutoff is timestamp)
+          || (
+            messageData.created_at is timestamp
+            && messageData.created_at > cutoff
+          )
+        );
+    }
+
     function isValidSupportConversationCreate(conversationId) {
       return request.resource.data.type == 'support'
         && request.resource.data.support_user_id is string
@@ -241,6 +260,14 @@ service cloud.firestore {
             && request.resource.data.get('booking_ids', [])
               == conversationData.get('booking_ids', [])
           )
+        )
+        && request.resource.data.get('deleted_at_by', {})
+          == conversationData.get('deleted_at_by', {})
+        && (
+          !request.resource.data.diff(conversationData)
+            .affectedKeys()
+            .hasAny(['last_message_type'])
+          || request.resource.data.last_message_type == 'text'
         );
     }
 
@@ -1396,6 +1423,7 @@ service cloud.firestore {
         && request.resource.data.conversation_id == conversationId
         && request.resource.data.type == 'support'
         && request.resource.data.participant_ids is list
+        && !request.resource.data.keys().hasAny(['deleted_at_by'])
         && isValidSupportConversationCreate(conversationId)
         && (
           (
@@ -1416,20 +1444,22 @@ service cloud.firestore {
           return get(/databases/$(database)/documents/conversations/$(conversationId)).data;
         }
 
-        allow read: if canReadConversation(parentConversation());
+        allow get: if canReadConversationMessage(
+          parentConversation(),
+          resource.data
+        );
+        allow list: if canReadConversation(parentConversation());
         allow create: if signedIn()
           && request.resource.data.message_id == messageId
           && request.resource.data.conversation_id == conversationId
           && request.resource.data.sender_id == request.auth.uid
+          && request.resource.data.type == 'text'
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 1000
+          && !request.resource.data.keys().hasAny(['unsent_at', 'unsent_by'])
           && canWriteConversation(parentConversation());
-        allow update, delete: if isAdmin()
-          && (
-            !isAdminDirectConversation(parentConversation())
-            || isConversationParticipant(parentConversation())
-          );
+        allow update, delete: if false;
       }
     }
 

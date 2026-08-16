@@ -11,6 +11,7 @@ import '../../models/chat_quick_replies.dart';
 import '../../services/chat_service.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/chat_quick_reply_bar.dart';
+import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/time_ago_text.dart';
@@ -24,6 +25,7 @@ class ChatPage extends StatefulWidget {
   final String subtitle;
   final bool embedded;
   final VoidCallback? onClose;
+  final ChatService? chatService;
 
   const ChatPage({
     super.key,
@@ -34,6 +36,7 @@ class ChatPage extends StatefulWidget {
     required this.subtitle,
     this.embedded = false,
     this.onClose,
+    this.chatService,
   });
 
   @override
@@ -41,7 +44,7 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
-  final ChatService _chatService = ChatService();
+  late final ChatService _chatService;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final Map<String, Future<ChatParticipantProfile?>> _profileFutures =
@@ -52,11 +55,14 @@ class _ChatPageState extends State<ChatPage> {
   int _pendingMessageSequence = 0;
   bool _isSending = false;
   bool _isMarkingRead = false;
+  bool _isDeletingConversation = false;
   bool _hasText = false;
+  final Set<String> _unsendingMessageIds = <String>{};
 
   @override
   void initState() {
     super.initState();
+    _chatService = widget.chatService ?? ChatService();
     _messageController.addListener(_handleMessageTextChanged);
     unawaited(_markConversationRead());
   }
@@ -75,6 +81,9 @@ class _ChatPageState extends State<ChatPage> {
       stream: _chatService.watchConversation(widget.conversationId),
       builder: (context, conversationSnapshot) {
         final conversation = conversationSnapshot.data;
+        final conversationLoading =
+            conversationSnapshot.connectionState == ConnectionState.waiting &&
+            !conversationSnapshot.hasData;
         final targetWithoutProfile = _targetFor(conversation, null);
         final cachedProfile = _cachedProfileFor(targetWithoutProfile.userId);
 
@@ -82,6 +91,7 @@ class _ChatPageState extends State<ChatPage> {
           return _buildChatScaffold(
             conversation: conversation,
             target: _targetFor(conversation, cachedProfile),
+            conversationLoading: conversationLoading,
           );
         }
 
@@ -93,6 +103,7 @@ class _ChatPageState extends State<ChatPage> {
             return _buildChatScaffold(
               conversation: conversation,
               target: target,
+              conversationLoading: conversationLoading,
             );
           },
         );
@@ -103,6 +114,7 @@ class _ChatPageState extends State<ChatPage> {
   Widget _buildChatScaffold({
     required ChatConversation? conversation,
     required _ChatTarget target,
+    required bool conversationLoading,
   }) {
     final chatContent = Column(
       children: <Widget>[
@@ -112,6 +124,7 @@ class _ChatPageState extends State<ChatPage> {
             conversationId: widget.conversationId,
             currentUserId: widget.currentUserId,
             conversation: conversation,
+            conversationLoading: conversationLoading,
             target: target,
             pendingMessages: List<_PendingChatMessage>.unmodifiable(
               _pendingMessages,
@@ -122,6 +135,8 @@ class _ChatPageState extends State<ChatPage> {
               _scrollToBottom();
               unawaited(_markConversationRead());
             },
+            unsendingMessageIds: _unsendingMessageIds,
+            onUnsend: _confirmAndUnsendMessage,
           ),
         ),
         _MessageComposer(
@@ -160,6 +175,10 @@ class _ChatPageState extends State<ChatPage> {
                     ),
                   ),
                   const SizedBox(width: 8),
+                  _ConversationActionsButton(
+                    isDeleting: _isDeletingConversation,
+                    onDelete: _deleteConversation,
+                  ),
                   IconButton(
                     onPressed: widget.onClose,
                     tooltip: 'Close conversation',
@@ -188,6 +207,13 @@ class _ChatPageState extends State<ChatPage> {
         surfaceTintColor: PassengerUi.background,
         titleSpacing: 0,
         title: _ChatHeader(target: target, onTap: _profileTapFor(target)),
+        actions: <Widget>[
+          _ConversationActionsButton(
+            isDeleting: _isDeletingConversation,
+            onDelete: _deleteConversation,
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -304,6 +330,110 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _sendMessage() {
     return _sendMessageText(_messageController.text, clearComposer: true);
+  }
+
+  Future<void> _confirmAndUnsendMessage(ChatMessage message) async {
+    if (message.isUnsent ||
+        !message.isMine(widget.currentUserId) ||
+        _unsendingMessageIds.contains(message.messageId)) {
+      return;
+    }
+
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Unsend message?',
+      message:
+          'This message will be removed for everyone. They will see that a message was unsent.',
+      confirmLabel: 'Unsend',
+      cancelLabel: 'Keep',
+      icon: Icons.undo_rounded,
+      confirmColor: Colors.red.shade700,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    setState(() => _unsendingMessageIds.add(message.messageId));
+    try {
+      await _chatService.unsendMessage(
+        conversationId: widget.conversationId,
+        messageId: message.messageId,
+      );
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback: 'Unable to unsend this message. Try again.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _unsendingMessageIds.remove(message.messageId));
+      }
+    }
+  }
+
+  Future<void> _deleteConversation() async {
+    if (_isDeletingConversation) {
+      return;
+    }
+
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Delete conversation?',
+      message:
+          'This removes the conversation and its current message history only for you. It will reappear if a new message arrives.',
+      confirmLabel: 'Delete',
+      cancelLabel: 'Keep',
+      icon: Icons.delete_outline_rounded,
+      confirmColor: Colors.red.shade700,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    setState(() => _isDeletingConversation = true);
+    try {
+      await _chatService.deleteConversationForMe(
+        conversationId: widget.conversationId,
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Conversation deleted for you.')),
+      );
+      if (widget.embedded) {
+        widget.onClose?.call();
+      } else if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    } on Exception catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingErrorMessage(
+              error,
+              fallback: 'Unable to delete this conversation. Try again.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isDeletingConversation = false);
+      }
+    }
   }
 
   void _sendQuickReply(String message) {
@@ -518,28 +648,41 @@ class _MessageList extends StatelessWidget {
   final String conversationId;
   final String currentUserId;
   final ChatConversation? conversation;
+  final bool conversationLoading;
   final _ChatTarget target;
   final List<_PendingChatMessage> pendingMessages;
   final ValueChanged<Set<String>> onPendingMessagesConfirmed;
   final ScrollController scrollController;
   final VoidCallback onMessagesRendered;
+  final Set<String> unsendingMessageIds;
+  final ValueChanged<ChatMessage> onUnsend;
 
   const _MessageList({
     required this.chatService,
     required this.conversationId,
     required this.currentUserId,
     required this.conversation,
+    required this.conversationLoading,
     required this.target,
     required this.pendingMessages,
     required this.onPendingMessagesConfirmed,
     required this.scrollController,
     required this.onMessagesRendered,
+    required this.unsendingMessageIds,
+    required this.onUnsend,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (conversationLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return StreamBuilder<List<ChatMessage>>(
-      stream: chatService.watchMessages(conversationId),
+      stream: chatService.watchMessages(
+        conversationId,
+        visibleAfter: conversation?.deletedAtFor(currentUserId),
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData &&
@@ -629,6 +772,11 @@ class _MessageList extends StatelessWidget {
                       conversation: conversation,
                       target: target,
                     )
+                  : null,
+              isUnsent: message.isUnsent,
+              isUnsending: unsendingMessageIds.contains(message.messageId),
+              onUnsend: isMine && !message.isUnsent
+                  ? () => onUnsend(message)
                   : null,
             );
           },
@@ -738,6 +886,48 @@ class _ChatHeader extends StatelessWidget {
   }
 }
 
+class _ConversationActionsButton extends StatelessWidget {
+  final bool isDeleting;
+  final VoidCallback onDelete;
+
+  const _ConversationActionsButton({
+    required this.isDeleting,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isDeleting) {
+      return const SizedBox(
+        width: 48,
+        height: 48,
+        child: Padding(
+          padding: EdgeInsets.all(14),
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    return PopupMenuButton<String>(
+      tooltip: 'Conversation actions',
+      onSelected: (_) => onDelete(),
+      itemBuilder: (_) => const <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.delete_outline_rounded),
+              SizedBox(width: 10),
+              Text('Delete conversation'),
+            ],
+          ),
+        ),
+      ],
+      icon: const Icon(Icons.more_vert_rounded),
+    );
+  }
+}
+
 class _EmptyConversation extends StatelessWidget {
   final _ChatTarget target;
 
@@ -786,6 +976,9 @@ class _MessageBubble extends StatelessWidget {
   final bool isMine;
   final _ChatTarget target;
   final _MessageStatus? status;
+  final bool isUnsent;
+  final bool isUnsending;
+  final VoidCallback? onUnsend;
 
   const _MessageBubble({
     super.key,
@@ -794,10 +987,17 @@ class _MessageBubble extends StatelessWidget {
     required this.isMine,
     required this.target,
     required this.status,
+    this.isUnsent = false,
+    this.isUnsending = false,
+    this.onUnsend,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (isUnsent) {
+      return _UnsentMessageIndicator(isMine: isMine, createdAt: createdAt);
+    }
+
     final backgroundColor = isMine ? PassengerUi.dark : PassengerUi.surface;
     final foregroundColor = isMine ? Colors.white : PassengerUi.title;
     final detailColor = isMine
@@ -848,10 +1048,55 @@ class _MessageBubble extends StatelessWidget {
       },
     );
 
+    final interactiveBubble = GestureDetector(
+      onLongPress: isUnsending ? null : onUnsend,
+      child: bubble,
+    );
+
     if (isMine) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
-        child: Align(alignment: Alignment.centerRight, child: bubble),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: <Widget>[
+            if (onUnsend != null) ...<Widget>[
+              if (isUnsending)
+                const SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Padding(
+                    padding: EdgeInsets.all(9),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                PopupMenuButton<String>(
+                  tooltip: 'Message actions',
+                  onSelected: (_) => onUnsend?.call(),
+                  itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                    PopupMenuItem<String>(
+                      value: 'unsend',
+                      child: Row(
+                        children: <Widget>[
+                          Icon(Icons.undo_rounded),
+                          SizedBox(width: 10),
+                          Text('Unsend message'),
+                        ],
+                      ),
+                    ),
+                  ],
+                  icon: Icon(
+                    Icons.more_horiz_rounded,
+                    color: PassengerUi.body,
+                    size: 20,
+                  ),
+                ),
+              const SizedBox(width: 2),
+            ],
+            Flexible(child: interactiveBubble),
+          ],
+        ),
       );
     }
 
@@ -862,8 +1107,59 @@ class _MessageBubble extends StatelessWidget {
         children: <Widget>[
           _ChatAvatar(target: target, size: 30),
           const SizedBox(width: 8),
-          Flexible(child: bubble),
+          Flexible(child: interactiveBubble),
         ],
+      ),
+    );
+  }
+}
+
+class _UnsentMessageIndicator extends StatelessWidget {
+  final bool isMine;
+  final DateTime? createdAt;
+
+  const _UnsentMessageIndicator({
+    required this.isMine,
+    required this.createdAt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Align(
+        alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: PassengerUi.mutedSurface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: PassengerUi.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(Icons.undo_rounded, size: 15, color: PassengerUi.body),
+              const SizedBox(width: 6),
+              Text(
+                isMine ? 'You unsent a message' : 'Unsent a message',
+                style: PassengerUi.bodyText.copyWith(
+                  color: PassengerUi.body,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                TimeAgo.format(createdAt),
+                style: PassengerUi.bodyText.copyWith(
+                  color: PassengerUi.body,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

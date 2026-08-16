@@ -10,17 +10,26 @@ class DriverLeaderboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = PassengerUi.isDarkMode;
+    final appBarBackground = isDarkMode
+        ? const Color(0xFFF3F4F6)
+        : Colors.black;
+    final appBarForeground = isDarkMode ? Colors.black : Colors.white;
+
     return Scaffold(
       backgroundColor: PassengerUi.background,
       appBar: AppBar(
-        backgroundColor: PassengerUi.background,
-        foregroundColor: PassengerUi.title,
+        backgroundColor: appBarBackground,
+        foregroundColor: appBarForeground,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         title: Text(
           'Leaderboard',
-          style: PassengerUi.cardTitle.copyWith(fontWeight: FontWeight.w700),
+          style: PassengerUi.cardTitle.copyWith(
+            color: appBarForeground,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       body: PassengerPageContainer(

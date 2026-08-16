@@ -169,6 +169,65 @@ test("legacy passengers can upload and submit their verification documents", asy
   );
 });
 
+test("existing drivers can submit vehicle details and owner-scoped photos", async () => {
+  const driver = environment.authenticatedContext("driver-1");
+  const storage = driver.storage();
+  const firestore = driver.firestore();
+  const frontPath =
+    "users/driver-1/vehicle_photos/tricycle_front_1000.jpg";
+  const backPath = "users/driver-1/vehicle_photos/tricycle_back_1000.jpg";
+
+  for (const photoPath of [frontPath, backPath]) {
+    await assertSucceeds(
+      uploadBytes(ref(storage, photoPath), new Uint8Array([1, 2, 3]), {
+        contentType: "image/jpeg",
+      }),
+    );
+  }
+
+  const outsider = environment.authenticatedContext("passenger-1");
+  await assertFails(
+    uploadBytes(
+      ref(
+        outsider.storage(),
+        "users/driver-1/vehicle_photos/tricycle_front_2000.jpg",
+      ),
+      new Uint8Array([4, 5, 6]),
+      {contentType: "image/jpeg"},
+    ),
+  );
+
+  await assertSucceeds(
+    updateDoc(doc(firestore, "users", "driver-1"), {
+      vehicle_type: "Traditional Tricycle",
+      tricycle_color: "Blue",
+      plate_number: "BUENA-101",
+      tricycle_front_url: "https://example.com/front.jpg",
+      tricycle_front_path: frontPath,
+      tricycle_back_url: "https://example.com/back.jpg",
+      tricycle_back_path: backPath,
+      vehicle_details_updated_at: serverTimestamp(),
+      is_verified: false,
+      isVerified: false,
+      isVerrified: false,
+      is_active: false,
+      isActive: false,
+      updated_at: serverTimestamp(),
+    }),
+  );
+
+  await assertSucceeds(getBytes(ref(outsider.storage(), frontPath)));
+  await assertFails(
+    updateDoc(doc(firestore, "users", "driver-1"), {
+      plate_number: "SPOOFED-1",
+      vehicle_details_updated_at: serverTimestamp(),
+      is_verified: true,
+      is_active: true,
+      updated_at: serverTimestamp(),
+    }),
+  );
+});
+
 test("admin-direct threads are restricted to active participants", async () => {
   const conversationPath = "conversations/admin_direct_admin-1_admin-2";
   for (const userId of ["admin-1", "admin-2"]) {

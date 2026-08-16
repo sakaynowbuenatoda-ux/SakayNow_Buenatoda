@@ -4,32 +4,29 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/auth/registration_service.dart';
 import '../../models/driver_document_status.dart';
-import '../../models/driver_payout_account.dart';
 import '../../services/driver_credential_service.dart';
-import '../../services/driver_payout_account_service.dart';
 import '../../services/driver_renewal_service.dart';
+import '../../services/driver_vehicle_service.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/registration_image_preview.dart';
-import 'driver_payout_accounts_page.dart';
 
 class DriverInfoHubPage extends StatefulWidget {
   final String driverId;
   final DriverRenewalService renewalService;
   final DriverCredentialService credentialService;
-  final DriverPayoutAccountService payoutAccountService;
+  final DriverVehicleService vehicleService;
 
   DriverInfoHubPage({
     super.key,
     required this.driverId,
     DriverRenewalService? renewalService,
     DriverCredentialService? credentialService,
-    DriverPayoutAccountService? payoutAccountService,
+    DriverVehicleService? vehicleService,
   }) : renewalService = renewalService ?? DriverRenewalService(),
        credentialService = credentialService ?? DriverCredentialService(),
-       payoutAccountService =
-           payoutAccountService ?? DriverPayoutAccountService();
+       vehicleService = vehicleService ?? DriverVehicleService();
 
   @override
   State<DriverInfoHubPage> createState() => _DriverInfoHubPageState();
@@ -45,7 +42,7 @@ class _DriverInfoHubPageState extends State<DriverInfoHubPage> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,
+      length: 4,
       child: Scaffold(
         backgroundColor: PassengerUi.background,
         appBar: AppBar(
@@ -63,7 +60,6 @@ class _DriverInfoHubPageState extends State<DriverInfoHubPage> {
               Tab(text: 'Basic Info'),
               Tab(text: 'Requirements'),
               Tab(text: 'Vehicle Details'),
-              Tab(text: 'Payout Reference'),
               Tab(text: 'Renewal Status'),
             ],
           ),
@@ -108,10 +104,10 @@ class _DriverInfoHubPageState extends State<DriverInfoHubPage> {
                   profile: profile,
                   service: widget.credentialService,
                 ),
-                _VehicleDetailsTab(profile: profile),
-                _PayoutReferenceTab(
+                _VehicleDetailsTab(
                   driverId: widget.driverId,
-                  service: widget.payoutAccountService,
+                  profile: profile,
+                  service: widget.vehicleService,
                 ),
                 _buildRenewalTab(profile),
               ],
@@ -809,139 +805,444 @@ class _EditableCredentialCardState extends State<_EditableCredentialCard> {
   }
 }
 
-class _VehicleDetailsTab extends StatelessWidget {
+class _VehicleDetailsTab extends StatefulWidget {
+  final String driverId;
   final _DriverHubProfile profile;
+  final DriverVehicleService service;
 
-  const _VehicleDetailsTab({required this.profile});
+  const _VehicleDetailsTab({
+    required this.driverId,
+    required this.profile,
+    required this.service,
+  });
+
+  @override
+  State<_VehicleDetailsTab> createState() => _VehicleDetailsTabState();
+}
+
+class _VehicleDetailsTabState extends State<_VehicleDetailsTab> {
+  static const List<String> _standardVehicleTypes = <String>[
+    'Traditional Tricycle',
+    'E-Tricycle (Bao-bao)',
+    'Motorela / Custom',
+  ];
+
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final ImagePicker _imagePicker = ImagePicker();
+  final TextEditingController _colorController = TextEditingController();
+  final TextEditingController _plateController = TextEditingController();
+
+  late String _vehicleType;
+  RegistrationImageSelection? _frontPhoto;
+  RegistrationImageSelection? _backPhoto;
+  bool _isEditing = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetEditor();
+  }
+
+  @override
+  void didUpdateWidget(covariant _VehicleDetailsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_isEditing && oldWidget.profile != widget.profile) {
+      _resetEditor();
+    }
+  }
+
+  @override
+  void dispose() {
+    _colorController.dispose();
+    _plateController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final profile = widget.profile;
     return _HubTabPage(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           PassengerPageHeader(
             title: 'Vehicle Details',
-            subtitle: 'The identification passengers see for assigned rides.',
+            subtitle:
+                'Add missing vehicle information or update what passengers see. Changes are sent to admins for verification.',
             icon: Icons.local_taxi_rounded,
             accentColor: PassengerUi.secondary,
             showIcon: false,
           ),
           const SizedBox(height: 16),
+          if (_isEditing) _buildEditor() else _buildDetails(profile),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetails(_DriverHubProfile profile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        PassengerSurfaceCard(
+          child: Column(
+            children: <Widget>[
+              _HubValueRow(label: 'Vehicle type', value: profile.vehicleType),
+              _HubValueRow(
+                label: 'Tricycle color',
+                value: profile.tricycleColor,
+              ),
+              _HubValueRow(
+                label: 'Plate / Franchise No.',
+                value: profile.plateNumber,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _HubDocumentCard(
+          label: 'Front tricycle photo',
+          imageUrl: profile.tricycleFrontUrl,
+        ),
+        const SizedBox(height: 12),
+        _HubDocumentCard(
+          label: 'Back tricycle photo',
+          imageUrl: profile.tricycleBackUrl,
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            key: const Key('vehicle-details-action'),
+            onPressed: _isSaving
+                ? null
+                : () => setState(() => _isEditing = true),
+            icon: Icon(
+              _hasCompleteVehicleDetails(profile)
+                  ? Icons.edit_outlined
+                  : Icons.add_rounded,
+            ),
+            label: Text(
+              _hasCompleteVehicleDetails(profile)
+                  ? 'Update vehicle details'
+                  : 'Add vehicle details',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEditor() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
           PassengerSurfaceCard(
             child: Column(
               children: <Widget>[
-                _HubValueRow(label: 'Vehicle type', value: profile.vehicleType),
-                _HubValueRow(
-                  label: 'Tricycle color',
-                  value: profile.tricycleColor,
+                DropdownButtonFormField<String>(
+                  key: const Key('vehicle-type-field'),
+                  value: _vehicleType,
+                  decoration: const InputDecoration(
+                    labelText: 'Vehicle type',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _availableVehicleTypes
+                      .map(
+                        (type) => DropdownMenuItem<String>(
+                          value: type,
+                          child: Text(type),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: _isSaving
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => _vehicleType = value);
+                          }
+                        },
+                  validator: (value) => _required(value, 'Vehicle type'),
                 ),
-                _HubValueRow(
-                  label: 'Plate / Franchise No.',
-                  value: profile.plateNumber,
+                const SizedBox(height: 14),
+                TextFormField(
+                  key: const Key('tricycle-color-field'),
+                  controller: _colorController,
+                  enabled: !_isSaving,
+                  maxLength: 50,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: 'Tricycle color',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => _required(value, 'Tricycle color'),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 4),
+                TextFormField(
+                  key: const Key('plate-number-field'),
+                  controller: _plateController,
+                  enabled: !_isSaving,
+                  maxLength: 50,
+                  textCapitalization: TextCapitalization.characters,
+                  textInputAction: TextInputAction.done,
+                  decoration: const InputDecoration(
+                    labelText: 'Plate / Franchise No.',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) =>
+                      _required(value, 'Plate / Franchise No.'),
+                  onChanged: (_) => setState(() {}),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          _HubDocumentCard(
+          _buildPhotoEditor(
             label: 'Front tricycle photo',
-            imageUrl: profile.tricycleFrontUrl,
+            existingUrl: widget.profile.tricycleFrontUrl,
+            selection: _frontPhoto,
+            keyName: 'front',
+            onPick: () => _pickPhoto(isFront: true),
           ),
           const SizedBox(height: 12),
-          _HubDocumentCard(
+          _buildPhotoEditor(
             label: 'Back tricycle photo',
-            imageUrl: profile.tricycleBackUrl,
+            existingUrl: widget.profile.tricycleBackUrl,
+            selection: _backPhoto,
+            keyName: 'back',
+            onPick: () => _pickPhoto(isFront: false),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Saving vehicle changes takes your account offline until an admin verifies the updated details.',
+            style: PassengerUi.bodyText,
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isSaving ? null : _cancelEditing,
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  key: const Key('vehicle-details-submit'),
+                  onPressed: _canSave ? _saveVehicleDetails : null,
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(_isSaving ? 'Saving' : 'Save'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
-}
 
-class _PayoutReferenceTab extends StatelessWidget {
-  final String driverId;
-  final DriverPayoutAccountService service;
-
-  const _PayoutReferenceTab({required this.driverId, required this.service});
-
-  @override
-  Widget build(BuildContext context) {
-    return _HubTabPage(
+  Widget _buildPhotoEditor({
+    required String label,
+    required String? existingUrl,
+    required RegistrationImageSelection? selection,
+    required String keyName,
+    required VoidCallback onPick,
+  }) {
+    return PassengerSurfaceCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          PassengerPageHeader(
-            title: 'Payout Reference',
-            subtitle: 'Accounts used for online ride payouts.',
-            icon: Icons.payments_rounded,
-            accentColor: PassengerUi.accentBlue,
-            showIcon: false,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Text(label, style: PassengerUi.cardTitle),
           ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => DriverPayoutAccountsPage(driverId: driverId),
+          if (selection != null)
+            RegistrationImagePreview(selection: selection, height: 180)
+          else
+            SizedBox(
+              width: double.infinity,
+              height: 180,
+              child: FirebaseStorageImage(
+                imageUrl: existingUrl,
+                fit: BoxFit.cover,
+                fallback: Container(
+                  color: PassengerUi.mutedSurface,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.add_photo_alternate_outlined,
+                        color: PassengerUi.body,
+                      ),
+                      const SizedBox(height: 6),
+                      Text('No photo uploaded', style: PassengerUi.bodyText),
+                    ],
+                  ),
                 ),
               ),
-              icon: const Icon(Icons.settings_outlined, size: 18),
-              label: const Text('Manage payout accounts'),
             ),
-          ),
-          const SizedBox(height: 16),
-          StreamBuilder<List<DriverPayoutAccount>>(
-            stream: service.watchPayoutAccounts(driverId),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData && !snapshot.hasError) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return const PassengerEmptyState(
-                  icon: Icons.error_outline_rounded,
-                  title: 'Unable to load payout references',
-                  description: 'Open Manage to try again.',
-                );
-              }
-              final accounts = snapshot.data ?? const <DriverPayoutAccount>[];
-              if (accounts.isEmpty) {
-                return const PassengerEmptyState(
-                  icon: Icons.account_balance_outlined,
-                  title: 'No payout reference yet',
-                  description:
-                      'Use Manage to add GCash, Maya, or a bank account.',
-                );
-              }
-              return Column(
-                children: accounts
-                    .map(
-                      (account) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: PassengerSurfaceCard(
-                          child: ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(
-                              account.type.icon,
-                              color: PassengerUi.dark,
-                            ),
-                            title: Text(account.displayLabel),
-                            subtitle: Text(account.accountLabel),
-                            trailing: account.isDefault
-                                ? const Icon(Icons.check_circle_rounded)
-                                : null,
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(growable: false),
-              );
-            },
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                key: Key('vehicle-$keyName-photo-picker'),
+                onPressed: _isSaving ? null : onPick,
+                icon: const Icon(Icons.upload_file_rounded),
+                label: Text(
+                  selection != null || _hasValue(existingUrl)
+                      ? 'Replace photo'
+                      : 'Choose photo',
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+
+  Future<void> _pickPhoto({required bool isFront}) async {
+    try {
+      final file = await _imagePicker.pickImage(source: ImageSource.gallery);
+      if (file == null) return;
+      final selection = await RegistrationImageSelection.fromXFile(file);
+      if (!mounted) return;
+      setState(() {
+        if (isFront) {
+          _frontPhoto = selection;
+        } else {
+          _backPhoto = selection;
+        }
+      });
+    } on PlatformException {
+      _showMessage('Unable to open the gallery. Check app permissions.');
+    } on RegistrationImageSelectionException catch (error) {
+      _showMessage(error.message);
+    } catch (_) {
+      _showMessage('Unable to read that image. Please choose another file.');
+    }
+  }
+
+  Future<void> _saveVehicleDetails() async {
+    if (_isSaving || !(_formKey.currentState?.validate() ?? false)) return;
+    if (!_hasEffectivePhotos) {
+      _showMessage('Choose clear front and back tricycle photos.');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      await widget.service.saveVehicleDetails(
+        driverId: widget.driverId,
+        vehicleType: _vehicleType,
+        tricycleColor: _colorController.text,
+        plateNumber: _plateController.text,
+        existingFrontUrl: widget.profile.tricycleFrontUrl,
+        existingBackUrl: widget.profile.tricycleBackUrl,
+        frontPhoto: _frontPhoto,
+        backPhoto: _backPhoto,
+      );
+      if (!mounted) return;
+      setState(() {
+        _frontPhoto = null;
+        _backPhoto = null;
+        _isEditing = false;
+      });
+      _showMessage('Vehicle details saved and sent for admin verification.');
+    } on DriverVehicleUpdateException catch (error) {
+      _showMessage(error.message);
+    } catch (error) {
+      _showMessage(
+        userFacingErrorMessage(
+          error,
+          fallback: 'Unable to save vehicle details. Please try again.',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _isEditing = false;
+      _frontPhoto = null;
+      _backPhoto = null;
+      _resetEditor();
+    });
+  }
+
+  void _resetEditor() {
+    final existingType = widget.profile.vehicleType.trim();
+    _vehicleType = existingType.isEmpty
+        ? _standardVehicleTypes.first
+        : existingType;
+    _colorController.text = widget.profile.tricycleColor;
+    _plateController.text = widget.profile.plateNumber;
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  List<String> get _availableVehicleTypes {
+    if (_standardVehicleTypes.contains(_vehicleType)) {
+      return _standardVehicleTypes;
+    }
+    return <String>[..._standardVehicleTypes, _vehicleType];
+  }
+
+  bool get _hasEffectivePhotos =>
+      (_frontPhoto != null || _hasValue(widget.profile.tricycleFrontUrl)) &&
+      (_backPhoto != null || _hasValue(widget.profile.tricycleBackUrl));
+
+  bool get _hasChanges =>
+      _frontPhoto != null ||
+      _backPhoto != null ||
+      _vehicleType.trim() != widget.profile.vehicleType.trim() ||
+      _colorController.text.trim() != widget.profile.tricycleColor.trim() ||
+      _plateController.text.trim() != widget.profile.plateNumber.trim();
+
+  bool get _canSave =>
+      !_isSaving &&
+      _vehicleType.trim().isNotEmpty &&
+      _colorController.text.trim().isNotEmpty &&
+      _plateController.text.trim().isNotEmpty &&
+      _hasEffectivePhotos &&
+      _hasChanges;
+
+  static bool _hasCompleteVehicleDetails(_DriverHubProfile profile) =>
+      profile.vehicleType.trim().isNotEmpty &&
+      profile.tricycleColor.trim().isNotEmpty &&
+      profile.plateNumber.trim().isNotEmpty &&
+      _hasValue(profile.tricycleFrontUrl) &&
+      _hasValue(profile.tricycleBackUrl);
+
+  static bool _hasValue(String? value) => value?.trim().isNotEmpty == true;
+
+  static String? _required(String? value, String label) =>
+      value?.trim().isEmpty ?? true ? '$label is required' : null;
 }
 
 class _HubTabPage extends StatelessWidget {

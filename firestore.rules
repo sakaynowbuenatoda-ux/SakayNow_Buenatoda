@@ -457,6 +457,96 @@ service cloud.firestore {
         && request.resource.data.updated_at == request.time;
     }
 
+    function driverVehicleUpdateFields() {
+      return [
+        'vehicle_type',
+        'tricycle_color',
+        'plate_number',
+        'tricycle_front_url',
+        'tricycle_front_path',
+        'tricycle_back_url',
+        'tricycle_back_path',
+        'vehicle_details_updated_at',
+        'is_verified',
+        'isVerified',
+        'isVerrified',
+        'is_active',
+        'isActive',
+        'updated_at'
+      ];
+    }
+
+    function isValidVehicleImageChange(
+      userId,
+      affectedKeys,
+      urlField,
+      pathField,
+      photoName
+    ) {
+      return !affectedKeys.hasAny([urlField, pathField])
+        || (
+          affectedKeys.hasAll([urlField, pathField])
+          && request.resource.data[urlField] is string
+          && request.resource.data[urlField].size() > 0
+          && request.resource.data[urlField].size() <= 2048
+          && request.resource.data[pathField] is string
+          && request.resource.data[pathField].matches(
+            'users/' + userId + '/vehicle_photos/' + photoName + '_[^/]+'
+          )
+        );
+    }
+
+    function isValidDriverVehicleUpdate(userId) {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return isSelf(userId)
+        && isDriverRole(resource.data)
+        && affectedKeys.hasOnly(driverVehicleUpdateFields())
+        && affectedKeys.hasAny([
+          'vehicle_type',
+          'tricycle_color',
+          'plate_number',
+          'tricycle_front_url',
+          'tricycle_back_url'
+        ])
+        && request.resource.data.vehicle_type is string
+        && request.resource.data.vehicle_type.size() > 0
+        && request.resource.data.vehicle_type.size() <= 80
+        && request.resource.data.tricycle_color is string
+        && request.resource.data.tricycle_color.size() > 0
+        && request.resource.data.tricycle_color.size() <= 50
+        && request.resource.data.plate_number is string
+        && request.resource.data.plate_number.size() > 0
+        && request.resource.data.plate_number.size() <= 50
+        && request.resource.data.tricycle_front_url is string
+        && request.resource.data.tricycle_front_url.size() > 0
+        && request.resource.data.tricycle_front_url.size() <= 2048
+        && request.resource.data.tricycle_back_url is string
+        && request.resource.data.tricycle_back_url.size() > 0
+        && request.resource.data.tricycle_back_url.size() <= 2048
+        && isValidVehicleImageChange(
+          userId,
+          affectedKeys,
+          'tricycle_front_url',
+          'tricycle_front_path',
+          'tricycle_front'
+        )
+        && isValidVehicleImageChange(
+          userId,
+          affectedKeys,
+          'tricycle_back_url',
+          'tricycle_back_path',
+          'tricycle_back'
+        )
+        && request.resource.data.vehicle_details_updated_at == request.time
+        && request.resource.data.is_verified == false
+        && request.resource.data.get('isVerified', false) == false
+        && request.resource.data.get('isVerrified', false) == false
+        && request.resource.data.is_active == false
+        && request.resource.data.get('isActive', false) == false
+        && request.resource.data.updated_at == request.time
+        && hasNoRatingAggregateChanges();
+    }
+
     function driverRenewalSubmissionFields() {
       return [
         'renewal_status',
@@ -471,6 +561,17 @@ service cloud.firestore {
 
     function driverDocumentAdminFields() {
       return [
+        'vehicle_type',
+        'tricycle_color',
+        'plate_number',
+        'tricycle_front_url',
+        'tricycle_front_path',
+        'tricycle_back_url',
+        'tricycle_back_path',
+        'vehicle_details_updated_at',
+        'isVerified',
+        'isVerrified',
+        'isActive',
         'nbi_clearance_url',
         'nbi_clearance_path',
         'drivers_license_url',
@@ -1217,6 +1318,8 @@ service cloud.firestore {
             && isPassengerRole(resource.data)
             && isVerifiedDriver()
         );
+      allow update: if !isAdminRole(resource.data)
+        && isValidDriverVehicleUpdate(userId);
       allow update: if !isAdminRole(resource.data)
         && isValidPassengerDocumentUpload(userId);
       allow update: if !isAdminRole(resource.data)

@@ -91,7 +91,7 @@ class _SettingsPageState extends State<SettingsPage> {
         SettingsTileData(
           title: 'Driver Info & Renewal',
           subtitle:
-              'Review your requirements, vehicle, payout reference, and document renewal status.',
+              'Review your requirements, vehicle, and document renewal status.',
           icon: Icons.badge_outlined,
           accentColor: PassengerUi.primary,
           isEnabled: canOpenProfile,

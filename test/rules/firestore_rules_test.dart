@@ -217,6 +217,24 @@ void main() {
       expect(rules, contains('&& isValidDriverPayoutSyncUpdate(userId);'));
     });
 
+    test('allow narrow owner vehicle detail and photo updates', () {
+      expect(rules, contains('function driverVehicleUpdateFields()'));
+      expect(rules, contains('function isValidVehicleImageChange('));
+      expect(rules, contains('function isValidDriverVehicleUpdate(userId)'));
+      expect(rules, contains("'tricycle_front_path'"));
+      expect(rules, contains("'tricycle_back_path'"));
+      expect(rules, contains("'/vehicle_photos/' + photoName + '_[^/]+'"));
+      expect(
+        rules,
+        contains(
+          'request.resource.data.vehicle_details_updated_at == request.time',
+        ),
+      );
+      expect(rules, contains('request.resource.data.is_verified == false'));
+      expect(rules, contains('request.resource.data.is_active == false'));
+      expect(rules, contains('&& isValidDriverVehicleUpdate(userId);'));
+    });
+
     test('allow driver-owned payout account default toggles', () {
       expect(rules, contains('match /payout_accounts/{accountId}'));
       expect(rules, contains('function isValidPayoutDefaultToggle(userId)'));

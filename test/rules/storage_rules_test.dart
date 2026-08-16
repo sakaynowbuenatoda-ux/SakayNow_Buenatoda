@@ -58,5 +58,17 @@ void main() {
       expect(rules, contains('&& isImage()'));
       expect(rules, contains('request.resource.size < 10 * 1024 * 1024'));
     });
+
+    test('allow signed-in users to view owner-scoped vehicle photos', () {
+      expect(
+        rules,
+        contains('match /users/{userId}/vehicle_photos/{fileName}'),
+      );
+      expect(rules, contains('allow read: if signedIn();'));
+      expect(rules, contains('allow create: if isSelf(userId)'));
+      expect(rules, contains('&& isImage()'));
+      expect(rules, contains('request.resource.size < 10 * 1024 * 1024'));
+      expect(rules, contains('allow delete: if isSelf(userId) || isAdmin();'));
+    });
   });
 }

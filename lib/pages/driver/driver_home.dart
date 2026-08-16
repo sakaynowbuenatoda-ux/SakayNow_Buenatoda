@@ -111,9 +111,10 @@ class DriverHomePage extends StatelessWidget {
           DriverRecentTripsSection(driverId: userId, limit: 3),
           const SizedBox(height: 20),
           DriverRatingLeaderboardPanel(
-            limit: 5,
+            limit: 20,
             actionLabel: 'See Top 20',
             highlightDriverId: userId,
+            compactPodium: true,
             onActionTap: () => _openDriverLeaderboard(context),
           ),
         ],

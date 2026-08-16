@@ -13,27 +13,25 @@ class DriverLeaderboardPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: PassengerUi.background,
       appBar: AppBar(
-        backgroundColor: PassengerUi.surface,
-        surfaceTintColor: PassengerUi.surface,
+        backgroundColor: PassengerUi.background,
+        foregroundColor: PassengerUi.title,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: Text('Leaderboard', style: PassengerUi.cardTitle),
+        centerTitle: true,
+        title: Text(
+          'Leaderboard',
+          style: PassengerUi.cardTitle.copyWith(fontWeight: FontWeight.w700),
+        ),
       ),
       body: PassengerPageContainer(
+        maxContentWidth: 720,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            PassengerPageHeader(
-              title: 'Driver Leaderboard',
-              subtitle: 'Top drivers ranked by completed trip reviews.',
-              icon: Icons.workspace_premium_rounded,
-              accentColor: PassengerUi.highlightAmber,
-            ),
-            const SizedBox(height: 16),
             DriverRatingLeaderboardPanel(
               limit: 20,
-              title: 'Top 20 Drivers',
+              title: '',
               highlightDriverId: highlightDriverId,
-              showWeightedScore: true,
             ),
           ],
         ),

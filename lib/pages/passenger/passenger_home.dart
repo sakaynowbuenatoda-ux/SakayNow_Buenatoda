@@ -155,8 +155,9 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
               ),
               const SizedBox(height: 24),
               DriverRatingLeaderboardPanel(
-                limit: 5,
+                limit: 20,
                 actionLabel: 'See Top 20',
+                compactPodium: true,
                 onActionTap: _openDriverLeaderboard,
               ),
               const SizedBox(height: 24),

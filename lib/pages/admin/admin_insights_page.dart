@@ -87,7 +87,6 @@ class AdminInsightsPage extends StatelessWidget {
                         limit: 20,
                         title: 'Driver Leaderboard',
                         actionLabel: 'Open',
-                        showWeightedScore: true,
                         onActionTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => const DriverLeaderboardPage(),

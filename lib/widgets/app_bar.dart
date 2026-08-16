@@ -8,6 +8,7 @@ import 'passenger_widgets/passenger_ui.dart';
 class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   final String firstName;
   final String? profileImageUrl;
+  final VoidCallback? onLeaderboardTap;
   final VoidCallback onNotificationsTap;
   final VoidCallback? onBrandTap;
   final int notificationUnreadCount;
@@ -20,6 +21,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     required this.firstName,
     this.profileImageUrl,
+    this.onLeaderboardTap,
     required this.onNotificationsTap,
     this.onBrandTap,
     this.notificationUnreadCount = 0,
@@ -55,6 +57,8 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
         onTap: onBrandTap,
       ),
       actions: [
+        if (onLeaderboardTap != null)
+          _LeaderboardIconButton(onTap: onLeaderboardTap!, compact: compact),
         _ModernIconButton(
           onTap: onNotificationsTap,
           compact: compact,
@@ -82,6 +86,7 @@ class HomeMapHeader extends StatelessWidget {
   final String firstName;
   final String? profileImageUrl;
   final String greeting;
+  final VoidCallback? onLeaderboardTap;
   final VoidCallback onNotificationsTap;
   final VoidCallback? onBrandTap;
   final int notificationUnreadCount;
@@ -94,6 +99,7 @@ class HomeMapHeader extends StatelessWidget {
     required this.firstName,
     this.profileImageUrl,
     required this.greeting,
+    this.onLeaderboardTap,
     required this.onNotificationsTap,
     this.onBrandTap,
     this.notificationUnreadCount = 0,
@@ -125,6 +131,11 @@ class HomeMapHeader extends StatelessWidget {
                     onTap: onBrandTap,
                   ),
                   const Spacer(),
+                  if (onLeaderboardTap != null)
+                    _LeaderboardIconButton(
+                      onTap: onLeaderboardTap!,
+                      compact: true,
+                    ),
                   _ModernIconButton(
                     onTap: onNotificationsTap,
                     compact: true,
@@ -261,6 +272,45 @@ class _NameText extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _LeaderboardIconButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final bool compact;
+
+  const _LeaderboardIconButton({required this.onTap, required this.compact});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(right: compact ? 3 : 8),
+      child: Tooltip(
+        message: 'Open leaderboard',
+        child: Semantics(
+          button: true,
+          label: 'Open leaderboard',
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              key: const Key('home-leaderboard-button'),
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: SizedBox(
+                width: compact ? 34 : 42,
+                height: compact ? 34 : 42,
+                child: Icon(
+                  Icons.leaderboard_rounded,
+                  size: compact ? 22 : 26,
+                  color: PassengerUi.primary,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

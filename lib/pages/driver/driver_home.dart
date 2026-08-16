@@ -76,6 +76,7 @@ class DriverHomePage extends StatelessWidget {
         isDriver: true,
         showVerifiedBadge: isVerified,
         notificationUnreadCount: notificationUnreadCount,
+        onLeaderboardTap: () => _openDriverLeaderboard(context),
         onNotificationsTap: onNotificationsTap,
         onBrandTap: onBrandTap,
         onProfileTap: onProfileTap,

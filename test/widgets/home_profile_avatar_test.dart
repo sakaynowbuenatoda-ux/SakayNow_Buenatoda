@@ -8,6 +8,7 @@ void main() {
       '${isDriver ? 'driver' : 'passenger'} home avatar opens Profile directly',
       (tester) async {
         var profileTapCount = 0;
+        var leaderboardTapCount = 0;
 
         await tester.pumpWidget(
           MaterialApp(
@@ -17,6 +18,7 @@ void main() {
                 greeting: 'Welcome, Juan',
                 isDriver: isDriver,
                 showVerifiedBadge: true,
+                onLeaderboardTap: () => leaderboardTapCount += 1,
                 onNotificationsTap: () {},
                 onProfileTap: () => profileTapCount += 1,
               ),
@@ -26,6 +28,12 @@ void main() {
 
         expect(find.byType(PopupMenuButton), findsNothing);
         expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.leaderboard_rounded), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('home-leaderboard-button')));
+        await tester.pump();
+
+        expect(leaderboardTapCount, 1);
 
         await tester.tap(find.byKey(const Key('home-profile-avatar-button')));
         await tester.pump();

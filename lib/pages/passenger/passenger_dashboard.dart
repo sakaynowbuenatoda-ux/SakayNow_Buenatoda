@@ -353,10 +353,10 @@ class _DashboardMetricGrid extends StatelessWidget {
       padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: compact ? 1 : 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: compact ? 3.35 : 1.72,
+        crossAxisCount: 2,
+        mainAxisSpacing: compact ? 10 : 12,
+        crossAxisSpacing: compact ? 10 : 12,
+        childAspectRatio: compact ? 1.5 : 1.72,
       ),
       itemBuilder: (context, index) =>
           _DashboardMetricCard(metric: metrics[index]),
@@ -371,20 +371,26 @@ class _DashboardMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = PassengerUi.isCompactWidth(context);
+
     return PassengerSurfaceCard(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(compact ? 10 : 14),
       child: Row(
         children: <Widget>[
           Container(
-            width: 42,
-            height: 42,
+            width: compact ? 36 : 42,
+            height: compact ? 36 : 42,
             decoration: BoxDecoration(
               color: PassengerUi.mutedSurface,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(compact ? 10 : 12),
             ),
-            child: Icon(metric.icon, color: PassengerUi.accentBlue),
+            child: Icon(
+              metric.icon,
+              size: compact ? 20 : 24,
+              color: PassengerUi.accentBlue,
+            ),
           ),
-          SizedBox(width: 12),
+          SizedBox(width: compact ? 8 : 12),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -392,25 +398,30 @@ class _DashboardMetricCard extends StatelessWidget {
               children: <Widget>[
                 Text(
                   metric.label,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: PassengerUi.bodyText.copyWith(fontSize: 12),
+                  style: PassengerUi.bodyText.copyWith(
+                    fontSize: compact ? 10.5 : 12,
+                  ),
                 ),
-                SizedBox(height: 3),
+                SizedBox(height: compact ? 2 : 3),
                 Text(
                   metric.value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: PassengerUi.cardTitle.copyWith(
+                    fontSize: compact ? 15 : 16,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(height: 2),
+                SizedBox(height: compact ? 1 : 2),
                 Text(
                   metric.helper,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: PassengerUi.bodyText.copyWith(fontSize: 11),
+                  style: PassengerUi.bodyText.copyWith(
+                    fontSize: compact ? 9.5 : 11,
+                  ),
                 ),
               ],
             ),

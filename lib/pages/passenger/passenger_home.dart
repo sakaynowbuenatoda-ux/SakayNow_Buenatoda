@@ -86,6 +86,7 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
                 : 'Welcome, ${widget.firstName.trim()}',
             showVerifiedBadge: widget.isVerified,
             notificationUnreadCount: widget.notificationUnreadCount,
+            onLeaderboardTap: _openDriverLeaderboard,
             onNotificationsTap: widget.onNotificationsTap,
             onBrandTap: widget.onBrandTap,
             onProfileTap: widget.onProfileTap,

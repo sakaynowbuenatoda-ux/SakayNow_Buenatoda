@@ -43,6 +43,7 @@ class PassengerHomepage extends StatefulWidget {
   final VoidCallback? onBrandTap;
   final VoidCallback? onProfileTap;
   final VoidCallback onOpenHistory;
+  final QuickDestinationsController quickDestinationsController;
 
   const PassengerHomepage({
     super.key,
@@ -56,6 +57,7 @@ class PassengerHomepage extends StatefulWidget {
     this.onBrandTap,
     this.onProfileTap,
     required this.onOpenHistory,
+    required this.quickDestinationsController,
   });
 
   @override
@@ -63,24 +65,9 @@ class PassengerHomepage extends StatefulWidget {
 }
 
 class _PassengerHomepageState extends State<PassengerHomepage> {
-  late final QuickDestinationsController _quickDestinationsController;
   final LocationService _locationService = const LocationService();
   final RideTrackingService _rideTrackingService = RideTrackingService();
   final GeofencingService _geofencingService = const GeofencingService();
-
-  @override
-  void initState() {
-    super.initState();
-    _quickDestinationsController = QuickDestinationsController(
-      userId: widget.userId,
-    )..load();
-  }
-
-  @override
-  void dispose() {
-    _quickDestinationsController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -154,8 +141,8 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
                   ),
                 ),
               const SizedBox(height: 24),
-              _AnimatedOneTapBookingCard(
-                quickDestinationsController: _quickDestinationsController,
+              _AnimatedOneTapBookingSection(
+                quickDestinationsController: widget.quickDestinationsController,
                 onSeeAllTap: _openQuickDestinationsPage,
                 onDestinationTap: _handleQuickDestinationTap,
               ),
@@ -164,6 +151,7 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
                 passengerId: widget.userId,
                 limit: 3,
                 onViewAllTap: widget.onOpenHistory,
+                quickDestinationsController: widget.quickDestinationsController,
               ),
               const SizedBox(height: 24),
               DriverRatingLeaderboardPanel(
@@ -386,7 +374,7 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
       longitude: location.longitude,
     );
     try {
-      await _quickDestinationsController.upsert(savedDestination);
+      await widget.quickDestinationsController.upsert(savedDestination);
       return savedDestination;
     } on Exception catch (error) {
       if (mounted) {
@@ -464,30 +452,31 @@ class _PassengerHomepageState extends State<PassengerHomepage> {
       context,
       MaterialPageRoute(
         builder: (_) => PassengerQuickDestinationsPage(
-          controller: _quickDestinationsController,
+          controller: widget.quickDestinationsController,
         ),
       ),
     );
   }
 }
 
-class _AnimatedOneTapBookingCard extends StatefulWidget {
+class _AnimatedOneTapBookingSection extends StatefulWidget {
   final QuickDestinationsController quickDestinationsController;
   final VoidCallback onSeeAllTap;
   final ValueChanged<PassengerQuickDestination> onDestinationTap;
 
-  const _AnimatedOneTapBookingCard({
+  const _AnimatedOneTapBookingSection({
     required this.quickDestinationsController,
     required this.onSeeAllTap,
     required this.onDestinationTap,
   });
 
   @override
-  State<_AnimatedOneTapBookingCard> createState() =>
-      _AnimatedOneTapBookingCardState();
+  State<_AnimatedOneTapBookingSection> createState() =>
+      _AnimatedOneTapBookingSectionState();
 }
 
-class _AnimatedOneTapBookingCardState extends State<_AnimatedOneTapBookingCard>
+class _AnimatedOneTapBookingSectionState
+    extends State<_AnimatedOneTapBookingSection>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _fadeAnimation;
@@ -532,142 +521,21 @@ class _AnimatedOneTapBookingCardState extends State<_AnimatedOneTapBookingCard>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = PassengerUi.isDarkMode;
-
     return SlideTransition(
       position: _slideAnimation,
       child: FadeTransition(
         opacity: _fadeAnimation,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: <Color>[
-                isDark ? const Color(0xFF111827) : Colors.white,
-                isDark ? const Color(0xFF0F1420) : const Color(0xFFF9FAFB),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isDark ? const Color(0xFF1E2536) : const Color(0xFFE2E6EE),
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.06),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.10 : 0.03),
-                blurRadius: 2,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  _OneTapBookingHeader(onActionTap: widget.onSeeAllTap),
-                  const SizedBox(height: 16),
-                  AnimatedBuilder(
-                    animation: widget.quickDestinationsController,
-                    builder: (context, _) {
-                      return PassengerQuickDestinationsSection(
-                        destinations:
-                            widget.quickDestinationsController.destinations,
-                        onSeeAllTap: widget.onSeeAllTap,
-                        onDestinationTap: widget.onDestinationTap,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
+        child: AnimatedBuilder(
+          animation: widget.quickDestinationsController,
+          builder: (context, _) {
+            return PassengerQuickDestinationsSection(
+              destinations: widget.quickDestinationsController.destinations,
+              onSeeAllTap: widget.onSeeAllTap,
+              onDestinationTap: widget.onDestinationTap,
+            );
+          },
         ),
       ),
-    );
-  }
-}
-
-class _OneTapBookingHeader extends StatelessWidget {
-  final VoidCallback onActionTap;
-
-  const _OneTapBookingHeader({required this.onActionTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final compact = PassengerUi.isCompactWidth(context);
-    final isDark = PassengerUi.isDarkMode;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: <Widget>[
-        Expanded(
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 3,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: PassengerUi.successText,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  'One-tap booking',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: PassengerUi.cardTitle.copyWith(
-                    fontSize: compact ? 15.5 : 17,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                    height: 1.12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Material(
-          color: isDark ? const Color(0xFF1A2332) : const Color(0xFFF3F4F6),
-          borderRadius: BorderRadius.circular(999),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(999),
-            onTap: onActionTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    'See all',
-                    style: TextStyle(
-                      color: PassengerUi.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: PassengerUi.primary,
-                    size: 11,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -775,7 +643,7 @@ class _InformationKeyTile extends StatelessWidget {
         SizedBox(
           width: 38,
           height: 38,
-          child: Icon(item.icon, color: PassengerUi.dark, size: 20),
+          child: Icon(item.icon, color: PassengerUi.icon, size: 20),
         ),
         SizedBox(width: 12),
         Expanded(

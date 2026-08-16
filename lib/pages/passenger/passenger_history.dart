@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../controllers/quick_destinations_controller.dart';
 import '../../widgets/passenger_widgets/passenger_recent_trips_section.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 
@@ -7,12 +8,14 @@ class PassengerHistory extends StatelessWidget {
   final String userId;
   final String firstName;
   final String passengerType;
+  final QuickDestinationsController quickDestinationsController;
 
   const PassengerHistory({
     super.key,
     required this.userId,
     required this.firstName,
     required this.passengerType,
+    required this.quickDestinationsController,
   });
 
   @override
@@ -33,6 +36,7 @@ class PassengerHistory extends StatelessWidget {
               passengerId: userId,
               title: 'Trips',
               actionLabel: '',
+              quickDestinationsController: quickDestinationsController,
             ),
           ],
         ),

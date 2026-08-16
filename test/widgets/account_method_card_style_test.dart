@@ -55,7 +55,7 @@ void main() {
       tester
           .widget<Icon>(find.byIcon(Icons.account_balance_wallet_rounded))
           .color,
-      PassengerUi.dark,
+      PassengerUi.icon,
     );
     expect(find.text('Sample Bank - Juan Driver - 1234'), findsOneWidget);
     expect(find.text('GCash via Xendit checkout'), findsOneWidget);

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../core/preferences/app_preferences_controller.dart';
+import '../../controllers/quick_destinations_controller.dart';
 import '../../models/chat_conversation.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
@@ -49,6 +50,7 @@ class _PassengerShellState extends State<PassengerShell> {
   final ChatService _chatService = ChatService();
   final NotificationService _notificationService = NotificationService.instance;
   final RideTrackingService _rideTrackingService = RideTrackingService();
+  late QuickDestinationsController _quickDestinationsController;
   StreamSubscription<List<ChatConversation>>? _conversationSubscription;
   StreamSubscription<int>? _notificationSubscription;
   StreamSubscription<List<Ride>>? _rideCancellationSubscription;
@@ -61,6 +63,9 @@ class _PassengerShellState extends State<PassengerShell> {
   @override
   void initState() {
     super.initState();
+    _quickDestinationsController = QuickDestinationsController(
+      userId: widget.userId,
+    )..load();
     AppPreferencesController.instance.addListener(_handlePreferencesChanged);
     _watchUnreadMessages();
     _watchUnreadNotifications();
@@ -72,6 +77,10 @@ class _PassengerShellState extends State<PassengerShell> {
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.userId != widget.userId) {
+      _quickDestinationsController.dispose();
+      _quickDestinationsController = QuickDestinationsController(
+        userId: widget.userId,
+      )..load();
       _messageUnreadCount = 0;
       _notificationUnreadCount = 0;
       _watchUnreadMessages();
@@ -86,6 +95,7 @@ class _PassengerShellState extends State<PassengerShell> {
     _conversationSubscription?.cancel();
     _notificationSubscription?.cancel();
     _rideCancellationSubscription?.cancel();
+    _quickDestinationsController.dispose();
     super.dispose();
   }
 
@@ -118,6 +128,7 @@ class _PassengerShellState extends State<PassengerShell> {
         onBrandTap: () => _selectTab(0),
         onProfileTap: () => _selectTab(_profileIndex),
         onOpenHistory: _openHistory,
+        quickDestinationsController: _quickDestinationsController,
       ),
       PassengerMessages(
         userId: widget.userId,
@@ -130,6 +141,7 @@ class _PassengerShellState extends State<PassengerShell> {
         passengerType: widget.passengerType,
         isVerified: widget.isVerified,
         onOpenHistory: _openHistory,
+        quickDestinationsController: _quickDestinationsController,
       ),
       ProfilePage(userId: widget.userId, embedded: true),
     ];
@@ -177,6 +189,7 @@ class _PassengerShellState extends State<PassengerShell> {
           userId: widget.userId,
           firstName: widget.firstName,
           passengerType: widget.passengerType,
+          quickDestinationsController: _quickDestinationsController,
         ),
       ),
     );

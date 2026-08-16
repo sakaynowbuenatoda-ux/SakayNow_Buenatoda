@@ -596,7 +596,7 @@ class _EditProfileDetailsDialogState extends State<_EditProfileDetailsDialog> {
           SizedBox(
             width: 40,
             height: 40,
-            child: Icon(Icons.edit_outlined, color: PassengerUi.dark),
+            child: Icon(Icons.edit_outlined, color: PassengerUi.icon),
           ),
           const SizedBox(width: 12),
           Expanded(child: Text('Edit Details', style: PassengerUi.cardTitle)),
@@ -777,7 +777,7 @@ class _DetailIcon extends StatelessWidget {
     return SizedBox(
       width: 34,
       height: 34,
-      child: Icon(icon, size: 18, color: PassengerUi.dark),
+      child: Icon(icon, size: 18, color: PassengerUi.icon),
     );
   }
 }

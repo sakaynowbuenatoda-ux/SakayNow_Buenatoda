@@ -31,6 +31,8 @@ class RideLocationPreviewButton extends StatelessWidget {
   final RideLocation dropoffLocation;
   final String tooltip;
   final Color? color;
+  final double dimension;
+  final double iconSize;
 
   const RideLocationPreviewButton({
     super.key,
@@ -38,6 +40,8 @@ class RideLocationPreviewButton extends StatelessWidget {
     required this.dropoffLocation,
     this.tooltip = 'Preview route',
     this.color,
+    this.dimension = 40,
+    this.iconSize = 20,
   });
 
   @override
@@ -52,7 +56,10 @@ class RideLocationPreviewButton extends StatelessWidget {
       message: tooltip,
       child: IconButton(
         visualDensity: VisualDensity.compact,
-        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+        constraints: BoxConstraints.tightFor(
+          width: dimension,
+          height: dimension,
+        ),
         style: IconButton.styleFrom(
           foregroundColor: foreground,
           backgroundColor: foreground.withValues(alpha: 0.10),
@@ -65,7 +72,7 @@ class RideLocationPreviewButton extends StatelessWidget {
           pickupLocation: pickupLocation,
           dropoffLocation: dropoffLocation,
         ),
-        icon: const Icon(Icons.map_rounded, size: 20),
+        icon: Icon(Icons.map_rounded, size: iconSize),
       ),
     );
   }

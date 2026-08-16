@@ -7,12 +7,16 @@ class PassengerQuickDestinationsSection extends StatelessWidget {
   final List<PassengerQuickDestination> destinations;
   final VoidCallback onSeeAllTap;
   final ValueChanged<PassengerQuickDestination> onDestinationTap;
+  final String title;
+  final String actionLabel;
 
   const PassengerQuickDestinationsSection({
     super.key,
     required this.destinations,
     required this.onSeeAllTap,
     required this.onDestinationTap,
+    this.title = 'One-tap booking',
+    this.actionLabel = 'View all',
   });
 
   @override
@@ -20,22 +24,140 @@ class PassengerQuickDestinationsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
+        _QuickDestinationsHeader(
+          title: title,
+          actionLabel: actionLabel,
+          onActionTap: onSeeAllTap,
+        ),
+        const SizedBox(height: 12),
         if (destinations.isEmpty)
-          InkWell(
-            borderRadius: PassengerUi.cardRadius,
-            onTap: onSeeAllTap,
-            child: const PassengerEmptyState(
-              icon: Icons.bookmark_add_outlined,
-              title: 'No saved destinations',
-              description: 'Tap to add pickup and drop-off places.',
-            ),
-          )
+          _QuickDestinationsEmptyCard(onTap: onSeeAllTap)
         else
           PassengerQuickDestinationList(
             destinations: destinations,
             onDestinationTap: onDestinationTap,
           ),
       ],
+    );
+  }
+}
+
+class _QuickDestinationsHeader extends StatelessWidget {
+  final String title;
+  final String actionLabel;
+  final VoidCallback onActionTap;
+
+  const _QuickDestinationsHeader({
+    required this.title,
+    required this.actionLabel,
+    required this.onActionTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: PassengerUi.sectionTitle.copyWith(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        TextButton(
+          onPressed: onActionTap,
+          style: TextButton.styleFrom(
+            foregroundColor: PassengerUi.accentBlue,
+            minimumSize: Size.zero,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                actionLabel,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 2),
+              const Icon(Icons.chevron_right_rounded, size: 16),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickDestinationsEmptyCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _QuickDestinationsEmptyCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: PassengerUi.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: PassengerUi.cardRadius,
+        side: BorderSide(color: PassengerUi.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: PassengerUi.blueSoft,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.bookmark_add_outlined,
+                  color: PassengerUi.accentBlue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'No saved destinations',
+                      style: PassengerUi.cardTitle.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Tap to add a place for faster booking.',
+                      style: PassengerUi.bodyText.copyWith(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: PassengerUi.body,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -65,9 +187,7 @@ class _PassengerQuickDestinationListState
     super.initState();
     _staggerController = AnimationController(
       vsync: this,
-      duration: Duration(
-        milliseconds: 350 + (widget.destinations.length * 80),
-      ),
+      duration: Duration(milliseconds: 350 + (widget.destinations.length * 80)),
     )..forward();
   }
 
@@ -92,74 +212,62 @@ class _PassengerQuickDestinationListState
       clipBehavior: Clip.none,
       physics: const BouncingScrollPhysics(),
       child: Row(
-        children: widget.destinations
-            .asMap()
-            .entries
-            .map(
-              (MapEntry<int, PassengerQuickDestination> entry) {
-                final staggerStart =
-                    (entry.key * 0.12).clamp(0.0, 0.7);
-                final staggerEnd =
-                    (staggerStart + 0.4).clamp(0.0, 1.0);
+        children: widget.destinations.asMap().entries.map((
+          MapEntry<int, PassengerQuickDestination> entry,
+        ) {
+          final staggerStart = (entry.key * 0.12).clamp(0.0, 0.7);
+          final staggerEnd = (staggerStart + 0.4).clamp(0.0, 1.0);
 
-                final slideAnimation = Tween<Offset>(
-                  begin: const Offset(0.35, 0),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: _staggerController,
-                    curve: Interval(
-                      staggerStart,
-                      staggerEnd,
-                      curve: Curves.easeOutCubic,
-                    ),
+          final slideAnimation =
+              Tween<Offset>(
+                begin: const Offset(0.35, 0),
+                end: Offset.zero,
+              ).animate(
+                CurvedAnimation(
+                  parent: _staggerController,
+                  curve: Interval(
+                    staggerStart,
+                    staggerEnd,
+                    curve: Curves.easeOutCubic,
                   ),
-                );
+                ),
+              );
 
-                final fadeAnimation = Tween<double>(
-                  begin: 0,
-                  end: 1,
-                ).animate(
-                  CurvedAnimation(
-                    parent: _staggerController,
-                    curve: Interval(
-                      staggerStart,
-                      staggerEnd,
-                      curve: Curves.easeOut,
-                    ),
-                  ),
-                );
+          final fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+            CurvedAnimation(
+              parent: _staggerController,
+              curve: Interval(staggerStart, staggerEnd, curve: Curves.easeOut),
+            ),
+          );
 
-                return Padding(
-                  padding: EdgeInsets.only(
-                    right: entry.key == widget.destinations.length - 1
-                        ? 0
-                        : 10,
-                  ),
-                  child: SlideTransition(
-                    position: slideAnimation,
-                    child: FadeTransition(
-                      opacity: fadeAnimation,
-                      child: SizedBox(
-                        width: _quickDestinationCardWidth(context),
-                        child: PassengerQuickDestinationCard(
-                          destination: entry.value,
-                          onTap: () =>
-                              widget.onDestinationTap(entry.value),
-                        ),
-                      ),
+          return Padding(
+            padding: EdgeInsets.only(
+              right: entry.key == widget.destinations.length - 1 ? 0 : 10,
+            ),
+            child: SlideTransition(
+              position: slideAnimation,
+              child: FadeTransition(
+                opacity: fadeAnimation,
+                child: SizedBox(
+                  width: _quickDestinationCardWidth(context),
+                  child: PassengerQuickDestinationCard(
+                    key: ValueKey<String>(
+                      'quick-destination-card-${entry.value.id}',
                     ),
+                    destination: entry.value,
+                    onTap: () => widget.onDestinationTap(entry.value),
                   ),
-                );
-              },
-            )
-            .toList(),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
 }
 
-class PassengerQuickDestinationCard extends StatefulWidget {
+class PassengerQuickDestinationCard extends StatelessWidget {
   final PassengerQuickDestination destination;
   final VoidCallback onTap;
 
@@ -170,161 +278,83 @@ class PassengerQuickDestinationCard extends StatefulWidget {
   });
 
   @override
-  State<PassengerQuickDestinationCard> createState() =>
-      _PassengerQuickDestinationCardState();
-}
-
-class _PassengerQuickDestinationCardState
-    extends State<PassengerQuickDestinationCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _scaleController;
-  late final Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _scaleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 120),
-      reverseDuration: const Duration(milliseconds: 200),
-      lowerBound: 0,
-      upperBound: 1,
-    );
-    _scaleAnimation = Tween<double>(begin: 1, end: 0.95).animate(
-      CurvedAnimation(
-        parent: _scaleController,
-        curve: Curves.easeInOut,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _scaleController.dispose();
-    super.dispose();
-  }
-
-  void _onTapDown(TapDownDetails _) => _scaleController.forward();
-  void _onTapUp(TapUpDetails _) {
-    _scaleController.reverse();
-    widget.onTap();
-  }
-
-  void _onTapCancel() => _scaleController.reverse();
-
-  @override
   Widget build(BuildContext context) {
     final compact = PassengerUi.isCompactWidth(context);
-    final destination = widget.destination;
     final isDark = PassengerUi.isDarkMode;
+    final resolvedAccent =
+        isDark && destination.accentColor.computeLuminance() < 0.18
+        ? PassengerUi.icon
+        : destination.accentColor;
 
-    return GestureDetector(
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: _onTapCancel,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Container(
-          height: compact ? 110 : 120,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: <Color>[
-                isDark
-                    ? destination.backgroundColor.withValues(alpha: 0.10)
-                    : destination.backgroundColor.withValues(alpha: 0.55),
-                isDark
-                    ? PassengerUi.surface
-                    : destination.backgroundColor.withValues(alpha: 0.18),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return Material(
+      color: PassengerUi.surface,
+      elevation: isDark ? 0 : 1,
+      shadowColor: Colors.black.withValues(alpha: 0.10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: PassengerUi.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: compact ? 134 : 146,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              compact ? 8 : 10,
+              compact ? 10 : 12,
+              compact ? 8 : 10,
+              9,
             ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDark
-                  ? destination.accentColor.withValues(alpha: 0.18)
-                  : destination.accentColor.withValues(alpha: 0.12),
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: destination.accentColor.withValues(
-                  alpha: isDark ? 0.08 : 0.06,
-                ),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.03),
-                blurRadius: 2,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Container(
-                width: compact ? 40 : 44,
-                height: compact ? 40 : 44,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: <Color>[
-                      destination.accentColor.withValues(
-                        alpha: isDark ? 0.28 : 0.14,
-                      ),
-                      destination.accentColor.withValues(
-                        alpha: isDark ? 0.14 : 0.06,
-                      ),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Container(
+                  width: compact ? 46 : 52,
+                  height: compact ? 46 : 52,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? resolvedAccent.withValues(alpha: 0.14)
+                        : destination.backgroundColor,
+                    shape: BoxShape.circle,
                   ),
-                  borderRadius: BorderRadius.circular(13),
-                  border: Border.all(
-                    color: destination.accentColor.withValues(
-                      alpha: isDark ? 0.24 : 0.15,
-                    ),
-                    width: 1.5,
-                  ),
-                ),
-                child: destination.hasCustomEmoji
-                    ? Center(
-                        child: Text(
-                          destination.customEmoji!,
-                          style: TextStyle(fontSize: compact ? 22 : 24),
+                  child: destination.hasCustomEmoji
+                      ? Center(
+                          child: Text(
+                            destination.customEmoji!,
+                            style: TextStyle(fontSize: compact ? 24 : 28),
+                          ),
+                        )
+                      : Icon(
+                          destination.icon,
+                          color: resolvedAccent,
+                          size: compact ? 22 : 25,
                         ),
-                      )
-                    : Icon(
-                        destination.icon,
-                        color: destination.accentColor,
-                        size: compact ? 20 : 22,
-                      ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                destination.label,
-                style: PassengerUi.cardTitle.copyWith(
-                  fontSize: compact ? 13 : 14,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.1,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 3),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  destination.locationDisplayLabel,
-                  style: PassengerUi.bodyText.copyWith(
-                    fontSize: compact ? 10.5 : 11,
-                    color: PassengerUi.body.withValues(alpha: 0.8),
-                  ),
-                  textAlign: TextAlign.center,
+                SizedBox(height: compact ? 8 : 10),
+                Text(
+                  destination.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: PassengerUi.cardTitle.copyWith(
+                    fontSize: compact ? 12 : 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  destination.locationDisplayLabel,
+                  style: PassengerUi.bodyText.copyWith(
+                    fontSize: compact ? 9.5 : 10,
+                    height: 1.2,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -333,5 +363,5 @@ class _PassengerQuickDestinationCardState
 }
 
 double _quickDestinationCardWidth(BuildContext context) {
-  return PassengerUi.isCompactWidth(context) ? 132 : 146;
+  return PassengerUi.isCompactWidth(context) ? 112 : 128;
 }

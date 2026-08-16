@@ -254,7 +254,7 @@ class _EmailVerificationStatusCard extends StatelessWidget {
               isVerified
                   ? Icons.verified_rounded
                   : Icons.mark_email_unread_outlined,
-              color: PassengerUi.dark,
+              color: PassengerUi.icon,
             ),
           ),
           const SizedBox(width: 12),
@@ -432,7 +432,7 @@ class _EmailVerifiedCard extends StatelessWidget {
           SizedBox(
             width: 42,
             height: 42,
-            child: Icon(Icons.check_circle_rounded, color: PassengerUi.dark),
+            child: Icon(Icons.check_circle_rounded, color: PassengerUi.icon),
           ),
           const SizedBox(width: 12),
           Expanded(

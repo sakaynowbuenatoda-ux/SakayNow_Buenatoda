@@ -294,7 +294,7 @@ class _PrivacyCardHeader extends StatelessWidget {
         SizedBox(
           width: 42,
           height: 42,
-          child: Icon(icon, color: PassengerUi.dark, size: 22),
+          child: Icon(icon, color: PassengerUi.icon, size: 22),
         ),
         const SizedBox(width: 12),
         Expanded(

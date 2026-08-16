@@ -157,7 +157,7 @@ class _ProfileActionRow extends StatelessWidget {
               SizedBox(
                 width: 36,
                 height: 36,
-                child: Icon(icon, size: 19, color: PassengerUi.dark),
+                child: Icon(icon, size: 19, color: PassengerUi.icon),
               ),
               const SizedBox(width: 12),
               Expanded(

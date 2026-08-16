@@ -128,7 +128,7 @@ class _LoginHistoryCard extends StatelessWidget {
             height: compact ? 42 : 46,
             child: Icon(
               _platformIcon(entry.platform),
-              color: PassengerUi.dark,
+              color: PassengerUi.icon,
               size: 23,
             ),
           ),
@@ -276,7 +276,7 @@ class _AccountRow extends StatelessWidget {
           SizedBox(
             width: compact ? 38 : 40,
             height: compact ? 38 : 40,
-            child: Icon(icon, size: 20, color: PassengerUi.dark),
+            child: Icon(icon, size: 20, color: PassengerUi.icon),
           ),
           const SizedBox(width: 12),
           Expanded(

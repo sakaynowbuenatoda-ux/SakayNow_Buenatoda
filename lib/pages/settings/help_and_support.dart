@@ -103,7 +103,7 @@ class _HelpAndSupportPageState extends State<HelpAndSupportPage> {
                     height: 58,
                     child: Icon(
                       Icons.support_agent_rounded,
-                      color: PassengerUi.dark,
+                      color: PassengerUi.icon,
                       size: 30,
                     ),
                   ),
@@ -202,7 +202,7 @@ class _SupportContactCard extends StatelessWidget {
           SizedBox(
             width: 44,
             height: 44,
-            child: Icon(icon, color: PassengerUi.dark),
+            child: Icon(icon, color: PassengerUi.icon),
           ),
           SizedBox(width: 14),
           Expanded(

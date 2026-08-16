@@ -79,7 +79,7 @@ class _DevelopersHeader extends StatelessWidget {
           SizedBox(
             width: 46,
             height: 46,
-            child: Icon(Icons.groups_rounded, color: PassengerUi.dark),
+            child: Icon(Icons.groups_rounded, color: PassengerUi.icon),
           ),
           SizedBox(width: 14),
           Expanded(

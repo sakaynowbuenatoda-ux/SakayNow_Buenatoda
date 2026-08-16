@@ -131,7 +131,7 @@ class _PreferenceGroupCard<T> extends StatelessWidget {
               SizedBox(
                 width: 44,
                 height: 44,
-                child: Icon(icon, color: PassengerUi.dark),
+                child: Icon(icon, color: PassengerUi.icon),
               ),
               SizedBox(width: 12),
               Expanded(
@@ -205,7 +205,7 @@ class _PreferenceChoiceTile<T> extends StatelessWidget {
             SizedBox(
               width: 42,
               height: 42,
-              child: Icon(option.icon, color: PassengerUi.dark),
+              child: Icon(option.icon, color: PassengerUi.icon),
             ),
             SizedBox(width: 12),
             Expanded(

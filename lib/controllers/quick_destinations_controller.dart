@@ -4,9 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/ride_location.dart';
 import '../pages/passenger/passenger_data.dart';
 
 class QuickDestinationsController extends ChangeNotifier {
+  static const int maximumDestinations = 20;
+
   QuickDestinationsController({
     required this.userId,
     FirebaseFirestore? firestore,
@@ -52,6 +55,11 @@ class QuickDestinationsController extends ChangeNotifier {
       (entry) => entry.id == destination.id,
     );
     if (index == -1) {
+      if (destinations.length >= maximumDestinations) {
+        throw StateError(
+          'You can save up to $maximumDestinations one-tap destinations.',
+        );
+      }
       destinations = <PassengerQuickDestination>[...destinations, destination];
     } else {
       destinations = <PassengerQuickDestination>[...destinations]
@@ -60,6 +68,40 @@ class QuickDestinationsController extends ChangeNotifier {
 
     notifyListeners();
     await _save();
+  }
+
+  PassengerQuickDestination? destinationForRideLocation(RideLocation location) {
+    for (final destination in destinations) {
+      if (_matchesRideLocation(destination, location)) {
+        return destination;
+      }
+    }
+
+    return null;
+  }
+
+  Future<PassengerQuickDestination> addRideDestination(
+    RideLocation location,
+  ) async {
+    final existing = destinationForRideLocation(location);
+    if (existing != null) {
+      return existing;
+    }
+
+    final destination = PassengerQuickDestination(
+      id: 'ride_${DateTime.now().microsecondsSinceEpoch}',
+      label: _rideDestinationLabel(location),
+      address: _rideDestinationAddress(location),
+      pinName: _usableLocationName(location),
+      pinPlaceId: _nullableString(location.placeId),
+      icon: Icons.history_rounded,
+      accentColor: const Color(0xFF2563EB),
+      backgroundColor: const Color(0xFFEFF6FF),
+      latitude: location.latitude,
+      longitude: location.longitude,
+    );
+    await upsert(destination);
+    return destination;
   }
 
   Future<void> remove(PassengerQuickDestination destination) async {
@@ -302,6 +344,74 @@ class QuickDestinationsController extends ChangeNotifier {
   String? _nullableString(Object? value) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? null : text;
+  }
+
+  bool _matchesRideLocation(
+    PassengerQuickDestination destination,
+    RideLocation location,
+  ) {
+    final destinationPlaceId = destination.pinPlaceId?.trim();
+    final ridePlaceId = location.placeId?.trim();
+    if (destinationPlaceId?.isNotEmpty == true &&
+        ridePlaceId?.isNotEmpty == true &&
+        destinationPlaceId == ridePlaceId) {
+      return true;
+    }
+
+    final destinationLatitude = destination.latitude;
+    final destinationLongitude = destination.longitude;
+    final rideLatitude = location.latitude;
+    final rideLongitude = location.longitude;
+    if (destinationLatitude != null &&
+        destinationLongitude != null &&
+        rideLatitude != null &&
+        rideLongitude != null) {
+      const coordinateTolerance = 0.0001;
+      return (destinationLatitude - rideLatitude).abs() <=
+              coordinateTolerance &&
+          (destinationLongitude - rideLongitude).abs() <= coordinateTolerance;
+    }
+
+    final destinationAddress = _normalizedLocationText(destination.address);
+    final rideAddress = _normalizedLocationText(location.address);
+    return destinationAddress.isNotEmpty && destinationAddress == rideAddress;
+  }
+
+  String _rideDestinationLabel(RideLocation location) {
+    final locationName = _usableLocationName(location);
+    if (locationName != null) {
+      return locationName;
+    }
+
+    final address = location.address.trim();
+    if (address.isNotEmpty && address != 'Unknown location') {
+      final shortAddress = address.split(',').first.trim();
+      if (shortAddress.isNotEmpty) {
+        return shortAddress;
+      }
+    }
+
+    return 'Recent destination';
+  }
+
+  String _rideDestinationAddress(RideLocation location) {
+    final address = location.address.trim();
+    return address.isNotEmpty
+        ? address
+        : location.coordinateLabel ?? 'Pinned destination';
+  }
+
+  String? _usableLocationName(RideLocation location) {
+    final name = location.name?.trim();
+    if (name == null || name.isEmpty || name == 'Pinned location') {
+      return null;
+    }
+
+    return name;
+  }
+
+  String _normalizedLocationText(String? value) {
+    return value?.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ') ?? '';
   }
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../controllers/quick_destinations_controller.dart';
 import '../../models/passenger_payment_method.dart';
 import '../../models/ride.dart';
 import '../../models/ride_status.dart';
@@ -17,6 +18,7 @@ class PassengerDashboard extends StatelessWidget {
   final bool isVerified;
   final VoidCallback onOpenHistory;
   final RideTrackingService rideTrackingService;
+  final QuickDestinationsController quickDestinationsController;
 
   PassengerDashboard({
     super.key,
@@ -25,6 +27,7 @@ class PassengerDashboard extends StatelessWidget {
     required this.passengerType,
     required this.isVerified,
     required this.onOpenHistory,
+    required this.quickDestinationsController,
     RideTrackingService? rideTrackingService,
   }) : rideTrackingService = rideTrackingService ?? RideTrackingService();
 
@@ -47,6 +50,7 @@ class PassengerDashboard extends StatelessWidget {
             passengerType: passengerType,
             rideTrackingService: rideTrackingService,
             onOpenHistory: onOpenHistory,
+            quickDestinationsController: quickDestinationsController,
           ),
           SizedBox(height: 20),
           PassengerSectionHeader(
@@ -76,12 +80,14 @@ class _PassengerRideSummary extends StatelessWidget {
   final String passengerType;
   final RideTrackingService rideTrackingService;
   final VoidCallback onOpenHistory;
+  final QuickDestinationsController quickDestinationsController;
 
   const _PassengerRideSummary({
     required this.userId,
     required this.passengerType,
     required this.rideTrackingService,
     required this.onOpenHistory,
+    required this.quickDestinationsController,
   });
 
   @override
@@ -149,6 +155,7 @@ class _PassengerRideSummary extends StatelessWidget {
               title: 'Recent Trips',
               actionLabel: 'See More',
               onViewAllTap: onOpenHistory,
+              quickDestinationsController: quickDestinationsController,
             ),
           ],
         );
@@ -313,19 +320,18 @@ class _DashboardPaymentMethodsPreview extends StatelessWidget {
           methods.add(PassengerPaymentMethod.cash(userId: userId));
         }
 
-        return Column(
-          children: methods
-              .asMap()
-              .entries
-              .map(
-                (entry) => Padding(
-                  padding: EdgeInsets.only(
-                    bottom: entry.key == methods.length - 1 ? 0 : 12,
+        return PassengerSurfaceCard(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: methods
+                .map(
+                  (method) => PassengerPaymentMethodCard(
+                    method: method,
+                    embedded: true,
                   ),
-                  child: PassengerPaymentMethodCard(method: entry.value),
-                ),
-              )
-              .toList(),
+                )
+                .toList(),
+          ),
         );
       },
     );
@@ -344,6 +350,7 @@ class _DashboardMetricGrid extends StatelessWidget {
     return GridView.builder(
       itemCount: metrics.length,
       shrinkWrap: true,
+      padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: compact ? 1 : 2,

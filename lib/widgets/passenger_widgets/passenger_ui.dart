@@ -30,6 +30,7 @@ class PassengerUi {
       isDarkMode ? Color(0xFF1A1D24) : Color(0xFFF3F4F6);
   static Color get hint => isDarkMode ? Color(0xFF93C5FD) : Color(0xFF2563FF);
   static Color get dark => Color(0xFF030213);
+  static Color get icon => isDarkMode ? Colors.white : dark;
   static Color get darkSoft =>
       isDarkMode ? Color(0xFF1F2430) : Color(0xFF111827);
   static Color get successBackground =>
@@ -490,18 +491,23 @@ class PassengerStatusChip extends StatelessWidget {
   final String label;
   final Color textColor;
   final Color backgroundColor;
+  final bool dense;
 
   const PassengerStatusChip({
     super.key,
     required this.label,
     required this.textColor,
     required this.backgroundColor,
+    this.dense = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 8 : 10,
+        vertical: dense ? 4 : 6,
+      ),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(999),
@@ -509,7 +515,7 @@ class PassengerStatusChip extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 12,
+          fontSize: dense ? 11 : 12,
           fontWeight: FontWeight.w700,
           color: textColor,
         ),

@@ -54,7 +54,7 @@ class SettingsListTile extends StatelessWidget {
                 height: compact ? 40 : 42,
                 child: Icon(
                   item.icon,
-                  color: enabled ? PassengerUi.dark : PassengerUi.body,
+                  color: enabled ? PassengerUi.icon : PassengerUi.body,
                   size: 22,
                 ),
               ),

@@ -253,7 +253,7 @@ class _NoticeCard extends StatelessWidget {
           SizedBox(
             width: 42,
             height: 42,
-            child: Icon(Icons.privacy_tip_outlined, color: PassengerUi.dark),
+            child: Icon(Icons.privacy_tip_outlined, color: PassengerUi.icon),
           ),
           const SizedBox(width: 12),
           Expanded(

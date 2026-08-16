@@ -329,7 +329,7 @@ class _PassengerDocumentVerificationPageState
               _isVerified
                   ? Icons.verified_rounded
                   : Icons.pending_actions_rounded,
-              color: PassengerUi.dark,
+              color: PassengerUi.icon,
               size: 28,
             ),
           ),

@@ -21,7 +21,7 @@ class VersionPage extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: PassengerUi.primary),
+          icon: Icon(Icons.arrow_back_rounded, color: PassengerUi.title),
         ),
         title: Text('About', style: PassengerUi.cardTitle),
       ),

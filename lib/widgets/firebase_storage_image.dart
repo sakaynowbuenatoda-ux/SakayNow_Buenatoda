@@ -11,6 +11,8 @@ class FirebaseStorageImage extends StatelessWidget {
   final double? height;
   final BoxFit fit;
   final Widget fallback;
+  final Widget? loading;
+  final Widget? errorFallback;
 
   const FirebaseStorageImage({
     super.key,
@@ -19,6 +21,8 @@ class FirebaseStorageImage extends StatelessWidget {
     this.width,
     this.height,
     this.fit = BoxFit.cover,
+    this.loading,
+    this.errorFallback,
   });
 
   @override
@@ -39,11 +43,11 @@ class FirebaseStorageImage extends StatelessWidget {
       builder: (context, snapshot) {
         final resolvedUrl = snapshot.data;
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return fallback;
+          return loading ?? fallback;
         }
 
         if (resolvedUrl == null || resolvedUrl.isEmpty || snapshot.hasError) {
-          return fallback;
+          return errorFallback ?? fallback;
         }
 
         return _networkImage(resolvedUrl);
@@ -60,7 +64,7 @@ class FirebaseStorageImage extends StatelessWidget {
       fit: fit,
       gaplessPlayback: true,
       webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
-      errorBuilder: (context, error, stackTrace) => fallback,
+      errorBuilder: (context, error, stackTrace) => errorFallback ?? fallback,
     );
   }
 

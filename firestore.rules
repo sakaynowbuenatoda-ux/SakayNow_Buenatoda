@@ -683,6 +683,48 @@ service cloud.firestore {
         && hasNoRatingAggregateChanges();
     }
 
+    function passengerDocumentUploadFields() {
+      return [
+        'id_image_url',
+        'selfie_url',
+        'document_upload_status',
+        'document_upload_error',
+        'document_submitted_at'
+      ];
+    }
+
+    function isValidPassengerDocumentUpload(userId) {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return isSelf(userId)
+        && isPassengerRole(resource.data)
+        && isUsableAccount(resource.data)
+        && affectedKeys.hasOnly(passengerDocumentUploadFields())
+        && affectedKeys.hasAny(['id_image_url', 'selfie_url'])
+        && (
+          !affectedKeys.hasAny(['id_image_url'])
+          || (
+            request.resource.data.id_image_url is string
+            && request.resource.data.id_image_url.size() > 0
+            && request.resource.data.id_image_url.size() <= 2048
+          )
+        )
+        && (
+          !affectedKeys.hasAny(['selfie_url'])
+          || (
+            request.resource.data.selfie_url is string
+            && request.resource.data.selfie_url.size() > 0
+            && request.resource.data.selfie_url.size() <= 2048
+          )
+        )
+        && request.resource.data.document_upload_status == 'uploaded'
+        && !request.resource.data.keys().hasAny(['document_upload_error'])
+        && (
+          !affectedKeys.hasAny(['document_submitted_at'])
+          || request.resource.data.document_submitted_at == request.time
+        )
+        && hasNoRatingAggregateChanges();
+    }
+
     function payoutAccountOwnerId(accountData) {
       return accountData.get('driver_id', accountData.get('user_id', ''));
     }
@@ -1148,6 +1190,8 @@ service cloud.firestore {
             && isPassengerRole(resource.data)
             && isVerifiedDriver()
         );
+      allow update: if !isAdminRole(resource.data)
+        && isValidPassengerDocumentUpload(userId);
       allow update: if !isAdminRole(resource.data)
         && isValidSelfDeactivation(userId);
       allow update: if !isAdminRole(resource.data)

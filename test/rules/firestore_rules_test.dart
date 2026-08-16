@@ -100,6 +100,32 @@ void main() {
       expect(rules, contains('&& isValidDriverCredentialUpdate(userId);'));
     });
 
+    test('allow legacy passengers to submit only verification documents', () {
+      expect(
+        rules,
+        contains('function isValidPassengerDocumentUpload(userId)'),
+      );
+      expect(rules, contains('function passengerDocumentUploadFields()'));
+      expect(rules, contains("'id_image_url'"));
+      expect(rules, contains("'selfie_url'"));
+      expect(rules, contains("'document_submitted_at'"));
+      expect(rules, contains('isPassengerRole(resource.data)'));
+      expect(rules, contains('isUsableAccount(resource.data)'));
+      expect(
+        rules,
+        contains("affectedKeys.hasAny(['id_image_url', 'selfie_url'])"),
+      );
+      expect(
+        rules,
+        contains("!affectedKeys.hasAny(['document_submitted_at'])"),
+      );
+      expect(
+        rules,
+        contains('request.resource.data.document_submitted_at == request.time'),
+      );
+      expect(rules, contains('&& isValidPassengerDocumentUpload(userId);'));
+    });
+
     test('keep renewal decisions and approved documents admin-controlled', () {
       expect(rules, contains('function driverDocumentAdminFields()'));
       expect(rules, contains('function hasNoProtectedDriverDocumentChanges()'));

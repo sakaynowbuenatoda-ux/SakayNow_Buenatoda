@@ -7,7 +7,14 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import {doc, getDoc, setDoc, updateDoc} from "firebase/firestore";
+import {
+  deleteField,
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
 import {getBytes, ref, uploadBytes} from "firebase/storage";
 
 const projectRoot = path.resolve(import.meta.dirname, "../..");
@@ -46,6 +53,16 @@ beforeEach(async () => {
         account_status: "deactivated",
       },
       "passenger-1": activeUser("passenger"),
+      "legacy-passenger": {
+        role: "passenger",
+        passenger_type: "student",
+        email: "legacy@example.com",
+        isVerified: false,
+        isActive: false,
+        isBanned: false,
+        isDeactivated: false,
+        account_status: "active",
+      },
       "driver-1": activeUser("driver"),
     };
     for (const [userId, data] of Object.entries(users)) {
@@ -106,6 +123,42 @@ test("regular and super admins can read shared admin logs", async () => {
 
   const passenger = environment.authenticatedContext("passenger-1").firestore();
   await assertFails(getDoc(doc(passenger, "admin_logs", "log-1")));
+});
+
+test("legacy passengers can upload and submit their verification documents", async () => {
+  const passenger = environment.authenticatedContext("legacy-passenger");
+  const storage = passenger.storage();
+  const firestore = passenger.firestore();
+  const idFile = ref(storage, "users/legacy-passenger/id_upload.jpg");
+
+  await assertSucceeds(
+    uploadBytes(idFile, new Uint8Array([1, 2, 3]), {
+      contentType: "image/jpeg",
+    }),
+  );
+  await assertSucceeds(
+    updateDoc(doc(firestore, "users", "legacy-passenger"), {
+      id_image_url: "https://example.com/legacy-passenger-id.jpg",
+      document_upload_status: "uploaded",
+      document_upload_error: deleteField(),
+    }),
+  );
+
+  const otherPassenger = environment.authenticatedContext("passenger-1");
+  await assertFails(
+    uploadBytes(
+      ref(otherPassenger.storage(), "users/legacy-passenger/id_upload.jpg"),
+      new Uint8Array([4, 5, 6]),
+      {contentType: "image/jpeg"},
+    ),
+  );
+  await assertFails(
+    updateDoc(doc(firestore, "users", "legacy-passenger"), {
+      isVerified: true,
+      document_upload_status: "uploaded",
+      document_submitted_at: serverTimestamp(),
+    }),
+  );
 });
 
 test("admin-direct threads are restricted to active participants", async () => {

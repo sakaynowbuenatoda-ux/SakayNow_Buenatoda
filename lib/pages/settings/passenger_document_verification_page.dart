@@ -6,8 +6,8 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/auth/registration_service.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/passenger_verification_upload_card.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
-import '../../widgets/registration_image_preview.dart';
 
 class PassengerDocumentVerificationPage extends StatefulWidget {
   final String userId;
@@ -27,6 +27,8 @@ class _PassengerDocumentVerificationPageState
   bool _isVerified = false;
   String _uploadStatus = 'none';
   String _passengerType = 'regular';
+  String? _idImageUrl;
+  String? _selfieUrl;
 
   RegistrationImageSelection? _idFile;
   RegistrationImageSelection? _selfieFile;
@@ -49,9 +51,17 @@ class _PassengerDocumentVerificationPageState
         final data = doc.data()!;
         setState(() {
           _isVerified =
-              data['is_verified'] == true || data['isVerified'] == true;
+              data['is_verified'] == true ||
+              data['isVerified'] == true ||
+              data['isVerrified'] == true;
           _uploadStatus = data['document_upload_status'] as String? ?? 'none';
           _passengerType = data['passenger_type'] as String? ?? 'regular';
+          _idImageUrl = _readOptionalString(
+            data['id_image_url'] ?? data['idImageUrl'],
+          );
+          _selfieUrl = _readOptionalString(
+            data['selfie_url'] ?? data['selfieUrl'],
+          );
           _isLoading = false;
         });
       } else {
@@ -139,6 +149,7 @@ class _PassengerDocumentVerificationPageState
 
       updates['document_upload_status'] = 'uploaded';
       updates['document_upload_error'] = FieldValue.delete();
+      updates['document_submitted_at'] = FieldValue.serverTimestamp();
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -146,8 +157,12 @@ class _PassengerDocumentVerificationPageState
           .update(updates);
 
       if (!mounted) return;
+      final uploadedIdUrl = updates['id_image_url'] as String?;
+      final uploadedSelfieUrl = updates['selfie_url'] as String?;
       setState(() {
         _uploadStatus = 'uploaded';
+        _idImageUrl = uploadedIdUrl ?? _idImageUrl;
+        _selfieUrl = uploadedSelfieUrl ?? _selfieUrl;
         _isUploading = false;
         _idFile = null;
         _selfieFile = null;
@@ -196,28 +211,45 @@ class _PassengerDocumentVerificationPageState
                   children: [
                     _buildStatusCard(),
                     const SizedBox(height: 20),
-                    _buildUploadSection(
+                    PassengerVerificationUploadCard(
+                      documentKey: 'id',
                       title: 'School or Government ID',
                       subtitle:
                           'Select a clear, readable photo of your Student or Senior Citizen ID.',
-                      icon: Icons.upload_file_rounded,
+                      buttonIcon: Icons.upload_file_rounded,
                       buttonText: _idFile == null
-                          ? 'Choose ID Photo'
-                          : 'Change Photo',
+                          ? (_idImageUrl == null
+                                ? 'Choose ID Photo'
+                                : 'Replace ID Photo')
+                          : 'Change Selected Photo',
                       onTap: _isUploading ? null : _pickIdImage,
-                      file: _idFile,
+                      selectedFile: _idFile,
+                      uploadedImageUrl: _idImageUrl,
+                      emptyTitle: 'No ID uploaded yet',
+                      emptyMessage:
+                          'Choose a clear ID photo to preview it here.',
+                      emptyIcon: Icons.badge_outlined,
+                      previewFit: BoxFit.contain,
                     ),
                     const SizedBox(height: 16),
-                    _buildUploadSection(
+                    PassengerVerificationUploadCard(
+                      documentKey: 'selfie',
                       title: 'Live Selfie Photo',
                       subtitle:
                           'Take a clean portrait photo using your device camera for facial recognition.',
-                      icon: Icons.camera_alt_outlined,
+                      buttonIcon: Icons.camera_alt_outlined,
                       buttonText: _selfieFile == null
-                          ? 'Capture Selfie'
+                          ? (_selfieUrl == null
+                                ? 'Capture Selfie'
+                                : 'Retake Selfie')
                           : 'Recapture Selfie',
                       onTap: _isUploading ? null : _captureSelfie,
-                      file: _selfieFile,
+                      selectedFile: _selfieFile,
+                      uploadedImageUrl: _selfieUrl,
+                      emptyTitle: 'No selfie uploaded yet',
+                      emptyMessage:
+                          'Capture a selfie to preview it here before submitting.',
+                      emptyIcon: Icons.person_outline_rounded,
                     ),
                     const SizedBox(height: 24),
                     SizedBox(
@@ -327,72 +359,10 @@ class _PassengerDocumentVerificationPageState
     );
   }
 
-  Widget _buildUploadSection({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required String buttonText,
-    required VoidCallback? onTap,
-    required RegistrationImageSelection? file,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: PassengerUi.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PassengerUi.border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: PassengerUi.title,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(fontSize: 13, color: PassengerUi.body),
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: onTap,
-              icon: Icon(icon),
-              label: Text(buttonText),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: PassengerUi.primary,
-                side: BorderSide(color: PassengerUi.border),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ),
-          if (file != null) ...[
-            const SizedBox(height: 14),
-            RegistrationImagePreview(
-              selection: file,
-              height: 200,
-              borderRadius: 12,
-            ),
-          ],
-        ],
-      ),
-    );
+  static String? _readOptionalString(Object? value) {
+    final normalized = value?.toString().trim();
+    return normalized == null || normalized.isEmpty || normalized == 'null'
+        ? null
+        : normalized;
   }
 }

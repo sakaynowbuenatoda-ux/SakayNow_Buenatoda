@@ -6,12 +6,14 @@ class RegistrationImagePreview extends StatelessWidget {
   final RegistrationImageSelection selection;
   final double height;
   final double borderRadius;
+  final BoxFit fit;
 
   const RegistrationImagePreview({
     super.key,
     required this.selection,
     required this.height,
     this.borderRadius = 12,
+    this.fit = BoxFit.cover,
   });
 
   @override
@@ -22,7 +24,7 @@ class RegistrationImagePreview extends StatelessWidget {
         selection.bytes,
         height: height,
         width: double.infinity,
-        fit: BoxFit.cover,
+        fit: fit,
         gaplessPlayback: true,
         errorBuilder: (context, _, _) {
           return Container(

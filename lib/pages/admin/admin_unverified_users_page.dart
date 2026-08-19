@@ -87,11 +87,7 @@ class _AdminUnverifiedUsersPageState extends State<AdminUnverifiedUsersPage> {
             }
 
             final filteredUsers = snapshot.data!
-                .where(
-                  (user) =>
-                      user.isPendingVerification ||
-                      (_showDrivers && user.isPendingRenewal),
-                )
+                .where((user) => user.isPendingVerification)
                 .where(
                   (user) => _showDrivers ? user.isDriver : user.isPassenger,
                 )
@@ -160,28 +156,30 @@ class _AdminUnverifiedUsersPageState extends State<AdminUnverifiedUsersPage> {
       _showDrivers ? 'Unverified Drivers' : 'Unverified Passengers';
 
   String get _pageSubtitle => _showDrivers
-      ? 'Review drivers who uploaded a selfie, NBI clearance, and license before approving their account.'
-      : 'Review passengers who uploaded a selfie and ID before approving their account.';
+      ? 'Review new driver accounts that have not completed initial verification.'
+      : 'Review new passenger accounts that have not completed initial verification.';
 
   String get _collectionLabel =>
       _showDrivers ? 'unverified drivers' : 'unverified passengers';
 
   String get _metricLabel =>
-      _showDrivers ? 'Drivers Waiting' : 'Passengers Waiting';
+      _showDrivers ? 'Unverified Drivers' : 'Unverified Passengers';
 
-  String get _sectionTitle => _showDrivers ? 'Driver Queue' : 'Passenger Queue';
+  String get _sectionTitle => _showDrivers
+      ? 'Driver Verification Queue'
+      : 'Passenger Verification Queue';
 
   String get _sectionSubtitle => _showDrivers
-      ? 'Each list item shows the submitted selfie profile and opens a full driver review page with selfie, NBI clearance, and license.'
-      : 'Each list item shows the submitted selfie profile and opens a full passenger review page with selfie and ID.';
+      ? 'Only drivers awaiting first-time account verification appear here.'
+      : 'Only passengers awaiting first-time account verification appear here.';
 
   String get _emptyTitle => _showDrivers
       ? 'No unverified drivers waiting'
       : 'No unverified passengers waiting';
 
   String get _emptyDescription => _showDrivers
-      ? 'New driver signups will appear here when they are still waiting for admin verification.'
-      : 'New passenger signups will appear here when they are still waiting for admin verification.';
+      ? 'New driver signups will appear here for initial verification.'
+      : 'New passenger signups will appear here for initial verification.';
 
   bool _matchesSearch(AdminUserRecord user) {
     if (_query.isEmpty) {

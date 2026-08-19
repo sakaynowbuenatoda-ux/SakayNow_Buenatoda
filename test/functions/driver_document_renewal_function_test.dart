@@ -36,4 +36,18 @@ void main() {
     expect(functionsSource, contains('driver_renewal_approved'));
     expect(functionsSource, contains('driver_renewal_rejected'));
   });
+
+  test('staged document reviews notify admins and users', () {
+    expect(
+      functionsSource,
+      contains('export const notifyDocumentReviewSubmitted'),
+    );
+    expect(
+      functionsSource,
+      contains('export const notifyDocumentReviewDecision'),
+    );
+    expect(functionsSource, contains('document_review_submitted'));
+    expect(functionsSource, contains('document_review_approved'));
+    expect(functionsSource, contains('document_review_rejected'));
+  });
 }

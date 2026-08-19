@@ -30,8 +30,11 @@ class AdminAccountManagementPage extends StatelessWidget {
           final registeredUsers = users
               .where((user) => user.isPassengerOrDriver)
               .length;
-          final pendingUsers = users
-              .where((user) => user.needsApproval)
+          final unverifiedUsers = users
+              .where((user) => user.isPendingVerification)
+              .toList(growable: false);
+          final reviewOnlyUsers = users
+              .where((user) => user.hasReviewOnlySubmission)
               .toList(growable: false);
           final restrictedUsers = users
               .where((user) => !user.isAdmin && user.isBanned)
@@ -39,10 +42,10 @@ class AdminAccountManagementPage extends StatelessWidget {
           final deactivatedUsers = users
               .where((user) => user.isDeactivated && !user.isDeleted)
               .toList(growable: false);
-          final pendingDrivers = pendingUsers
+          final pendingDrivers = unverifiedUsers
               .where((user) => user.isDriver)
               .length;
-          final pendingPassengers = pendingUsers
+          final pendingPassengers = unverifiedUsers
               .where((user) => user.isPassenger)
               .length;
 
@@ -52,7 +55,7 @@ class AdminAccountManagementPage extends StatelessWidget {
               const AdminSectionIntro(
                 title: 'Account Management',
                 subtitle:
-                    'Review pending verification and driver renewals, restore deactivated users within 60 days, and follow up on restricted accounts.',
+                    'Verify new accounts, review verified-user document updates, restore deactivated users within 60 days, and follow up on restricted accounts.',
               ),
               SizedBox(height: 16),
               _AccountTopGrid(
@@ -60,6 +63,7 @@ class AdminAccountManagementPage extends StatelessWidget {
                   registeredUsers: registeredUsers,
                   pendingDrivers: pendingDrivers,
                   pendingPassengers: pendingPassengers,
+                  pendingReviews: reviewOnlyUsers.length,
                   deactivatedUsers: deactivatedUsers.length,
                   restrictedUsers: restrictedUsers.length,
                   adminId: adminId,
@@ -73,7 +77,7 @@ class AdminAccountManagementPage extends StatelessWidget {
               SizedBox(height: 18),
               _AccountBottomGrid(
                 verification: _VerificationQueuesPanel(
-                  pendingUsers: pendingUsers.length,
+                  pendingUsers: unverifiedUsers.length,
                   pendingDrivers: pendingDrivers,
                   pendingPassengers: pendingPassengers,
                   adminId: adminId,
@@ -161,6 +165,7 @@ class _AccountMetricsPanel extends StatelessWidget {
   final int registeredUsers;
   final int pendingDrivers;
   final int pendingPassengers;
+  final int pendingReviews;
   final int deactivatedUsers;
   final int restrictedUsers;
   final String adminId;
@@ -169,6 +174,7 @@ class _AccountMetricsPanel extends StatelessWidget {
     required this.registeredUsers,
     required this.pendingDrivers,
     required this.pendingPassengers,
+    required this.pendingReviews,
     required this.deactivatedUsers,
     required this.restrictedUsers,
     required this.adminId,
@@ -211,7 +217,7 @@ class _AccountMetricsPanel extends StatelessWidget {
                 child: AdminMetricCard(
                   label: 'Unverified drivers',
                   value: pendingDrivers.toString(),
-                  helper: 'Inspect selfie, NBI clearance, and license uploads.',
+                  helper: 'New driver accounts awaiting verification.',
                   icon: Icons.two_wheeler_rounded,
                   accentColor: AdminUi.secondary,
                   onTap: () => AdminNavigation.openUnverifiedDrivers(
@@ -225,10 +231,25 @@ class _AccountMetricsPanel extends StatelessWidget {
                 child: AdminMetricCard(
                   label: 'Unverified passengers',
                   value: pendingPassengers.toString(),
-                  helper: 'Inspect selfie and ID uploads.',
+                  helper: 'New passenger accounts awaiting verification.',
                   icon: Icons.person_outline_rounded,
                   accentColor: AdminUi.accentBlue,
                   onTap: () => AdminNavigation.openUnverifiedPassengers(
+                    context,
+                    adminId: adminId,
+                  ),
+                ),
+              ),
+              _MetricFrame(
+                width: cardWidth,
+                child: AdminMetricCard(
+                  label: 'Document reviews',
+                  value: pendingReviews.toString(),
+                  helper:
+                      'Verified-user documents, vehicles, IDs, and renewals.',
+                  icon: Icons.fact_check_outlined,
+                  accentColor: AdminUi.highlightAmber,
+                  onTap: () => AdminNavigation.openDocumentReviews(
                     context,
                     adminId: adminId,
                   ),
@@ -288,15 +309,15 @@ class _VerificationQueuesPanel extends StatelessWidget {
     return _AccountSurfacePanel(
       title: 'Verification Queues',
       subtitle: pendingUsers == 0
-          ? 'There are currently no accounts waiting for review.'
-          : '$pendingUsers account(s) are waiting for admin verification.',
+          ? 'There are currently no new accounts waiting for verification.'
+          : '$pendingUsers new account(s) are waiting for verification.',
       accentColor: AdminUi.secondary,
       child: pendingUsers == 0
           ? const AdminEmptyCollection(
               icon: Icons.verified_user_outlined,
-              title: 'No unverified users waiting',
+              title: 'No account verifications waiting',
               description:
-                  'New passenger and driver signups will appear here until an admin verifies them.',
+                  'New unverified driver and passenger accounts will appear here.',
             )
           : LayoutBuilder(
               builder: (context, constraints) {
@@ -313,9 +334,9 @@ class _VerificationQueuesPanel extends StatelessWidget {
                     _MetricFrame(
                       width: width,
                       child: AdminMetricCard(
-                        label: 'Driver Review List',
+                        label: 'Unverified Drivers',
                         value: pendingDrivers.toString(),
-                        helper: 'Open every unverified driver profile.',
+                        helper: 'Open new drivers awaiting verification.',
                         icon: Icons.drive_eta_rounded,
                         accentColor: AdminUi.secondary,
                         onTap: () => AdminNavigation.openUnverifiedDrivers(
@@ -327,9 +348,9 @@ class _VerificationQueuesPanel extends StatelessWidget {
                     _MetricFrame(
                       width: width,
                       child: AdminMetricCard(
-                        label: 'Passenger Review List',
+                        label: 'Unverified Passengers',
                         value: pendingPassengers.toString(),
-                        helper: 'Open every unverified passenger profile.',
+                        helper: 'Open new passengers awaiting verification.',
                         icon: Icons.person_search_rounded,
                         accentColor: AdminUi.accentBlue,
                         onTap: () => AdminNavigation.openUnverifiedPassengers(

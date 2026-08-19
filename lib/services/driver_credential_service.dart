@@ -41,10 +41,10 @@ class DriverCredentialService {
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _storage = storage ?? FirebaseStorage.instance;
+       _storage = storage;
 
   final FirebaseFirestore _firestore;
-  final FirebaseStorage _storage;
+  final FirebaseStorage? _storage;
 
   Future<void> saveCredential({
     required String driverId,
@@ -77,21 +77,37 @@ class DriverCredentialService {
     Reference? uploadedRef;
 
     try {
-      final updates = <String, dynamic>{
-        'document_upload_status': 'uploaded',
-        'document_upload_error': FieldValue.delete(),
-        'credential_updated_at': FieldValue.serverTimestamp(),
-        'is_verified': false,
-        'is_active': false,
-        'updated_at': FieldValue.serverTimestamp(),
-      };
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(normalizedDriverId)
+          .get();
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final isVerified = _isVerified(data);
+      if (isVerified && data['document_review_status'] == 'pending') {
+        throw const DriverCredentialUpdateException(
+          'Another document update is already waiting for admin review.',
+        );
+      }
 
-      if (document != null) {
+      String documentUrl;
+      String? documentPath;
+
+      if (document == null) {
+        documentUrl = _readOptionalString(data[type.urlField]) ?? '';
+        // Reuse the approved URL without resubmitting a legacy storage path.
+        // The rules verify that this URL matches the approved record.
+        documentPath = null;
+        if (documentUrl.isEmpty) {
+          throw DriverCredentialUpdateException(
+            'Choose an image for ${type.label}.',
+          );
+        }
+      } else {
         final suffix = _fileExtension(document.file.name);
         final fileName =
             '${type.storageName}_${now.millisecondsSinceEpoch}.$suffix';
         final path = 'users/$normalizedDriverId/credentials/$fileName';
-        uploadedRef = _storage.ref(path);
+        uploadedRef = (_storage ?? FirebaseStorage.instance).ref(path);
         await uploadedRef.putData(
           document.bytes,
           SettableMetadata(
@@ -104,15 +120,40 @@ class DriverCredentialService {
             },
           ),
         );
-        updates[type.urlField] = await uploadedRef.getDownloadURL();
-        updates[type.pathField] = path;
+        documentUrl = await uploadedRef.getDownloadURL();
+        documentPath = path;
       }
 
-      final expiryField = type.expiryField;
-      if (normalizedExpiry != null && expiryField != null) {
-        updates[expiryField] = Timestamp.fromDate(normalizedExpiry);
-        updates['document_status'] = 'valid';
-        updates['document_status_updated_at'] = FieldValue.serverTimestamp();
+      final updates = <String, dynamic>{
+        'document_upload_status': 'uploaded',
+        'document_upload_error': FieldValue.delete(),
+        'credential_updated_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      };
+      if (isVerified) {
+        final pendingReview = <String, dynamic>{
+          'kind': 'driver_credential',
+          'credential_type': type.storageName,
+          'document_url': documentUrl,
+          if (normalizedExpiry != null)
+            'expiry': Timestamp.fromDate(normalizedExpiry),
+          'submitted_at': FieldValue.serverTimestamp(),
+        };
+        if (documentPath != null) {
+          pendingReview['document_path'] = documentPath;
+        }
+        updates.addAll(<String, dynamic>{
+          'document_review_status': 'pending',
+          'document_review_submitted_at': FieldValue.serverTimestamp(),
+          'document_review_rejection_reason': FieldValue.delete(),
+          'pending_document_review': pendingReview,
+        });
+      } else {
+        updates[type.urlField] = documentUrl;
+        if (documentPath != null) updates[type.pathField] = documentPath;
+        if (type.expiryField case final expiryField?) {
+          updates[expiryField] = Timestamp.fromDate(normalizedExpiry!);
+        }
       }
 
       await _firestore
@@ -127,6 +168,7 @@ class DriverCredentialService {
           // Preserve the upload or profile update error shown to the driver.
         }
       }
+      if (error is DriverCredentialUpdateException) rethrow;
       throw DriverCredentialUpdateException(
         'Unable to save ${type.label}. Please try again.',
         cause: error,
@@ -136,6 +178,17 @@ class DriverCredentialService {
 
   static DateTime _endOfDay(DateTime value) {
     return DateTime(value.year, value.month, value.day, 23, 59, 59, 999);
+  }
+
+  static String? _readOptionalString(Object? value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty || text == 'null' ? null : text;
+  }
+
+  static bool _isVerified(Map<String, dynamic> data) {
+    return data['is_verified'] == true ||
+        data['isVerified'] == true ||
+        data['isVerrified'] == true;
   }
 
   static String _fileExtension(String fileName) {

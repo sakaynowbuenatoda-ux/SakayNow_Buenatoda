@@ -15,6 +15,8 @@ void main() {
     String? orCrUrl = 'https://example.com/or_cr.jpg',
     String? tricycleFrontUrl = 'https://example.com/front.jpg',
     String? tricycleBackUrl = 'https://example.com/back.jpg',
+    String documentReviewStatus = '',
+    Map<String, dynamic> pendingDocumentReview = const <String, dynamic>{},
     DriverDocumentStatus? driverDocumentStatus,
   }) {
     return AdminUserRecord(
@@ -49,6 +51,8 @@ void main() {
       orCrUrl: orCrUrl,
       tricycleFrontUrl: tricycleFrontUrl,
       tricycleBackUrl: tricycleBackUrl,
+      documentReviewStatus: documentReviewStatus,
+      pendingDocumentReview: pendingDocumentReview,
       driverDocumentStatus:
           driverDocumentStatus ??
           DriverDocumentStatus(
@@ -146,9 +150,56 @@ void main() {
       );
 
       expect(driver.isPendingRenewal, isTrue);
+      expect(driver.hasReviewOnlySubmission, isTrue);
       expect(driver.needsApproval, isTrue);
       expect(driver.canReceiveBookings, isFalse);
       expect(driver.statusLabel, 'Pending renewal');
     });
+
+    test('verified account document updates stay verified while pending', () {
+      final driver = buildUser(
+        role: 'driver',
+        isVerified: true,
+        documentReviewStatus: 'pending',
+        pendingDocumentReview: <String, dynamic>{
+          'kind': 'driver_credential',
+          'credential_type': 'drivers_license',
+          'document_url': 'https://example.com/new-license.jpg',
+          'expiry': DateTime(2029, 1, 1),
+        },
+      );
+
+      expect(driver.isVerified, isTrue);
+      expect(driver.isPendingVerification, isFalse);
+      expect(driver.hasPendingDocumentReview, isTrue);
+      expect(driver.hasReviewOnlySubmission, isTrue);
+      expect(driver.needsApproval, isTrue);
+      expect(driver.statusLabel, 'Document review pending');
+      expect(
+        driver.effectiveDriversLicenseUrl,
+        'https://example.com/new-license.jpg',
+      );
+      expect(driver.effectiveDriversLicenseExpiry, DateTime(2029, 1, 1));
+    });
+
+    test(
+      'unverified accounts stay in initial verification even with staged documents',
+      () {
+        final passenger = buildUser(
+          role: 'passenger',
+          isVerified: false,
+          documentReviewStatus: 'pending',
+          pendingDocumentReview: const <String, dynamic>{
+            'kind': 'passenger_identity',
+            'id_image_url': 'https://example.com/new-id.jpg',
+          },
+        );
+
+        expect(passenger.isPendingVerification, isTrue);
+        expect(passenger.hasPendingDocumentReview, isTrue);
+        expect(passenger.hasReviewOnlySubmission, isFalse);
+        expect(passenger.needsApproval, isTrue);
+      },
+    );
   });
 }

@@ -186,6 +186,7 @@ class _AdminOverviewData {
   final int totalUsers;
   final int unverifiedDrivers;
   final int unverifiedPassengers;
+  final int pendingDocumentReviews;
   final int activeDrivers;
   final int studentPassengers;
   final int completedBookings;
@@ -201,6 +202,7 @@ class _AdminOverviewData {
     required this.totalUsers,
     required this.unverifiedDrivers,
     required this.unverifiedPassengers,
+    required this.pendingDocumentReviews,
     required this.activeDrivers,
     required this.studentPassengers,
     required this.completedBookings,
@@ -226,12 +228,16 @@ class _AdminOverviewData {
     final unverifiedPassengers = users
         .where((user) => user.isPassenger && user.isPendingVerification)
         .length;
+    final pendingDocumentReviews = users
+        .where((user) => user.hasReviewOnlySubmission)
+        .length;
     final todayBookings = bookings.where(_isToday).toList(growable: false);
 
     return _AdminOverviewData(
       totalUsers: registeredUsers.length,
       unverifiedDrivers: unverifiedDrivers,
       unverifiedPassengers: unverifiedPassengers,
+      pendingDocumentReviews: pendingDocumentReviews,
       activeDrivers: activeDriverCount,
       studentPassengers: users.where((user) => user.isStudentPassenger).length,
       completedBookings: bookings
@@ -339,7 +345,7 @@ class _OverviewMetricPanel extends StatelessWidget {
                 child: AdminMetricCard(
                   label: 'Unverified drivers',
                   value: overview.unverifiedDrivers.toString(),
-                  helper: 'Driver accounts waiting for review',
+                  helper: 'New accounts awaiting verification',
                   icon: Icons.two_wheeler_rounded,
                   accentColor: AdminUi.highlightAmber,
                   onTap: () => AdminNavigation.openUnverifiedDrivers(
@@ -353,10 +359,24 @@ class _OverviewMetricPanel extends StatelessWidget {
                 child: AdminMetricCard(
                   label: 'Unverified passengers',
                   value: overview.unverifiedPassengers.toString(),
-                  helper: 'Passenger accounts waiting for review',
+                  helper: 'New accounts awaiting verification',
                   icon: Icons.person_outline_rounded,
                   accentColor: AdminUi.accentBlue,
                   onTap: () => AdminNavigation.openUnverifiedPassengers(
+                    context,
+                    adminId: adminId,
+                  ),
+                ),
+              ),
+              _MetricTileFrame(
+                width: cardWidth,
+                child: AdminMetricCard(
+                  label: 'Document reviews',
+                  value: overview.pendingDocumentReviews.toString(),
+                  helper: 'Verified-user updates awaiting review',
+                  icon: Icons.fact_check_outlined,
+                  accentColor: AdminUi.highlightAmber,
+                  onTap: () => AdminNavigation.openDocumentReviews(
                     context,
                     adminId: adminId,
                   ),

@@ -4,6 +4,7 @@ import 'active_drivers.dart';
 import 'admin_accounts_page.dart';
 import 'admin_booking_history_page.dart';
 import 'admin_deactivated_users_page.dart';
+import 'admin_document_reviews_page.dart';
 import 'admin_restricted_users_page.dart';
 import 'registered_users.dart';
 import 'student_accounts.dart';
@@ -50,6 +51,17 @@ class AdminNavigation {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AdminUserReviewPage(userId: userId, adminId: adminId),
+      ),
+    );
+  }
+
+  static void openDocumentReviews(
+    BuildContext context, {
+    required String adminId,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AdminDocumentReviewsPage(adminId: adminId),
       ),
     );
   }

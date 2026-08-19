@@ -81,49 +81,50 @@ void main() {
       expect(rules, contains('&& isValidDriverRenewalSubmission(userId);'));
     });
 
-    test('allow narrow owner credential additions and replacements', () {
+    test('stage owner credential additions and replacements for review', () {
       expect(rules, contains('function isValidDriverCredentialUpdate(userId)'));
       expect(rules, contains('function driverCredentialUpdateFields()'));
-      expect(rules, contains('function isValidCredentialImageChange('));
-      expect(rules, contains('function isValidExpiringCredentialChange('));
-      expect(rules, contains("'nbi_clearance_path'"));
-      expect(rules, contains("'drivers_license_path'"));
-      expect(rules, contains("'selfie_path'"));
-      expect(rules, contains("'or_cr_path'"));
+      expect(rules, contains('function isExistingCredentialDocument('));
+      expect(rules, contains('function isUploadedCredentialDocument('));
+      expect(rules, contains("pendingReview.kind == 'driver_credential'"));
+      expect(rules, contains("'pending_document_review'"));
       expect(
         rules,
         contains("request.resource.data.document_upload_status == 'uploaded'"),
       );
+      expect(
+        rules,
+        contains("request.resource.data.document_review_status == 'pending'"),
+      );
       expect(rules, contains('request.resource.data.credential_updated_at'));
-      expect(rules, contains('request.resource.data.is_verified == false'));
-      expect(rules, contains('request.resource.data.is_active == false'));
-      expect(rules, contains('&& isValidDriverCredentialUpdate(userId);'));
+      expect(rules, contains('&& isValidDriverCredentialUpdate(userId)'));
     });
 
-    test('allow legacy passengers to submit only verification documents', () {
+    test('stage passenger verification documents for review', () {
       expect(
         rules,
         contains('function isValidPassengerDocumentUpload(userId)'),
       );
       expect(rules, contains('function passengerDocumentUploadFields()'));
-      expect(rules, contains("'id_image_url'"));
-      expect(rules, contains("'selfie_url'"));
+      expect(rules, contains("pendingReview.kind == 'passenger_identity'"));
+      expect(rules, contains("'id_image_path'"));
+      expect(rules, contains("'selfie_path'"));
       expect(rules, contains("'document_submitted_at'"));
       expect(rules, contains('isPassengerRole(resource.data)'));
       expect(rules, contains('isUsableAccount(resource.data)'));
       expect(
         rules,
-        contains("affectedKeys.hasAny(['id_image_url', 'selfie_url'])"),
-      );
-      expect(
-        rules,
-        contains("!affectedKeys.hasAny(['document_submitted_at'])"),
+        contains("pendingReview.keys().hasAny(['id_image_url', 'selfie_url'])"),
       );
       expect(
         rules,
         contains('request.resource.data.document_submitted_at == request.time'),
       );
-      expect(rules, contains('&& isValidPassengerDocumentUpload(userId);'));
+      expect(rules, contains('&& isValidPassengerDocumentUpload(userId)'));
+      expect(
+        rules,
+        contains('function hasNoProtectedPassengerDocumentChanges()'),
+      );
     });
 
     test('keep renewal decisions and approved documents admin-controlled', () {
@@ -217,9 +218,9 @@ void main() {
       expect(rules, contains('&& isValidDriverPayoutSyncUpdate(userId);'));
     });
 
-    test('allow narrow owner vehicle detail and photo updates', () {
+    test('stage owner vehicle detail and photo updates for review', () {
       expect(rules, contains('function driverVehicleUpdateFields()'));
-      expect(rules, contains('function isValidVehicleImageChange('));
+      expect(rules, contains('function isValidPendingVehicleImage('));
       expect(rules, contains('function isValidDriverVehicleUpdate(userId)'));
       expect(rules, contains("'tricycle_front_path'"));
       expect(rules, contains("'tricycle_back_path'"));
@@ -230,9 +231,32 @@ void main() {
           'request.resource.data.vehicle_details_updated_at == request.time',
         ),
       );
-      expect(rules, contains('request.resource.data.is_verified == false'));
-      expect(rules, contains('request.resource.data.is_active == false'));
-      expect(rules, contains('&& isValidDriverVehicleUpdate(userId);'));
+      expect(rules, contains("pendingReview.kind == 'driver_vehicle'"));
+      expect(
+        rules,
+        contains("request.resource.data.document_review_status == 'pending'"),
+      );
+      expect(rules, contains('&& isValidDriverVehicleUpdate(userId)'));
+    });
+
+    test('allow unverified drivers to recover missing hub documents', () {
+      expect(
+        rules,
+        contains('function isValidUnverifiedDriverCredentialUpdate(userId)'),
+      );
+      expect(
+        rules,
+        contains('function isValidUnverifiedDriverVehicleUpdate(userId)'),
+      );
+      expect(
+        rules,
+        contains('&& isValidUnverifiedDriverCredentialUpdate(userId);'),
+      );
+      expect(
+        rules,
+        contains('&& isValidUnverifiedDriverVehicleUpdate(userId);'),
+      );
+      expect(rules, contains('&& !isVerifiedUser(resource.data)'));
     });
 
     test('allow driver-owned payout account default toggles', () {

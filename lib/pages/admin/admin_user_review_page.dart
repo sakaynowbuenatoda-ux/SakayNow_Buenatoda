@@ -122,23 +122,23 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                       children: [
                         _InfoRow(
                           label: 'Vehicle Type',
-                          value: user.vehicleType ?? 'Not provided',
+                          value: user.effectiveVehicleType ?? 'Not provided',
                         ),
                         _InfoRow(
                           label: 'Tricycle Color',
-                          value: user.tricycleColor ?? 'Not provided',
+                          value: user.effectiveTricycleColor ?? 'Not provided',
                         ),
                         _InfoRow(
                           label: 'Plate / Franchise No.',
-                          value: user.plateNumber ?? 'Not provided',
+                          value: user.effectivePlateNumber ?? 'Not provided',
                         ),
                         _InfoTimeRow(
                           label: 'Driver\'s License Expiry',
-                          value: user.driverDocumentStatus.driversLicenseExpiry,
+                          value: user.effectiveDriversLicenseExpiry,
                         ),
                         _InfoTimeRow(
                           label: 'OR/CR Expiry',
-                          value: user.driverDocumentStatus.orCrExpiry,
+                          value: user.effectiveOrCrExpiry,
                           isLast: true,
                         ),
                       ],
@@ -186,6 +186,28 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                           '${user.fullName}\'s document renewal was approved.',
                     ),
                     onReject: () => _promptAndRejectRenewal(user),
+                  ),
+                ],
+                if (user.hasPendingDocumentReview && user.isVerified) ...[
+                  SizedBox(height: 18),
+                  _DocumentUpdateReviewPanel(
+                    user: user,
+                    isProcessing: _isProcessing,
+                    onApprove: () => _confirmAndRunAction(
+                      title: 'Approve Document Update?',
+                      message:
+                          'This applies the staged ${user.pendingDocumentReviewLabel.toLowerCase()} without changing the account\'s verified status.',
+                      confirmLabel: 'Approve Update',
+                      icon: Icons.fact_check_rounded,
+                      confirmColor: AdminUi.successText,
+                      action: () => AdminService.approveDocumentReview(
+                        userId: user.userId,
+                        adminId: widget.adminId,
+                      ),
+                      successMessage:
+                          '${user.fullName}\'s document update was approved.',
+                    ),
+                    onReject: () => _promptAndRejectDocumentReview(user),
                   ),
                 ],
                 SizedBox(height: 18),
@@ -245,26 +267,29 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
   List<_ReviewDocument> _buildDocuments(AdminUserRecord user) {
     if (user.isDriver) {
       return <_ReviewDocument>[
-        if (user.selfieUrl != null)
-          _ReviewDocument(label: 'Selfie', url: user.selfieUrl!),
-        if (user.nbiClearanceUrl != null)
-          _ReviewDocument(label: 'NBI Clearance', url: user.nbiClearanceUrl!),
-        if (user.driversLicenseUrl != null)
+        if (user.effectiveSelfieUrl != null)
+          _ReviewDocument(label: 'Selfie', url: user.effectiveSelfieUrl!),
+        if (user.effectiveNbiClearanceUrl != null)
+          _ReviewDocument(
+            label: 'NBI Clearance',
+            url: user.effectiveNbiClearanceUrl!,
+          ),
+        if (user.effectiveDriversLicenseUrl != null)
           _ReviewDocument(
             label: 'Driver\'s License',
-            url: user.driversLicenseUrl!,
+            url: user.effectiveDriversLicenseUrl!,
           ),
-        if (user.orCrUrl != null)
-          _ReviewDocument(label: 'OR/CR Document', url: user.orCrUrl!),
-        if (user.tricycleFrontUrl != null)
+        if (user.effectiveOrCrUrl != null)
+          _ReviewDocument(label: 'OR/CR Document', url: user.effectiveOrCrUrl!),
+        if (user.effectiveTricycleFrontUrl != null)
           _ReviewDocument(
             label: 'Front Tricycle Photo',
-            url: user.tricycleFrontUrl!,
+            url: user.effectiveTricycleFrontUrl!,
           ),
-        if (user.tricycleBackUrl != null)
+        if (user.effectiveTricycleBackUrl != null)
           _ReviewDocument(
             label: 'Back Tricycle Photo',
-            url: user.tricycleBackUrl!,
+            url: user.effectiveTricycleBackUrl!,
           ),
         if (user.driverDocumentStatus.renewalDocumentUrl != null)
           _ReviewDocument(
@@ -276,16 +301,16 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
     }
 
     return <_ReviewDocument>[
-      if (user.selfieUrl != null)
-        _ReviewDocument(label: 'Selfie', url: user.selfieUrl!),
-      if (user.idImageUrl != null)
+      if (user.effectiveSelfieUrl != null)
+        _ReviewDocument(label: 'Selfie', url: user.effectiveSelfieUrl!),
+      if (user.effectiveIdImageUrl != null)
         _ReviewDocument(
           label: user.isStudentPassenger
               ? 'Student ID'
               : (user.isSeniorCitizenPassenger
                     ? 'Senior Citizen ID'
                     : 'ID Image'),
-          url: user.idImageUrl!,
+          url: user.effectiveIdImageUrl!,
         ),
     ];
   }
@@ -395,6 +420,50 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
         reason: reason,
       ),
       successMessage: '${user.fullName}\'s renewal was rejected.',
+    );
+  }
+
+  Future<void> _promptAndRejectDocumentReview(AdminUserRecord user) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reject Document Update?'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 240,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Reason for the user',
+            hintText: 'Explain what must be corrected.',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.of(dialogContext).pop(value);
+            },
+            child: const Text('Reject Update'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (reason == null || !mounted) return;
+    await _runAction(
+      action: () => AdminService.rejectDocumentReview(
+        userId: user.userId,
+        adminId: widget.adminId,
+        reason: reason,
+      ),
+      successMessage: '${user.fullName}\'s document update was rejected.',
     );
   }
 
@@ -635,6 +704,72 @@ class _RenewalReviewPanel extends StatelessWidget {
       'Dec',
     ];
     return '${months[value.month - 1]} ${value.day}, ${value.year}';
+  }
+}
+
+class _DocumentUpdateReviewPanel extends StatelessWidget {
+  final AdminUserRecord user;
+  final bool isProcessing;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  const _DocumentUpdateReviewPanel({
+    required this.user,
+    required this.isProcessing,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  'Pending Document Review',
+                  style: AdminUi.cardTitle,
+                ),
+              ),
+              AdminStatusChip(
+                label: 'Verified account',
+                textColor: AdminUi.successText,
+                backgroundColor: AdminUi.successBackground,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '${user.pendingDocumentReviewLabel} is staged for review. The account remains verified and its previously approved profile stays in service until this update is approved.',
+            style: AdminUi.bodyText,
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              AdminActionButton(
+                label: 'Approve Update',
+                icon: Icons.fact_check_rounded,
+                backgroundColor: AdminUi.successBackground,
+                foregroundColor: AdminUi.successText,
+                onPressed: isProcessing ? null : onApprove,
+              ),
+              AdminActionButton(
+                label: 'Reject Update',
+                icon: Icons.cancel_outlined,
+                backgroundColor: AdminUi.dangerSoft,
+                foregroundColor: AdminUi.primary,
+                onPressed: isProcessing ? null : onReject,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -26,6 +26,7 @@ class _PassengerDocumentVerificationPageState
   bool _isUploading = false;
   bool _isVerified = false;
   String _uploadStatus = 'none';
+  String _documentReviewStatus = 'none';
   String _passengerType = 'regular';
   String? _idImageUrl;
   String? _selfieUrl;
@@ -55,6 +56,8 @@ class _PassengerDocumentVerificationPageState
               data['isVerified'] == true ||
               data['isVerrified'] == true;
           _uploadStatus = data['document_upload_status'] as String? ?? 'none';
+          _documentReviewStatus =
+              data['document_review_status'] as String? ?? 'none';
           _passengerType = data['passenger_type'] as String? ?? 'regular';
           _idImageUrl = _readOptionalString(
             data['id_image_url'] ?? data['idImageUrl'],
@@ -106,6 +109,12 @@ class _PassengerDocumentVerificationPageState
   }
 
   Future<void> _uploadDocuments() async {
+    if (_documentReviewStatus == 'pending') {
+      _showSnackBar(
+        'Your current document update is already waiting for admin review.',
+      );
+      return;
+    }
     if (_idFile == null && _selfieFile == null) {
       _showSnackBar('Please select at least an ID photo or selfie to upload.');
       return;
@@ -115,10 +124,18 @@ class _PassengerDocumentVerificationPageState
 
     try {
       final updates = <String, dynamic>{};
+      final pendingReview = <String, dynamic>{
+        'kind': 'passenger_identity',
+        'submitted_at': FieldValue.serverTimestamp(),
+      };
       final storage = FirebaseStorage.instance;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
 
       if (_idFile != null) {
-        final idRef = storage.ref('users/${widget.userId}/id_upload.jpg');
+        final suffix = _fileExtension(_idFile!.file.name);
+        final path =
+            'users/${widget.userId}/verification_documents/id_$timestamp.$suffix';
+        final idRef = storage.ref(path);
         await idRef.putData(
           _idFile!.bytes,
           SettableMetadata(
@@ -129,11 +146,15 @@ class _PassengerDocumentVerificationPageState
             },
           ),
         );
-        updates['id_image_url'] = await idRef.getDownloadURL();
+        pendingReview['id_image_url'] = await idRef.getDownloadURL();
+        pendingReview['id_image_path'] = path;
       }
 
       if (_selfieFile != null) {
-        final selfieRef = storage.ref('users/${widget.userId}/selfie.jpg');
+        final suffix = _fileExtension(_selfieFile!.file.name);
+        final path =
+            'users/${widget.userId}/verification_documents/selfie_$timestamp.$suffix';
+        final selfieRef = storage.ref(path);
         await selfieRef.putData(
           _selfieFile!.bytes,
           SettableMetadata(
@@ -144,12 +165,18 @@ class _PassengerDocumentVerificationPageState
             },
           ),
         );
-        updates['selfie_url'] = await selfieRef.getDownloadURL();
+        pendingReview['selfie_url'] = await selfieRef.getDownloadURL();
+        pendingReview['selfie_path'] = path;
       }
 
       updates['document_upload_status'] = 'uploaded';
       updates['document_upload_error'] = FieldValue.delete();
       updates['document_submitted_at'] = FieldValue.serverTimestamp();
+      updates['document_review_status'] = 'pending';
+      updates['document_review_submitted_at'] = FieldValue.serverTimestamp();
+      updates['document_review_rejection_reason'] = FieldValue.delete();
+      updates['pending_document_review'] = pendingReview;
+      updates['updated_at'] = FieldValue.serverTimestamp();
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -157,17 +184,22 @@ class _PassengerDocumentVerificationPageState
           .update(updates);
 
       if (!mounted) return;
-      final uploadedIdUrl = updates['id_image_url'] as String?;
-      final uploadedSelfieUrl = updates['selfie_url'] as String?;
+      final uploadedIdUrl = pendingReview['id_image_url'] as String?;
+      final uploadedSelfieUrl = pendingReview['selfie_url'] as String?;
       setState(() {
         _uploadStatus = 'uploaded';
+        _documentReviewStatus = 'pending';
         _idImageUrl = uploadedIdUrl ?? _idImageUrl;
         _selfieUrl = uploadedSelfieUrl ?? _selfieUrl;
         _isUploading = false;
         _idFile = null;
         _selfieFile = null;
       });
-      _showSnackBar('Verification documents uploaded successfully.');
+      _showSnackBar(
+        _isVerified
+            ? 'Documents sent for admin review. Your verified status is unchanged.'
+            : 'Verification documents uploaded for admin review.',
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isUploading = false);
@@ -299,7 +331,9 @@ class _PassengerDocumentVerificationPageState
   Widget _buildStatusCard() {
     String statusLabel = 'Pending Submission';
 
-    if (_isVerified) {
+    if (_isVerified && _documentReviewStatus == 'pending') {
+      statusLabel = 'Verified — Update In Review';
+    } else if (_isVerified) {
       statusLabel = 'Verified';
     } else if (_uploadStatus == 'uploaded') {
       statusLabel = 'In Review (Uploaded)';
@@ -364,5 +398,14 @@ class _PassengerDocumentVerificationPageState
     return normalized == null || normalized.isEmpty || normalized == 'null'
         ? null
         : normalized;
+  }
+
+  static String _fileExtension(String fileName) {
+    final parts = fileName.trim().toLowerCase().split('.');
+    final value = parts.length > 1 ? parts.last : 'jpg';
+    return switch (value) {
+      'png' || 'webp' || 'gif' || 'heic' || 'heif' => value,
+      _ => 'jpg',
+    };
   }
 }

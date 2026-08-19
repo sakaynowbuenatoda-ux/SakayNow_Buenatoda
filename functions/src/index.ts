@@ -1440,9 +1440,104 @@ export const notifyDriverRenewalDecision = onDocumentUpdated(
   },
 );
 
+export const notifyDocumentReviewSubmitted = onDocumentUpdated(
+  {
+    region: "asia-southeast1",
+    cpu: "gcf_gen1",
+    document: "users/{userId}",
+  },
+  async (event) => {
+    const change = event.data;
+    if (!change) return;
+    const before = change.before.data();
+    const after = change.after.data();
+    const beforeStatus = readOptionalString(before.document_review_status);
+    const afterStatus = readOptionalString(after.document_review_status);
+    const beforeSubmittedAt = timestampFromUnknown(
+      before.document_review_submitted_at,
+    );
+    const afterSubmittedAt = timestampFromUnknown(
+      after.document_review_submitted_at,
+    );
+    if (
+      afterStatus !== "pending" ||
+      (beforeStatus === "pending" &&
+        beforeSubmittedAt?.toMillis() === afterSubmittedAt?.toMillis())
+    ) {
+      return;
+    }
+
+    const userId = event.params.userId;
+    const role = normalizedUserRole(after);
+    const pendingReview = readMap(after.pending_document_review);
+    const reviewKind = readOptionalString(pendingReview.kind) ??
+      "document_update";
+    await notifyAdmins({
+      type: "document_review_submitted",
+      title: "Document update submitted",
+      body: `${fullName(after)} submitted a ${documentReviewLabel(
+        pendingReview,
+      )} for review. Their existing verification remains active.`,
+      channel: "system",
+      sourceId:
+        `document_review_${userId}_${afterSubmittedAt?.toMillis() ?? event.id}`,
+      data: {
+        user_id: userId,
+        role,
+        review_kind: reviewKind,
+      },
+      sendPush: true,
+    });
+  },
+);
+
+export const notifyDocumentReviewDecision = onDocumentUpdated(
+  {
+    region: "asia-southeast1",
+    cpu: "gcf_gen1",
+    document: "users/{userId}",
+  },
+  async (event) => {
+    const change = event.data;
+    if (!change) return;
+    const before = change.before.data();
+    const after = change.after.data();
+    const decision = readOptionalString(after.document_review_status);
+    if (
+      readOptionalString(before.document_review_status) !== "pending" ||
+      (decision !== "approved" && decision !== "rejected")
+    ) {
+      return;
+    }
+
+    const approved = decision === "approved";
+    const reason = readOptionalString(after.document_review_rejection_reason);
+    await createAppNotification({
+      userId: event.params.userId,
+      role: normalizedUserRole(after),
+      type: approved ?
+        "document_review_approved" :
+        "document_review_rejected",
+      title: approved ? "Document update approved" : "Document update rejected",
+      body: approved ?
+        "Your document update was approved. Your verified status stayed active during review." :
+        `Your document update needs changes.${reason ? ` ${reason}` : ""}`,
+      channel: "account",
+      sourceId: `document_review_decision_${event.params.userId}_${event.id}`,
+      data: {
+        user_id: event.params.userId,
+        role: normalizedUserRole(after),
+        document_review_status: decision,
+      },
+      sendPush: true,
+    });
+  },
+);
+
 export const logAdminUserAction = onDocumentUpdated(
   {
     region: "asia-southeast1",
+    cpu: "gcf_gen1",
     document: "users/{userId}",
   },
   async (event) => {
@@ -1515,6 +1610,30 @@ export const logAdminUserAction = onDocumentUpdated(
         action: "user_approved",
         adminId: reviewedBy,
         summary: `${targetName} was verified.`,
+      });
+      return;
+    }
+
+    const beforeDocumentReviewStatus = readOptionalString(
+      before.document_review_status,
+    );
+    const afterDocumentReviewStatus = readOptionalString(
+      after.document_review_status,
+    );
+    if (
+      beforeDocumentReviewStatus === "pending" &&
+      (afterDocumentReviewStatus === "approved" ||
+        afterDocumentReviewStatus === "rejected") &&
+      reviewedBy
+    ) {
+      await writeAdminLog({
+        ...baseLog,
+        action: afterDocumentReviewStatus === "approved" ?
+          "document_update_approved" :
+          "document_update_rejected",
+        adminId: reviewedBy,
+        summary:
+          `${targetName}'s document update was ${afterDocumentReviewStatus}.`,
       });
     }
   },
@@ -3026,6 +3145,21 @@ function earliestDriverDocumentExpiry(driver: Record<string, unknown>) {
 
 function driverDocumentLabel(documentType: string) {
   return documentType === "drivers_license" ? "Driver's License" : "OR/CR";
+}
+
+function documentReviewLabel(review: Record<string, unknown>) {
+  const kind = readOptionalString(review.kind);
+  if (kind === "driver_credential") {
+    const credentialType = readOptionalString(review.credential_type);
+    if (credentialType === "drivers_license") return "Driver's License update";
+    if (credentialType === "or_cr") return "OR/CR update";
+    if (credentialType === "nbi_clearance") return "NBI clearance update";
+    if (credentialType === "selfie") return "driver selfie update";
+    return "driver credential update";
+  }
+  if (kind === "driver_vehicle") return "vehicle profile update";
+  if (kind === "passenger_identity") return "passenger identity update";
+  return "document update";
 }
 
 function retentionExpiresFromNow() {

@@ -730,8 +730,9 @@ class RideTrackingService {
           final trips = <DriverRecentTrip>[];
 
           for (final ride in recentRides) {
-            final passengerDoc = await _users.doc(ride.passengerId).get();
-            final passengerData = passengerDoc.data() ?? <String, dynamic>{};
+            final passengerData = await _loadTripParticipantData(
+              ride.passengerId,
+            );
             trips.add(
               DriverRecentTrip(
                 ride: ride,
@@ -776,8 +777,7 @@ class RideTrackingService {
               continue;
             }
 
-            final driverDoc = await _users.doc(driverId).get();
-            final driverData = driverDoc.data() ?? <String, dynamic>{};
+            final driverData = await _loadTripParticipantData(driverId);
             trips.add(
               PassengerRecentTrip(
                 ride: ride,
@@ -791,6 +791,20 @@ class RideTrackingService {
 
           return trips;
         });
+  }
+
+  Future<Map<String, dynamic>> _loadTripParticipantData(String userId) async {
+    try {
+      final snapshot = await _users.doc(userId).get();
+      return snapshot.data() ?? <String, dynamic>{};
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied' || error.code == 'not-found') {
+        // Historical trips remain visible when the other participant's
+        // private profile is no longer readable or has been removed.
+        return <String, dynamic>{};
+      }
+      rethrow;
+    }
   }
 
   Future<DriverReviewProfile> loadDriverProfile(String driverId) async {

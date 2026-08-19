@@ -459,90 +459,95 @@ service cloud.firestore {
 
     function driverVehicleUpdateFields() {
       return [
-        'vehicle_type',
-        'tricycle_color',
-        'plate_number',
-        'tricycle_front_url',
-        'tricycle_front_path',
-        'tricycle_back_url',
-        'tricycle_back_path',
+        'pending_document_review',
+        'document_review_status',
+        'document_review_submitted_at',
+        'document_review_rejection_reason',
+        'document_upload_status',
+        'document_upload_error',
         'vehicle_details_updated_at',
-        'is_verified',
-        'isVerified',
-        'isVerrified',
-        'is_active',
-        'isActive',
         'updated_at'
       ];
     }
 
-    function isValidVehicleImageChange(
+    function isValidPendingVehicleImage(
       userId,
-      affectedKeys,
+      pendingReview,
       urlField,
       pathField,
       photoName
     ) {
-      return !affectedKeys.hasAny([urlField, pathField])
-        || (
-          affectedKeys.hasAll([urlField, pathField])
-          && request.resource.data[urlField] is string
-          && request.resource.data[urlField].size() > 0
-          && request.resource.data[urlField].size() <= 2048
-          && request.resource.data[pathField] is string
-          && request.resource.data[pathField].matches(
-            'users/' + userId + '/vehicle_photos/' + photoName + '_[^/]+'
+      return pendingReview[urlField] is string
+        && pendingReview[urlField].size() > 0
+        && pendingReview[urlField].size() <= 2048
+        && (
+          (
+            pendingReview.keys().hasAny([pathField])
+            && pendingReview[pathField] is string
+            && pendingReview[pathField].matches(
+              'users/' + userId + '/vehicle_photos/' + photoName + '_[^/]+'
+            )
+          )
+          || (
+            !pendingReview.keys().hasAny([pathField])
+            && pendingReview[urlField] == resource.data.get(urlField, '')
           )
         );
     }
 
     function isValidDriverVehicleUpdate(userId) {
       let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let pendingReview = request.resource.data.pending_document_review;
       return isSelf(userId)
         && isDriverRole(resource.data)
+        && resource.data.get('document_review_status', 'none') != 'pending'
         && affectedKeys.hasOnly(driverVehicleUpdateFields())
-        && affectedKeys.hasAny([
+        && affectedKeys.hasAny(['pending_document_review'])
+        && pendingReview is map
+        && pendingReview.keys().hasOnly([
+          'kind',
           'vehicle_type',
           'tricycle_color',
           'plate_number',
           'tricycle_front_url',
-          'tricycle_back_url'
+          'tricycle_front_path',
+          'tricycle_back_url',
+          'tricycle_back_path',
+          'submitted_at'
         ])
-        && request.resource.data.vehicle_type is string
-        && request.resource.data.vehicle_type.size() > 0
-        && request.resource.data.vehicle_type.size() <= 80
-        && request.resource.data.tricycle_color is string
-        && request.resource.data.tricycle_color.size() > 0
-        && request.resource.data.tricycle_color.size() <= 50
-        && request.resource.data.plate_number is string
-        && request.resource.data.plate_number.size() > 0
-        && request.resource.data.plate_number.size() <= 50
-        && request.resource.data.tricycle_front_url is string
-        && request.resource.data.tricycle_front_url.size() > 0
-        && request.resource.data.tricycle_front_url.size() <= 2048
-        && request.resource.data.tricycle_back_url is string
-        && request.resource.data.tricycle_back_url.size() > 0
-        && request.resource.data.tricycle_back_url.size() <= 2048
-        && isValidVehicleImageChange(
+        && pendingReview.kind == 'driver_vehicle'
+        && pendingReview.vehicle_type is string
+        && pendingReview.vehicle_type.size() > 0
+        && pendingReview.vehicle_type.size() <= 80
+        && pendingReview.tricycle_color is string
+        && pendingReview.tricycle_color.size() > 0
+        && pendingReview.tricycle_color.size() <= 50
+        && pendingReview.plate_number is string
+        && pendingReview.plate_number.size() > 0
+        && pendingReview.plate_number.size() <= 50
+        && isValidPendingVehicleImage(
           userId,
-          affectedKeys,
+          pendingReview,
           'tricycle_front_url',
           'tricycle_front_path',
           'tricycle_front'
         )
-        && isValidVehicleImageChange(
+        && isValidPendingVehicleImage(
           userId,
-          affectedKeys,
+          pendingReview,
           'tricycle_back_url',
           'tricycle_back_path',
           'tricycle_back'
         )
+        && pendingReview.submitted_at == request.time
+        && request.resource.data.document_review_status == 'pending'
+        && request.resource.data.document_review_submitted_at == request.time
+        && !request.resource.data.keys().hasAny([
+          'document_review_rejection_reason'
+        ])
+        && request.resource.data.document_upload_status == 'uploaded'
+        && !request.resource.data.keys().hasAny(['document_upload_error'])
         && request.resource.data.vehicle_details_updated_at == request.time
-        && request.resource.data.is_verified == false
-        && request.resource.data.get('isVerified', false) == false
-        && request.resource.data.get('isVerrified', false) == false
-        && request.resource.data.is_active == false
-        && request.resource.data.get('isActive', false) == false
         && request.resource.data.updated_at == request.time
         && hasNoRatingAggregateChanges();
     }
@@ -587,6 +592,12 @@ service cloud.firestore {
         'document_upload_status',
         'document_upload_error',
         'credential_updated_at',
+        'pending_document_review',
+        'document_review_status',
+        'document_review_submitted_at',
+        'document_review_reviewed_at',
+        'document_review_reviewed_by',
+        'document_review_rejection_reason',
         'renewal_status',
         'renewal_document_type',
         'renewal_document_url',
@@ -633,6 +644,104 @@ service cloud.firestore {
 
     function driverCredentialUpdateFields() {
       return [
+        'pending_document_review',
+        'document_review_status',
+        'document_review_submitted_at',
+        'document_review_rejection_reason',
+        'document_upload_status',
+        'document_upload_error',
+        'credential_updated_at',
+        'updated_at'
+      ];
+    }
+
+    function isExistingCredentialDocument(pendingReview) {
+      return !pendingReview.keys().hasAny(['document_path'])
+        && (
+          (
+            pendingReview.credential_type == 'nbi_clearance'
+            && pendingReview.document_url == resource.data.get('nbi_clearance_url', '')
+          )
+          || (
+            pendingReview.credential_type == 'drivers_license'
+            && pendingReview.document_url == resource.data.get('drivers_license_url', '')
+          )
+          || (
+            pendingReview.credential_type == 'selfie'
+            && pendingReview.document_url == resource.data.get('selfie_url', '')
+          )
+          || (
+            pendingReview.credential_type == 'or_cr'
+            && pendingReview.document_url == resource.data.get('or_cr_url', '')
+          )
+        );
+    }
+
+    function isUploadedCredentialDocument(userId, pendingReview) {
+      return pendingReview.keys().hasAny(['document_path'])
+        && pendingReview.document_path is string
+        && pendingReview.document_path.matches(
+          'users/' + userId + '/credentials/' + pendingReview.credential_type + '_[^/]+'
+        );
+    }
+
+    function isValidDriverCredentialUpdate(userId) {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let pendingReview = request.resource.data.pending_document_review;
+      return isSelf(userId)
+        && isDriverRole(resource.data)
+        && resource.data.get('document_review_status', 'none') != 'pending'
+        && affectedKeys.hasOnly(driverCredentialUpdateFields())
+        && affectedKeys.hasAny(['pending_document_review'])
+        && pendingReview is map
+        && pendingReview.keys().hasOnly([
+          'kind',
+          'credential_type',
+          'document_url',
+          'document_path',
+          'expiry',
+          'submitted_at'
+        ])
+        && pendingReview.kind == 'driver_credential'
+        && pendingReview.credential_type in [
+          'nbi_clearance',
+          'drivers_license',
+          'selfie',
+          'or_cr'
+        ]
+        && pendingReview.document_url is string
+        && pendingReview.document_url.size() > 0
+        && pendingReview.document_url.size() <= 2048
+        && (
+          isUploadedCredentialDocument(userId, pendingReview)
+          || isExistingCredentialDocument(pendingReview)
+        )
+        && (
+          (
+            pendingReview.credential_type in ['drivers_license', 'or_cr']
+            && pendingReview.expiry is timestamp
+            && pendingReview.expiry > request.time
+          )
+          || (
+            !(pendingReview.credential_type in ['drivers_license', 'or_cr'])
+            && !pendingReview.keys().hasAny(['expiry'])
+          )
+        )
+        && pendingReview.submitted_at == request.time
+        && request.resource.data.document_review_status == 'pending'
+        && request.resource.data.document_review_submitted_at == request.time
+        && !request.resource.data.keys().hasAny([
+          'document_review_rejection_reason'
+        ])
+        && request.resource.data.document_upload_status == 'uploaded'
+        && !request.resource.data.keys().hasAny(['document_upload_error'])
+        && request.resource.data.credential_updated_at == request.time
+        && request.resource.data.updated_at == request.time
+        && hasNoRatingAggregateChanges();
+    }
+
+    function unverifiedDriverCredentialUpdateFields() {
+      return [
         'nbi_clearance_url',
         'nbi_clearance_path',
         'drivers_license_url',
@@ -643,18 +752,14 @@ service cloud.firestore {
         'or_cr_url',
         'or_cr_path',
         'or_cr_expiry',
-        'document_status',
-        'document_status_updated_at',
         'document_upload_status',
         'document_upload_error',
         'credential_updated_at',
-        'is_verified',
-        'is_active',
         'updated_at'
       ];
     }
 
-    function isValidCredentialImageChange(
+    function isValidUnverifiedCredentialImage(
       userId,
       affectedKeys,
       urlField,
@@ -674,7 +779,7 @@ service cloud.firestore {
         );
     }
 
-    function isValidExpiringCredentialChange(
+    function isValidUnverifiedExpiringCredential(
       userId,
       affectedKeys,
       urlField,
@@ -684,58 +789,46 @@ service cloud.firestore {
     ) {
       return !affectedKeys.hasAny([urlField, pathField, expiryField])
         || (
-          request.resource.data[expiryField] is timestamp
+          request.resource.data[urlField] is string
+          && request.resource.data[urlField].size() > 0
+          && request.resource.data[expiryField] is timestamp
           && request.resource.data[expiryField] > request.time
-          && (
-            (
-              affectedKeys.hasAny([urlField, pathField])
-              && isValidCredentialImageChange(
-                userId,
-                affectedKeys,
-                urlField,
-                pathField,
-                storageName
-              )
-            )
-            || (
-              !affectedKeys.hasAny([urlField, pathField])
-              && affectedKeys.hasAny([expiryField])
-              && request.resource.data[urlField] is string
-              && request.resource.data[urlField].size() > 0
-            )
+          && isValidUnverifiedCredentialImage(
+            userId,
+            affectedKeys,
+            urlField,
+            pathField,
+            storageName
           )
         );
     }
 
-    function isValidDriverCredentialUpdate(userId) {
+    function isValidUnverifiedDriverCredentialUpdate(userId) {
       let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
-      let updatesExpiringDocument = affectedKeys.hasAny([
-        'drivers_license_url',
-        'drivers_license_path',
-        'drivers_license_expiry',
-        'or_cr_url',
-        'or_cr_path',
-        'or_cr_expiry'
-      ]);
       return isSelf(userId)
         && isDriverRole(resource.data)
-        && affectedKeys.hasOnly(driverCredentialUpdateFields())
+        && !isVerifiedUser(resource.data)
+        && affectedKeys.hasOnly(unverifiedDriverCredentialUpdateFields())
         && affectedKeys.hasAny([
           'nbi_clearance_url',
+          'nbi_clearance_path',
           'drivers_license_url',
+          'drivers_license_path',
           'drivers_license_expiry',
           'selfie_url',
+          'selfie_path',
           'or_cr_url',
+          'or_cr_path',
           'or_cr_expiry'
         ])
-        && isValidCredentialImageChange(
+        && isValidUnverifiedCredentialImage(
           userId,
           affectedKeys,
           'nbi_clearance_url',
           'nbi_clearance_path',
           'nbi_clearance'
         )
-        && isValidExpiringCredentialChange(
+        && isValidUnverifiedExpiringCredential(
           userId,
           affectedKeys,
           'drivers_license_url',
@@ -743,14 +836,14 @@ service cloud.firestore {
           'drivers_license_expiry',
           'drivers_license'
         )
-        && isValidCredentialImageChange(
+        && isValidUnverifiedCredentialImage(
           userId,
           affectedKeys,
           'selfie_url',
           'selfie_path',
           'selfie'
         )
-        && isValidExpiringCredentialChange(
+        && isValidUnverifiedExpiringCredential(
           userId,
           affectedKeys,
           'or_cr_url',
@@ -761,24 +854,106 @@ service cloud.firestore {
         && request.resource.data.document_upload_status == 'uploaded'
         && !request.resource.data.keys().hasAny(['document_upload_error'])
         && request.resource.data.credential_updated_at == request.time
-        && request.resource.data.is_verified == false
-        && request.resource.data.is_active == false
         && request.resource.data.updated_at == request.time
-        && (
-          (
-            updatesExpiringDocument
-            && request.resource.data.document_status == 'valid'
-            && request.resource.data.document_status_updated_at == request.time
-          )
-          || (
-            !updatesExpiringDocument
-            && !affectedKeys.hasAny([
-              'document_status',
-              'document_status_updated_at'
-            ])
-          )
-        )
         && hasNoRatingAggregateChanges();
+    }
+
+    function unverifiedDriverVehicleUpdateFields() {
+      return [
+        'vehicle_type',
+        'tricycle_color',
+        'plate_number',
+        'tricycle_front_url',
+        'tricycle_front_path',
+        'tricycle_back_url',
+        'tricycle_back_path',
+        'document_upload_status',
+        'document_upload_error',
+        'vehicle_details_updated_at',
+        'updated_at'
+      ];
+    }
+
+    function isValidUnverifiedVehicleImage(
+      userId,
+      affectedKeys,
+      urlField,
+      pathField,
+      photoName
+    ) {
+      return !affectedKeys.hasAny([urlField, pathField])
+        || (
+          affectedKeys.hasAll([urlField, pathField])
+          && request.resource.data[urlField] is string
+          && request.resource.data[urlField].size() > 0
+          && request.resource.data[urlField].size() <= 2048
+          && request.resource.data[pathField] is string
+          && request.resource.data[pathField].matches(
+            'users/' + userId + '/vehicle_photos/' + photoName + '_[^/]+'
+          )
+        );
+    }
+
+    function isValidUnverifiedDriverVehicleUpdate(userId) {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return isSelf(userId)
+        && isDriverRole(resource.data)
+        && !isVerifiedUser(resource.data)
+        && affectedKeys.hasOnly(unverifiedDriverVehicleUpdateFields())
+        && affectedKeys.hasAny([
+          'vehicle_type',
+          'tricycle_color',
+          'plate_number',
+          'tricycle_front_url',
+          'tricycle_front_path',
+          'tricycle_back_url',
+          'tricycle_back_path'
+        ])
+        && request.resource.data.vehicle_type is string
+        && request.resource.data.vehicle_type.size() > 0
+        && request.resource.data.vehicle_type.size() <= 80
+        && request.resource.data.tricycle_color is string
+        && request.resource.data.tricycle_color.size() > 0
+        && request.resource.data.tricycle_color.size() <= 50
+        && request.resource.data.plate_number is string
+        && request.resource.data.plate_number.size() > 0
+        && request.resource.data.plate_number.size() <= 50
+        && request.resource.data.tricycle_front_url is string
+        && request.resource.data.tricycle_front_url.size() > 0
+        && request.resource.data.tricycle_back_url is string
+        && request.resource.data.tricycle_back_url.size() > 0
+        && isValidUnverifiedVehicleImage(
+          userId,
+          affectedKeys,
+          'tricycle_front_url',
+          'tricycle_front_path',
+          'tricycle_front'
+        )
+        && isValidUnverifiedVehicleImage(
+          userId,
+          affectedKeys,
+          'tricycle_back_url',
+          'tricycle_back_path',
+          'tricycle_back'
+        )
+        && request.resource.data.document_upload_status == 'uploaded'
+        && !request.resource.data.keys().hasAny(['document_upload_error'])
+        && request.resource.data.vehicle_details_updated_at == request.time
+        && request.resource.data.updated_at == request.time
+        && hasNoRatingAggregateChanges();
+    }
+
+    function isValidUnverifiedDriverUploadFailure(userId) {
+      return isSelf(userId)
+        && isDriverRole(resource.data)
+        && !isVerifiedUser(resource.data)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly(['document_upload_status', 'document_upload_error'])
+        && request.resource.data.document_upload_status in ['failed', 'uploaded']
+        && request.resource.data.document_upload_error is string
+        && request.resource.data.document_upload_error.size() > 0
+        && request.resource.data.document_upload_error.size() <= 500;
     }
 
     function isValidInitialDriverDocumentUpload(userId) {
@@ -813,43 +988,93 @@ service cloud.firestore {
 
     function passengerDocumentUploadFields() {
       return [
-        'id_image_url',
-        'selfie_url',
+        'pending_document_review',
+        'document_review_status',
+        'document_review_submitted_at',
+        'document_review_rejection_reason',
         'document_upload_status',
         'document_upload_error',
-        'document_submitted_at'
+        'document_submitted_at',
+        'updated_at'
       ];
+    }
+
+    function hasNoProtectedPassengerDocumentChanges() {
+      return !request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasAny([
+          'id_image_url',
+          'id_image_path',
+          'selfie_url',
+          'selfie_path',
+          'pending_document_review',
+          'document_review_status',
+          'document_review_submitted_at',
+          'document_review_reviewed_at',
+          'document_review_reviewed_by',
+          'document_review_rejection_reason',
+          'document_upload_status',
+          'document_upload_error',
+          'document_submitted_at'
+        ]);
     }
 
     function isValidPassengerDocumentUpload(userId) {
       let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let pendingReview = request.resource.data.pending_document_review;
       return isSelf(userId)
         && isPassengerRole(resource.data)
         && isUsableAccount(resource.data)
+        && resource.data.get('document_review_status', 'none') != 'pending'
         && affectedKeys.hasOnly(passengerDocumentUploadFields())
-        && affectedKeys.hasAny(['id_image_url', 'selfie_url'])
+        && affectedKeys.hasAny(['pending_document_review'])
+        && pendingReview is map
+        && pendingReview.keys().hasOnly([
+          'kind',
+          'id_image_url',
+          'id_image_path',
+          'selfie_url',
+          'selfie_path',
+          'submitted_at'
+        ])
+        && pendingReview.kind == 'passenger_identity'
+        && pendingReview.keys().hasAny(['id_image_url', 'selfie_url'])
         && (
-          !affectedKeys.hasAny(['id_image_url'])
+          !pendingReview.keys().hasAny(['id_image_url', 'id_image_path'])
           || (
-            request.resource.data.id_image_url is string
-            && request.resource.data.id_image_url.size() > 0
-            && request.resource.data.id_image_url.size() <= 2048
+            pendingReview.keys().hasAll(['id_image_url', 'id_image_path'])
+            && pendingReview.id_image_url is string
+            && pendingReview.id_image_url.size() > 0
+            && pendingReview.id_image_url.size() <= 2048
+            && pendingReview.id_image_path is string
+            && pendingReview.id_image_path.matches(
+              'users/' + userId + '/verification_documents/id_[^/]+'
+            )
           )
         )
         && (
-          !affectedKeys.hasAny(['selfie_url'])
+          !pendingReview.keys().hasAny(['selfie_url', 'selfie_path'])
           || (
-            request.resource.data.selfie_url is string
-            && request.resource.data.selfie_url.size() > 0
-            && request.resource.data.selfie_url.size() <= 2048
+            pendingReview.keys().hasAll(['selfie_url', 'selfie_path'])
+            && pendingReview.selfie_url is string
+            && pendingReview.selfie_url.size() > 0
+            && pendingReview.selfie_url.size() <= 2048
+            && pendingReview.selfie_path is string
+            && pendingReview.selfie_path.matches(
+              'users/' + userId + '/verification_documents/selfie_[^/]+'
+            )
           )
         )
+        && pendingReview.submitted_at == request.time
+        && request.resource.data.document_review_status == 'pending'
+        && request.resource.data.document_review_submitted_at == request.time
+        && !request.resource.data.keys().hasAny([
+          'document_review_rejection_reason'
+        ])
         && request.resource.data.document_upload_status == 'uploaded'
         && !request.resource.data.keys().hasAny(['document_upload_error'])
-        && (
-          !affectedKeys.hasAny(['document_submitted_at'])
-          || request.resource.data.document_submitted_at == request.time
-        )
+        && request.resource.data.document_submitted_at == request.time
+        && request.resource.data.updated_at == request.time
         && hasNoRatingAggregateChanges();
     }
 
@@ -1319,9 +1544,30 @@ service cloud.firestore {
             && isVerifiedDriver()
         );
       allow update: if !isAdminRole(resource.data)
-        && isValidDriverVehicleUpdate(userId);
+        && isValidInitialDriverDocumentUpload(userId);
       allow update: if !isAdminRole(resource.data)
-        && isValidPassengerDocumentUpload(userId);
+        && request.resource.data.keys().hasAny(['pending_document_review'])
+        && request.resource.data.pending_document_review is map
+        && (
+          (
+            request.resource.data.pending_document_review.kind == 'driver_credential'
+            && isValidDriverCredentialUpdate(userId)
+          )
+          || (
+            request.resource.data.pending_document_review.kind == 'driver_vehicle'
+            && isValidDriverVehicleUpdate(userId)
+          )
+          || (
+            request.resource.data.pending_document_review.kind == 'passenger_identity'
+            && isValidPassengerDocumentUpload(userId)
+          )
+        );
+      allow update: if !isAdminRole(resource.data)
+        && isValidUnverifiedDriverCredentialUpdate(userId);
+      allow update: if !isAdminRole(resource.data)
+        && isValidUnverifiedDriverVehicleUpdate(userId);
+      allow update: if !isAdminRole(resource.data)
+        && isValidUnverifiedDriverUploadFailure(userId);
       allow update: if !isAdminRole(resource.data)
         && isValidSelfDeactivation(userId);
       allow update: if !isAdminRole(resource.data)
@@ -1339,10 +1585,6 @@ service cloud.firestore {
       allow update: if !isAdminRole(resource.data)
         && isValidDriverRenewalSubmission(userId);
       allow update: if !isAdminRole(resource.data)
-        && isValidDriverCredentialUpdate(userId);
-      allow update: if !isAdminRole(resource.data)
-        && isValidInitialDriverDocumentUpload(userId);
-      allow update: if !isAdminRole(resource.data)
         && isSelf(userId)
         && request.resource.data.user_id == resource.data.user_id
         && request.resource.data.email == resource.data.email
@@ -1358,6 +1600,10 @@ service cloud.firestore {
         && (
           !isDriverRole(resource.data)
           || hasNoProtectedDriverDocumentChanges()
+        )
+        && (
+          !isPassengerRole(resource.data)
+          || hasNoProtectedPassengerDocumentChanges()
         )
         && hasNoRatingAggregateChanges()
         && (

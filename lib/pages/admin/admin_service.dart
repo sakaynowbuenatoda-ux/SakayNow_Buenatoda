@@ -363,15 +363,194 @@ class AdminService {
   static Future<void> approveUser({
     required String userId,
     required String adminId,
+  }) async {
+    final userRef = _firestore.collection('users').doc(userId);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(userRef);
+      if (!snapshot.exists) {
+        throw StateError('User account not found.');
+      }
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final updates = <String, dynamic>{
+        ..._approvedPendingDocumentReviewUpdates(data),
+        'is_verified': true,
+        'is_active': true,
+        'is_banned': false,
+        'account_status': 'active',
+        'reviewed_by': adminId,
+        'reviewed_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      };
+      if (_hasPendingDocumentReview(data)) {
+        _markDocumentReviewApproved(updates, adminId: adminId);
+      }
+      transaction.update(userRef, updates);
+    });
+  }
+
+  static Future<void> approveDocumentReview({
+    required String userId,
+    required String adminId,
+  }) async {
+    final userRef = _firestore.collection('users').doc(userId);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(userRef);
+      final data = snapshot.data() ?? <String, dynamic>{};
+      if (!snapshot.exists || !_hasPendingDocumentReview(data)) {
+        throw StateError('This document update is no longer pending.');
+      }
+
+      final updates = _approvedPendingDocumentReviewUpdates(data);
+      _markDocumentReviewApproved(updates, adminId: adminId);
+      updates['updated_at'] = FieldValue.serverTimestamp();
+      transaction.update(userRef, updates);
+    });
+  }
+
+  static Future<void> rejectDocumentReview({
+    required String userId,
+    required String adminId,
+    required String reason,
+  }) async {
+    final normalizedReason = reason.trim();
+    if (normalizedReason.isEmpty) {
+      throw ArgumentError('A rejection reason is required.');
+    }
+    final userRef = _firestore.collection('users').doc(userId);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(userRef);
+      final data = snapshot.data() ?? <String, dynamic>{};
+      if (!snapshot.exists || !_hasPendingDocumentReview(data)) {
+        throw StateError('This document update is no longer pending.');
+      }
+
+      transaction.update(userRef, <String, dynamic>{
+        'document_review_status': 'rejected',
+        'document_upload_status': 'rejected',
+        'document_review_reviewed_by': adminId,
+        'document_review_reviewed_at': FieldValue.serverTimestamp(),
+        'document_review_rejection_reason': normalizedReason,
+        'reviewed_by': adminId,
+        'reviewed_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  static bool _hasPendingDocumentReview(Map<String, dynamic> data) {
+    return data['document_review_status'] == 'pending' &&
+        data['pending_document_review'] is Map;
+  }
+
+  static void _markDocumentReviewApproved(
+    Map<String, dynamic> updates, {
+    required String adminId,
   }) {
-    return _firestore.collection('users').doc(userId).update({
-      'is_verified': true,
-      'is_active': true,
-      'is_banned': false,
-      'account_status': 'active',
+    updates.addAll(<String, dynamic>{
+      'document_review_status': 'approved',
+      'document_upload_status': 'approved',
+      'document_review_reviewed_by': adminId,
+      'document_review_reviewed_at': FieldValue.serverTimestamp(),
+      'document_review_rejection_reason': FieldValue.delete(),
+      'pending_document_review': FieldValue.delete(),
       'reviewed_by': adminId,
       'reviewed_at': FieldValue.serverTimestamp(),
     });
+  }
+
+  static Map<String, dynamic> _approvedPendingDocumentReviewUpdates(
+    Map<String, dynamic> data,
+  ) {
+    if (!_hasPendingDocumentReview(data)) return <String, dynamic>{};
+    final rawReview = data['pending_document_review'];
+    final review = Map<String, dynamic>.from(rawReview as Map);
+    final kind = review['kind']?.toString().trim() ?? '';
+
+    switch (kind) {
+      case 'driver_credential':
+        final type = review['credential_type']?.toString().trim() ?? '';
+        if (!const <String>{
+          'nbi_clearance',
+          'drivers_license',
+          'selfie',
+          'or_cr',
+        }.contains(type)) {
+          throw StateError('The pending credential type is invalid.');
+        }
+        final documentUrl = review['document_url']?.toString().trim() ?? '';
+        if (documentUrl.isEmpty) {
+          throw StateError('The pending credential image is missing.');
+        }
+        final updates = <String, dynamic>{'${type}_url': documentUrl};
+        final documentPath = review['document_path']?.toString().trim() ?? '';
+        if (documentPath.isNotEmpty) updates['${type}_path'] = documentPath;
+
+        if (type == 'drivers_license' || type == 'or_cr') {
+          final expiry = review['expiry'];
+          if (expiry is! Timestamp ||
+              !expiry.toDate().isAfter(DateTime.now())) {
+            throw StateError('The pending credential expiry is invalid.');
+          }
+          updates['${type}_expiry'] = expiry;
+          final licenseExpiry = type == 'drivers_license'
+              ? expiry.toDate()
+              : _dateFromValue(data['drivers_license_expiry']);
+          final orCrExpiry = type == 'or_cr'
+              ? expiry.toDate()
+              : _dateFromValue(data['or_cr_expiry']);
+          final documentStatus = _documentStatusForDates(
+            licenseExpiry: licenseExpiry,
+            orCrExpiry: orCrExpiry,
+            now: DateTime.now(),
+          );
+          updates['document_status'] = documentStatus;
+          updates['document_status_updated_at'] = FieldValue.serverTimestamp();
+          if (documentStatus == 'expired') updates['is_active'] = false;
+        }
+        return updates;
+      case 'driver_vehicle':
+        final requiredValues = <String>[
+          'vehicle_type',
+          'tricycle_color',
+          'plate_number',
+          'tricycle_front_url',
+          'tricycle_back_url',
+        ];
+        final updates = <String, dynamic>{};
+        for (final field in requiredValues) {
+          final value = review[field]?.toString().trim() ?? '';
+          if (value.isEmpty) {
+            throw StateError('The pending vehicle update is incomplete.');
+          }
+          updates[field] = value;
+        }
+        for (final field in const <String>[
+          'tricycle_front_path',
+          'tricycle_back_path',
+        ]) {
+          final value = review[field]?.toString().trim() ?? '';
+          if (value.isNotEmpty) updates[field] = value;
+        }
+        return updates;
+      case 'passenger_identity':
+        final updates = <String, dynamic>{};
+        for (final field in const <String>[
+          'id_image_url',
+          'id_image_path',
+          'selfie_url',
+          'selfie_path',
+        ]) {
+          final value = review[field]?.toString().trim() ?? '';
+          if (value.isNotEmpty) updates[field] = value;
+        }
+        if (!updates.containsKey('id_image_url') &&
+            !updates.containsKey('selfie_url')) {
+          throw StateError('The pending identity update is incomplete.');
+        }
+        return updates;
+      default:
+        throw StateError('The pending document review type is invalid.');
+    }
   }
 
   static Future<void> approveDriverRenewal({

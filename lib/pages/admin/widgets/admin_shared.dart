@@ -210,11 +210,13 @@ class AdminMetricCard extends StatelessWidget {
 class AdminQueueUserTile extends StatelessWidget {
   final AdminUserRecord user;
   final VoidCallback onView;
+  final String? detail;
 
   const AdminQueueUserTile({
     super.key,
     required this.user,
     required this.onView,
+    this.detail,
   });
 
   @override
@@ -229,6 +231,15 @@ class AdminQueueUserTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(user.fullName, style: AdminUi.cardTitle),
+                if (detail?.trim().isNotEmpty == true) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    detail!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AdminUi.bodyText.copyWith(fontSize: 12.5),
+                  ),
+                ],
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,

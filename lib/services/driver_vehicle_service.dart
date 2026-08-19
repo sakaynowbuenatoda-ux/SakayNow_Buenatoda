@@ -60,17 +60,32 @@ class DriverVehicleService {
     final now = DateTime.now();
 
     try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(normalizedDriverId)
+          .get();
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final isVerified = _isVerified(data);
+      if (isVerified && data['document_review_status'] == 'pending') {
+        throw const DriverVehicleUpdateException(
+          'Another document update is already waiting for admin review.',
+        );
+      }
+
       final updates = <String, dynamic>{
+        'document_upload_status': 'uploaded',
+        'document_upload_error': FieldValue.delete(),
+        'vehicle_details_updated_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      };
+      final pendingReview = <String, dynamic>{
+        'kind': 'driver_vehicle',
         'vehicle_type': normalizedVehicleType,
         'tricycle_color': normalizedColor,
         'plate_number': normalizedPlateNumber,
-        'vehicle_details_updated_at': FieldValue.serverTimestamp(),
-        'is_verified': false,
-        'isVerified': false,
-        'isVerrified': false,
-        'is_active': false,
-        'isActive': false,
-        'updated_at': FieldValue.serverTimestamp(),
+        'tricycle_front_url': existingFrontUrl?.trim() ?? '',
+        'tricycle_back_url': existingBackUrl?.trim() ?? '',
+        'submitted_at': FieldValue.serverTimestamp(),
       };
 
       if (frontPhoto != null) {
@@ -79,7 +94,7 @@ class DriverVehicleService {
           fieldName: 'tricycle_front',
           photo: frontPhoto,
           timestamp: now.millisecondsSinceEpoch,
-          updates: updates,
+          updates: pendingReview,
           uploadedRefs: uploadedRefs,
         );
       }
@@ -89,9 +104,32 @@ class DriverVehicleService {
           fieldName: 'tricycle_back',
           photo: backPhoto,
           timestamp: now.millisecondsSinceEpoch,
-          updates: updates,
+          updates: pendingReview,
           uploadedRefs: uploadedRefs,
         );
+      }
+
+      if (isVerified) {
+        updates.addAll(<String, dynamic>{
+          'document_review_status': 'pending',
+          'document_review_submitted_at': FieldValue.serverTimestamp(),
+          'document_review_rejection_reason': FieldValue.delete(),
+          'pending_document_review': pendingReview,
+        });
+      } else {
+        for (final field in const <String>[
+          'vehicle_type',
+          'tricycle_color',
+          'plate_number',
+          'tricycle_front_url',
+          'tricycle_front_path',
+          'tricycle_back_url',
+          'tricycle_back_path',
+        ]) {
+          if (pendingReview.containsKey(field)) {
+            updates[field] = pendingReview[field];
+          }
+        }
       }
 
       await _firestore
@@ -143,6 +181,12 @@ class DriverVehicleService {
   }
 
   static bool _hasValue(String? value) => value?.trim().isNotEmpty == true;
+
+  static bool _isVerified(Map<String, dynamic> data) {
+    return data['is_verified'] == true ||
+        data['isVerified'] == true ||
+        data['isVerrified'] == true;
+  }
 
   static String _fileExtension(String fileName) {
     final parts = fileName.trim().toLowerCase().split('.');

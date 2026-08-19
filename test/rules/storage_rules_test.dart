@@ -70,5 +70,16 @@ void main() {
       expect(rules, contains('request.resource.size < 10 * 1024 * 1024'));
       expect(rules, contains('allow delete: if isSelf(userId) || isAdmin();'));
     });
+
+    test('keep staged passenger verification documents private', () {
+      expect(
+        rules,
+        contains('match /users/{userId}/verification_documents/{fileName}'),
+      );
+      expect(rules, contains('allow read: if isSelf(userId) || isAdmin();'));
+      expect(rules, contains('allow create: if isSelf(userId)'));
+      expect(rules, contains('&& isImage()'));
+      expect(rules, contains('request.resource.size < 10 * 1024 * 1024'));
+    });
   });
 }

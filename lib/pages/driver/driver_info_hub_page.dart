@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/auth/registration_service.dart';
 import '../../models/driver_document_status.dart';
 import '../../services/driver_credential_service.dart';
+import '../../services/driver_registration_recovery_service.dart';
 import '../../services/driver_renewal_service.dart';
 import '../../services/driver_vehicle_service.dart';
 import '../../utils/user_facing_error_message.dart';
@@ -17,6 +18,7 @@ class DriverInfoHubPage extends StatefulWidget {
   final DriverRenewalService renewalService;
   final DriverCredentialService credentialService;
   final DriverVehicleService vehicleService;
+  final DriverRegistrationRecoveryService registrationRecoveryService;
 
   DriverInfoHubPage({
     super.key,
@@ -24,9 +26,12 @@ class DriverInfoHubPage extends StatefulWidget {
     DriverRenewalService? renewalService,
     DriverCredentialService? credentialService,
     DriverVehicleService? vehicleService,
+    DriverRegistrationRecoveryService? registrationRecoveryService,
   }) : renewalService = renewalService ?? DriverRenewalService(),
        credentialService = credentialService ?? DriverCredentialService(),
-       vehicleService = vehicleService ?? DriverVehicleService();
+       vehicleService = vehicleService ?? DriverVehicleService(),
+       registrationRecoveryService =
+           registrationRecoveryService ?? DriverRegistrationRecoveryService();
 
   @override
   State<DriverInfoHubPage> createState() => _DriverInfoHubPageState();
@@ -38,6 +43,29 @@ class _DriverInfoHubPageState extends State<DriverInfoHubPage> {
   RegistrationImageSelection? _renewalFile;
   DateTime? _renewalExpiry;
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _recoverRegistrationDocuments();
+  }
+
+  Future<void> _recoverRegistrationDocuments() async {
+    try {
+      final recovered = await widget.registrationRecoveryService
+          .recoverIfPossible(widget.driverId);
+      if (!recovered || !mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Your registration documents were recovered and attached for admin review.',
+          ),
+        ),
+      );
+    } catch (_) {
+      // Manual Driver Hub uploads remain available when recovery is not possible.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -762,7 +790,7 @@ class _EditableCredentialCardState extends State<_EditableCredentialCard> {
         _isEditing = false;
       });
       _showMessage(
-        '${widget.type.label} saved and sent for admin verification.',
+        '${widget.type.label} sent for admin review. Your verified access and current approved document stay active.',
       );
     } on DriverCredentialUpdateException catch (error) {
       _showMessage(error.message);
@@ -1019,7 +1047,7 @@ class _VehicleDetailsTabState extends State<_VehicleDetailsTab> {
           ),
           const SizedBox(height: 14),
           Text(
-            'Saving vehicle changes takes your account offline until an admin verifies the updated details.',
+            'Vehicle changes are sent for admin review. Verified accounts keep their current approved details and access while the review is pending.',
             style: PassengerUi.bodyText,
           ),
           const SizedBox(height: 14),
@@ -1166,7 +1194,9 @@ class _VehicleDetailsTabState extends State<_VehicleDetailsTab> {
         _backPhoto = null;
         _isEditing = false;
       });
-      _showMessage('Vehicle details saved and sent for admin verification.');
+      _showMessage(
+        'Vehicle details sent for admin review. Your verified access and current approved details stay active.',
+      );
     } on DriverVehicleUpdateException catch (error) {
       _showMessage(error.message);
     } catch (error) {

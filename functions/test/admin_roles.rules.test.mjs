@@ -72,6 +72,15 @@ beforeEach(async () => {
         account_status: "active",
       },
       "driver-1": activeUser("driver"),
+      "new-driver": {
+        role: "driver",
+        email: "new-driver@example.com",
+        is_verified: false,
+        is_active: false,
+        is_banned: false,
+        is_deactivated: false,
+        account_status: "active",
+      },
     };
     for (const [userId, data] of Object.entries(users)) {
       await setDoc(doc(firestore, "users", userId), {
@@ -137,7 +146,9 @@ test("legacy passengers can upload and submit their verification documents", asy
   const passenger = environment.authenticatedContext("legacy-passenger");
   const storage = passenger.storage();
   const firestore = passenger.firestore();
-  const idFile = ref(storage, "users/legacy-passenger/id_upload.jpg");
+  const idPath =
+    "users/legacy-passenger/verification_documents/id_1000.jpg";
+  const idFile = ref(storage, idPath);
 
   await assertSucceeds(
     uploadBytes(idFile, new Uint8Array([1, 2, 3]), {
@@ -146,10 +157,30 @@ test("legacy passengers can upload and submit their verification documents", asy
   );
   await assertSucceeds(
     updateDoc(doc(firestore, "users", "legacy-passenger"), {
-      id_image_url: "https://example.com/legacy-passenger-id.jpg",
+      pending_document_review: {
+        kind: "passenger_identity",
+        id_image_url: "https://example.com/legacy-passenger-id.jpg",
+        id_image_path: idPath,
+        submitted_at: serverTimestamp(),
+      },
+      document_review_status: "pending",
+      document_review_submitted_at: serverTimestamp(),
       document_upload_status: "uploaded",
       document_upload_error: deleteField(),
+      document_submitted_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
     }),
+  );
+
+  const stagedPassenger = await getDoc(
+    doc(firestore, "users", "legacy-passenger"),
+  );
+  assert.equal(stagedPassenger.data().isVerified, false);
+  assert.equal(stagedPassenger.data().isActive, false);
+  assert.equal(stagedPassenger.data().id_image_url, undefined);
+  assert.equal(
+    stagedPassenger.data().pending_document_review.kind,
+    "passenger_identity",
   );
 
   const otherPassenger = environment.authenticatedContext("passenger-1");
@@ -162,11 +193,174 @@ test("legacy passengers can upload and submit their verification documents", asy
   );
   await assertFails(
     updateDoc(doc(firestore, "users", "legacy-passenger"), {
-      isVerified: true,
-      document_upload_status: "uploaded",
-      document_submitted_at: serverTimestamp(),
+      id_image_url: "https://example.com/bypass-review.jpg",
+      updated_at: serverTimestamp(),
     }),
   );
+});
+
+test("verified passengers stay verified while document updates are pending", async () => {
+  const passenger = environment.authenticatedContext("passenger-1");
+  const firestore = passenger.firestore();
+  const idPath = "users/passenger-1/verification_documents/id_2000.jpg";
+
+  await assertSucceeds(
+    uploadBytes(ref(passenger.storage(), idPath), new Uint8Array([1, 2, 3]), {
+      contentType: "image/jpeg",
+    }),
+  );
+  await assertSucceeds(
+    updateDoc(doc(firestore, "users", "passenger-1"), {
+      pending_document_review: {
+        kind: "passenger_identity",
+        id_image_url: "https://example.com/passenger-id.jpg",
+        id_image_path: idPath,
+        submitted_at: serverTimestamp(),
+      },
+      document_review_status: "pending",
+      document_review_submitted_at: serverTimestamp(),
+      document_upload_status: "uploaded",
+      document_upload_error: deleteField(),
+      document_submitted_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    }),
+  );
+
+  const stagedPassenger = await getDoc(
+    doc(firestore, "users", "passenger-1"),
+  );
+  assert.equal(stagedPassenger.data().is_verified, true);
+  assert.equal(stagedPassenger.data().is_active, true);
+  assert.equal(stagedPassenger.data().document_review_status, "pending");
+});
+
+test("new drivers can attach all initial registration documents", async () => {
+  const driver = environment.authenticatedContext("new-driver");
+  const storage = driver.storage();
+  const firestore = driver.firestore();
+  const files = [
+    "nbi_clearance.jpg",
+    "drivers_license.jpg",
+    "selfie.jpg",
+    "or_cr.jpg",
+    "tricycle_front.jpg",
+    "tricycle_back.jpg",
+  ];
+
+  for (const fileName of files) {
+    await assertSucceeds(
+      uploadBytes(
+        ref(storage, `users/new-driver/${fileName}`),
+        new Uint8Array([1, 2, 3]),
+        {contentType: "image/jpeg"},
+      ),
+    );
+  }
+
+  await assertSucceeds(
+    updateDoc(doc(firestore, "users", "new-driver"), {
+      nbi_clearance_url: "https://example.com/nbi.jpg",
+      drivers_license_url: "https://example.com/license.jpg",
+      selfie_url: "https://example.com/selfie.jpg",
+      or_cr_url: "https://example.com/or-cr.jpg",
+      tricycle_front_url: "https://example.com/front.jpg",
+      tricycle_back_url: "https://example.com/back.jpg",
+      document_upload_status: "uploaded",
+      document_upload_error: deleteField(),
+    }),
+  );
+
+  const profile = await getDoc(doc(firestore, "users", "new-driver"));
+  assert.equal(profile.data().is_verified, false);
+  assert.equal(profile.data().is_active, false);
+  assert.equal(profile.data().drivers_license_url.includes("license"), true);
+});
+
+test("new drivers can record a document upload failure", async () => {
+  const firestore = environment
+    .authenticatedContext("new-driver")
+    .firestore();
+
+  await assertSucceeds(
+    updateDoc(doc(firestore, "users", "new-driver"), {
+      document_upload_status: "failed",
+      document_upload_error: "Credential upload did not complete.",
+    }),
+  );
+
+  const profile = await getDoc(doc(firestore, "users", "new-driver"));
+  assert.equal(profile.data().is_verified, false);
+  assert.equal(profile.data().is_active, false);
+  assert.equal(profile.data().document_upload_status, "failed");
+});
+
+test("unverified drivers can recover a missing credential from Driver Hub", async () => {
+  const driver = environment.authenticatedContext("new-driver");
+  const firestore = driver.firestore();
+  const credentialPath =
+    "users/new-driver/credentials/nbi_clearance_4000.jpg";
+  await assertSucceeds(
+    uploadBytes(
+      ref(driver.storage(), credentialPath),
+      new Uint8Array([1, 2, 3]),
+      {contentType: "image/jpeg"},
+    ),
+  );
+
+  await assertSucceeds(
+    updateDoc(doc(firestore, "users", "new-driver"), {
+      nbi_clearance_url: "https://example.com/recovery-nbi.jpg",
+      nbi_clearance_path: credentialPath,
+      document_upload_status: "uploaded",
+      document_upload_error: deleteField(),
+      credential_updated_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    }),
+  );
+
+  const profile = await getDoc(doc(firestore, "users", "new-driver"));
+  assert.equal(profile.data().is_verified, false);
+  assert.equal(profile.data().nbi_clearance_path, credentialPath);
+  assert.equal(profile.data().pending_document_review, undefined);
+});
+
+test("unverified drivers can recover vehicle photos from Driver Hub", async () => {
+  const driver = environment.authenticatedContext("new-driver");
+  const firestore = driver.firestore();
+  const frontPath =
+    "users/new-driver/vehicle_photos/tricycle_front_5000.jpg";
+  const backPath =
+    "users/new-driver/vehicle_photos/tricycle_back_5000.jpg";
+  for (const photoPath of [frontPath, backPath]) {
+    await assertSucceeds(
+      uploadBytes(
+        ref(driver.storage(), photoPath),
+        new Uint8Array([1, 2, 3]),
+        {contentType: "image/jpeg"},
+      ),
+    );
+  }
+
+  await assertSucceeds(
+    updateDoc(doc(firestore, "users", "new-driver"), {
+      vehicle_type: "Traditional Tricycle",
+      tricycle_color: "Black",
+      plate_number: "BUENA-500",
+      tricycle_front_url: "https://example.com/recovery-front.jpg",
+      tricycle_front_path: frontPath,
+      tricycle_back_url: "https://example.com/recovery-back.jpg",
+      tricycle_back_path: backPath,
+      document_upload_status: "uploaded",
+      document_upload_error: deleteField(),
+      vehicle_details_updated_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    }),
+  );
+
+  const profile = await getDoc(doc(firestore, "users", "new-driver"));
+  assert.equal(profile.data().is_verified, false);
+  assert.equal(profile.data().plate_number, "BUENA-500");
+  assert.equal(profile.data().pending_document_review, undefined);
 });
 
 test("existing drivers can submit vehicle details and owner-scoped photos", async () => {
@@ -199,21 +393,33 @@ test("existing drivers can submit vehicle details and owner-scoped photos", asyn
 
   await assertSucceeds(
     updateDoc(doc(firestore, "users", "driver-1"), {
-      vehicle_type: "Traditional Tricycle",
-      tricycle_color: "Blue",
-      plate_number: "BUENA-101",
-      tricycle_front_url: "https://example.com/front.jpg",
-      tricycle_front_path: frontPath,
-      tricycle_back_url: "https://example.com/back.jpg",
-      tricycle_back_path: backPath,
+      pending_document_review: {
+        kind: "driver_vehicle",
+        vehicle_type: "Traditional Tricycle",
+        tricycle_color: "Blue",
+        plate_number: "BUENA-101",
+        tricycle_front_url: "https://example.com/front.jpg",
+        tricycle_front_path: frontPath,
+        tricycle_back_url: "https://example.com/back.jpg",
+        tricycle_back_path: backPath,
+        submitted_at: serverTimestamp(),
+      },
+      document_review_status: "pending",
+      document_review_submitted_at: serverTimestamp(),
+      document_upload_status: "uploaded",
+      document_upload_error: deleteField(),
       vehicle_details_updated_at: serverTimestamp(),
-      is_verified: false,
-      isVerified: false,
-      isVerrified: false,
-      is_active: false,
-      isActive: false,
       updated_at: serverTimestamp(),
     }),
+  );
+
+  const stagedDriver = await getDoc(doc(firestore, "users", "driver-1"));
+  assert.equal(stagedDriver.data().is_verified, true);
+  assert.equal(stagedDriver.data().is_active, true);
+  assert.equal(stagedDriver.data().plate_number, undefined);
+  assert.equal(
+    stagedDriver.data().pending_document_review.plate_number,
+    "BUENA-101",
   );
 
   await assertSucceeds(getBytes(ref(outsider.storage(), frontPath)));
@@ -223,6 +429,52 @@ test("existing drivers can submit vehicle details and owner-scoped photos", asyn
       vehicle_details_updated_at: serverTimestamp(),
       is_verified: true,
       is_active: true,
+      updated_at: serverTimestamp(),
+    }),
+  );
+});
+
+test("verified drivers stage credential replacements without losing access", async () => {
+  const driver = environment.authenticatedContext("driver-1");
+  const firestore = driver.firestore();
+  const credentialPath =
+    "users/driver-1/credentials/drivers_license_3000.jpg";
+
+  await assertSucceeds(
+    uploadBytes(
+      ref(driver.storage(), credentialPath),
+      new Uint8Array([1, 2, 3]),
+      {contentType: "image/jpeg"},
+    ),
+  );
+  await assertSucceeds(
+    updateDoc(doc(firestore, "users", "driver-1"), {
+      pending_document_review: {
+        kind: "driver_credential",
+        credential_type: "drivers_license",
+        document_url: "https://example.com/new-license.jpg",
+        document_path: credentialPath,
+        expiry: Timestamp.fromMillis(Date.now() + 86_400_000),
+        submitted_at: serverTimestamp(),
+      },
+      document_review_status: "pending",
+      document_review_submitted_at: serverTimestamp(),
+      document_upload_status: "uploaded",
+      document_upload_error: deleteField(),
+      credential_updated_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    }),
+  );
+
+  const stagedDriver = await getDoc(doc(firestore, "users", "driver-1"));
+  assert.equal(stagedDriver.data().is_verified, true);
+  assert.equal(stagedDriver.data().is_active, true);
+  assert.equal(stagedDriver.data().drivers_license_url, undefined);
+
+  await assertFails(
+    updateDoc(doc(firestore, "users", "driver-1"), {
+      is_verified: false,
+      is_active: false,
       updated_at: serverTimestamp(),
     }),
   );

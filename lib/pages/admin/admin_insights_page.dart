@@ -59,6 +59,9 @@ class AdminInsightsPage extends StatelessWidget {
                     (user) => user.isPassenger && user.isPendingVerification,
                   )
                   .length;
+              final pendingDocumentReviews = users
+                  .where((user) => user.hasReviewOnlySubmission)
+                  .length;
               final restrictedAccounts = users
                   .where((user) => !user.isAdmin && user.isBanned)
                   .length;
@@ -75,6 +78,7 @@ class AdminInsightsPage extends StatelessWidget {
                       verifiedPassengers: verifiedPassengers,
                       unverifiedDrivers: unverifiedDrivers,
                       unverifiedPassengers: unverifiedPassengers,
+                      pendingDocumentReviews: pendingDocumentReviews,
                       restrictedAccounts: restrictedAccounts,
                       adminId: adminId,
                     ),
@@ -1264,6 +1268,7 @@ class _InsightsMetricsPanel extends StatelessWidget {
   final int verifiedPassengers;
   final int unverifiedDrivers;
   final int unverifiedPassengers;
+  final int pendingDocumentReviews;
   final int restrictedAccounts;
   final String adminId;
 
@@ -1272,6 +1277,7 @@ class _InsightsMetricsPanel extends StatelessWidget {
     required this.verifiedPassengers,
     required this.unverifiedDrivers,
     required this.unverifiedPassengers,
+    required this.pendingDocumentReviews,
     required this.restrictedAccounts,
     required this.adminId,
   });
@@ -1332,6 +1338,19 @@ class _InsightsMetricsPanel extends StatelessWidget {
                   icon: Icons.person_search_rounded,
                   accentColor: AdminUi.accentBlue,
                   onTap: () => AdminNavigation.openUnverifiedPassengers(
+                    context,
+                    adminId: adminId,
+                  ),
+                ),
+              ),
+              _MetricFrame(
+                width: cardWidth,
+                child: _CompactInsightMetricCard(
+                  label: 'Document reviews',
+                  value: pendingDocumentReviews.toString(),
+                  icon: Icons.fact_check_outlined,
+                  accentColor: AdminUi.highlightAmber,
+                  onTap: () => AdminNavigation.openDocumentReviews(
                     context,
                     adminId: adminId,
                   ),

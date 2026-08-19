@@ -39,6 +39,10 @@ class AdminUserRecord {
   final String? orCrUrl;
   final String? tricycleFrontUrl;
   final String? tricycleBackUrl;
+  final String documentReviewStatus;
+  final DateTime? documentReviewSubmittedAt;
+  final String? documentReviewRejectionReason;
+  final Map<String, dynamic> pendingDocumentReview;
   final DriverDocumentStatus driverDocumentStatus;
   final double averageRating;
   final int reviewCount;
@@ -75,6 +79,10 @@ class AdminUserRecord {
     required this.orCrUrl,
     required this.tricycleFrontUrl,
     required this.tricycleBackUrl,
+    this.documentReviewStatus = '',
+    this.documentReviewSubmittedAt,
+    this.documentReviewRejectionReason,
+    this.pendingDocumentReview = const <String, dynamic>{},
     this.driverDocumentStatus = const DriverDocumentStatus(),
     required this.averageRating,
     required this.reviewCount,
@@ -136,6 +144,19 @@ class AdminUserRecord {
       orCrUrl: _readNullableString(data['or_cr_url']),
       tricycleFrontUrl: _readNullableString(data['tricycle_front_url']),
       tricycleBackUrl: _readNullableString(data['tricycle_back_url']),
+      documentReviewStatus: (data['document_review_status'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase(),
+      documentReviewSubmittedAt: _readDate(
+        data['document_review_submitted_at'],
+      ),
+      documentReviewRejectionReason: _readNullableString(
+        data['document_review_rejection_reason'],
+      ),
+      pendingDocumentReview: data['pending_document_review'] is Map
+          ? Map<String, dynamic>.from(data['pending_document_review'] as Map)
+          : const <String, dynamic>{},
       driverDocumentStatus: DriverDocumentStatus.fromMap(data),
       averageRating: _readDouble(
         data['driver_average_rating'] ??
@@ -203,7 +224,17 @@ class AdminUserRecord {
       !isAdmin && !isBanned && !isDeactivated && !isDeleted && !isVerified;
   bool get isPendingRenewal =>
       isDriver && driverDocumentStatus.hasPendingRenewal;
-  bool get needsApproval => isPendingVerification || isPendingRenewal;
+  bool get hasPendingDocumentReview =>
+      documentReviewStatus == 'pending' && pendingDocumentReview.isNotEmpty;
+  bool get hasReviewOnlySubmission =>
+      isPassengerOrDriver &&
+      isVerified &&
+      !isBanned &&
+      !isDeactivated &&
+      !isDeleted &&
+      (isPendingRenewal || hasPendingDocumentReview);
+  bool get needsApproval =>
+      isPendingVerification || isPendingRenewal || hasPendingDocumentReview;
   bool get canRestoreDeactivated =>
       isDeactivated &&
       !isDeleted &&
@@ -211,24 +242,25 @@ class AdminUserRecord {
           deactivationRestoreDeadline!.isAfter(DateTime.now()));
 
   bool get hasPassengerDocuments =>
-      _hasValue(idImageUrl) && _hasValue(selfieUrl);
+      _hasValue(effectiveIdImageUrl) && _hasValue(effectiveSelfieUrl);
 
   bool get hasDriverDocuments =>
-      _hasValue(selfieUrl) &&
-      _hasValue(nbiClearanceUrl) &&
-      _hasValue(driversLicenseUrl) &&
-      _hasValue(orCrUrl) &&
-      _hasValue(tricycleFrontUrl) &&
-      _hasValue(tricycleBackUrl);
+      _hasValue(effectiveSelfieUrl) &&
+      _hasValue(effectiveNbiClearanceUrl) &&
+      _hasValue(effectiveDriversLicenseUrl) &&
+      _hasValue(effectiveOrCrUrl) &&
+      _hasValue(effectiveTricycleFrontUrl) &&
+      _hasValue(effectiveTricycleBackUrl);
 
   bool get isDriverVerificationComplete =>
       hasDriverDocuments &&
-      _hasValue(vehicleType) &&
-      _hasValue(tricycleColor) &&
-      _hasValue(plateNumber) &&
-      driverDocumentStatus.driversLicenseExpiry != null &&
-      driverDocumentStatus.orCrExpiry != null &&
-      driverDocumentStatus.isEligibleAt(DateTime.now());
+      _hasValue(effectiveVehicleType) &&
+      _hasValue(effectiveTricycleColor) &&
+      _hasValue(effectivePlateNumber) &&
+      effectiveDriversLicenseExpiry != null &&
+      effectiveOrCrExpiry != null &&
+      effectiveDriversLicenseExpiry!.isAfter(DateTime.now()) &&
+      effectiveOrCrExpiry!.isAfter(DateTime.now());
 
   bool get canBeApproved =>
       isPendingVerification && (!isDriver || isDriverVerificationComplete);
@@ -249,6 +281,7 @@ class AdminUserRecord {
     if (isDeactivated) return 'Deactivated';
     if (isAdmin) return 'Developer managed';
     if (isPendingRenewal) return 'Pending renewal';
+    if (hasPendingDocumentReview) return 'Document review pending';
     if (isDriver && !driverDocumentStatus.isEligibleAt(DateTime.now())) {
       return 'Documents expired';
     }
@@ -276,6 +309,108 @@ class AdminUserRecord {
     if (needsApproval) return AdminUi.warningSoft;
     return AdminUi.successBackground;
   }
+
+  String get pendingDocumentReviewKind => hasPendingDocumentReview
+      ? _pendingString('kind')?.toLowerCase() ?? ''
+      : '';
+
+  String? get pendingCredentialType =>
+      _pendingString('credential_type')?.toLowerCase();
+
+  String get pendingDocumentReviewLabel {
+    switch (pendingDocumentReviewKind) {
+      case 'driver_credential':
+        return switch (pendingCredentialType) {
+          'drivers_license' => 'Driver\'s License update',
+          'or_cr' => 'OR/CR update',
+          'nbi_clearance' => 'NBI clearance update',
+          'selfie' => 'Driver selfie update',
+          _ => 'Driver credential update',
+        };
+      case 'driver_vehicle':
+        return 'Vehicle profile update';
+      case 'passenger_identity':
+        return 'Passenger identity update';
+      default:
+        return 'Document update';
+    }
+  }
+
+  String? get effectiveIdImageUrl =>
+      pendingDocumentReviewKind == 'passenger_identity'
+      ? _pendingString('id_image_url') ?? idImageUrl
+      : idImageUrl;
+
+  String? get effectiveSelfieUrl {
+    if (pendingDocumentReviewKind == 'passenger_identity') {
+      return _pendingString('selfie_url') ?? selfieUrl;
+    }
+    if (pendingDocumentReviewKind == 'driver_credential' &&
+        pendingCredentialType == 'selfie') {
+      return _pendingString('document_url') ?? selfieUrl;
+    }
+    return selfieUrl;
+  }
+
+  String? get effectiveNbiClearanceUrl =>
+      pendingDocumentReviewKind == 'driver_credential' &&
+          pendingCredentialType == 'nbi_clearance'
+      ? _pendingString('document_url') ?? nbiClearanceUrl
+      : nbiClearanceUrl;
+
+  String? get effectiveDriversLicenseUrl =>
+      pendingDocumentReviewKind == 'driver_credential' &&
+          pendingCredentialType == 'drivers_license'
+      ? _pendingString('document_url') ?? driversLicenseUrl
+      : driversLicenseUrl;
+
+  String? get effectiveOrCrUrl =>
+      pendingDocumentReviewKind == 'driver_credential' &&
+          pendingCredentialType == 'or_cr'
+      ? _pendingString('document_url') ?? orCrUrl
+      : orCrUrl;
+
+  String? get effectiveVehicleType =>
+      pendingDocumentReviewKind == 'driver_vehicle'
+      ? _pendingString('vehicle_type') ?? vehicleType
+      : vehicleType;
+
+  String? get effectiveTricycleColor =>
+      pendingDocumentReviewKind == 'driver_vehicle'
+      ? _pendingString('tricycle_color') ?? tricycleColor
+      : tricycleColor;
+
+  String? get effectivePlateNumber =>
+      pendingDocumentReviewKind == 'driver_vehicle'
+      ? _pendingString('plate_number') ?? plateNumber
+      : plateNumber;
+
+  String? get effectiveTricycleFrontUrl =>
+      pendingDocumentReviewKind == 'driver_vehicle'
+      ? _pendingString('tricycle_front_url') ?? tricycleFrontUrl
+      : tricycleFrontUrl;
+
+  String? get effectiveTricycleBackUrl =>
+      pendingDocumentReviewKind == 'driver_vehicle'
+      ? _pendingString('tricycle_back_url') ?? tricycleBackUrl
+      : tricycleBackUrl;
+
+  DateTime? get effectiveDriversLicenseExpiry =>
+      pendingDocumentReviewKind == 'driver_credential' &&
+          pendingCredentialType == 'drivers_license'
+      ? DriverDocumentStatus.readDate(pendingDocumentReview['expiry']) ??
+            driverDocumentStatus.driversLicenseExpiry
+      : driverDocumentStatus.driversLicenseExpiry;
+
+  DateTime? get effectiveOrCrExpiry =>
+      pendingDocumentReviewKind == 'driver_credential' &&
+          pendingCredentialType == 'or_cr'
+      ? DriverDocumentStatus.readDate(pendingDocumentReview['expiry']) ??
+            driverDocumentStatus.orCrExpiry
+      : driverDocumentStatus.orCrExpiry;
+
+  String? _pendingString(String key) =>
+      _readNullableString(pendingDocumentReview[key]);
 
   static DateTime? _readDate(Object? value) {
     if (value is Timestamp) {

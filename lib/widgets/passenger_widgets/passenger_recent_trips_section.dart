@@ -248,6 +248,7 @@ class PassengerTripCard extends StatelessWidget {
                         RideLocationPreviewButton(
                           pickupLocation: ride.pickupLocation,
                           dropoffLocation: ride.dropoffLocation,
+                          route: ride.route,
                           dimension: 34,
                           iconSize: 18,
                         ),

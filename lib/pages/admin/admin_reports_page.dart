@@ -172,13 +172,18 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                           report: report,
                           reportedUser: usersById[report.reportedUserId],
                           reporter: usersById[report.reporterId],
-                          onTap: report.reportedUserId.isEmpty
+                          onProfileTap: report.reportedUserId.isEmpty
                               ? null
                               : () => AdminNavigation.openUserProfile(
                                   context,
                                   adminId: widget.adminId,
                                   userId: report.reportedUserId,
                                 ),
+                          onDetailsTap: () => AdminNavigation.openReportDetails(
+                            context,
+                            adminId: widget.adminId,
+                            report: report,
+                          ),
                         ),
                       ),
                     ),
@@ -680,13 +685,15 @@ class _ReportUserCard extends StatelessWidget {
   final AdminReportRecord report;
   final AdminUserRecord? reportedUser;
   final AdminUserRecord? reporter;
-  final VoidCallback? onTap;
+  final VoidCallback? onProfileTap;
+  final VoidCallback onDetailsTap;
 
   const _ReportUserCard({
     required this.report,
     required this.reportedUser,
     required this.reporter,
-    required this.onTap,
+    required this.onProfileTap,
+    required this.onDetailsTap,
   });
 
   @override
@@ -695,39 +702,36 @@ class _ReportUserCard extends StatelessWidget {
     final roleLabel = reportedUser?.roleLabel ?? report.reportedUserRoleLabel;
     final reporterName = reporter?.fullName ?? _fallbackReporterName(report);
 
-    final content = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _ReportAvatar(
-          imageUrl: reportedUser?.profileImageUrl,
-          name: displayName,
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: _ReportCardContent(
-            report: report,
-            displayName: displayName,
-            roleLabel: roleLabel,
-            reporterName: reporterName,
+    return AdminInteractiveCard(
+      onTap: onDetailsTap,
+      accentColor: report.isOpen ? AdminUi.warning : AdminUi.accent,
+      semanticLabel: 'Open report and linked ride details for $displayName',
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ReportProfileTrigger(
+            onTap: onProfileTap,
+            semanticLabel: 'Open $displayName profile',
+            child: _ReportAvatar(
+              imageUrl: reportedUser?.profileImageUrl,
+              name: displayName,
+            ),
           ),
-        ),
-        if (onTap != null) ...[
+          const SizedBox(width: 14),
+          Expanded(
+            child: _ReportCardContent(
+              report: report,
+              displayName: displayName,
+              roleLabel: roleLabel,
+              reporterName: reporterName,
+              onProfileTap: onProfileTap,
+            ),
+          ),
           const SizedBox(width: 10),
           Icon(Icons.chevron_right_rounded, color: AdminUi.muted),
         ],
-      ],
+      ),
     );
-
-    if (onTap != null) {
-      return AdminInteractiveCard(
-        onTap: onTap!,
-        accentColor: report.isOpen ? AdminUi.warning : AdminUi.accent,
-        semanticLabel: 'Open report for $displayName',
-        child: content,
-      );
-    }
-
-    return AdminSurfaceCard(child: content);
   }
 
   static String _fallbackUserName(AdminReportRecord report) {
@@ -752,12 +756,14 @@ class _ReportCardContent extends StatelessWidget {
   final String displayName;
   final String roleLabel;
   final String reporterName;
+  final VoidCallback? onProfileTap;
 
   const _ReportCardContent({
     required this.report,
     required this.displayName,
     required this.roleLabel,
     required this.reporterName,
+    required this.onProfileTap,
   });
 
   @override
@@ -765,11 +771,21 @@ class _ReportCardContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          displayName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AdminUi.cardTitle.copyWith(fontSize: 16),
+        _ReportProfileTrigger(
+          onTap: onProfileTap,
+          semanticLabel: 'Open $displayName profile',
+          child: Text(
+            displayName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AdminUi.cardTitle.copyWith(
+              fontSize: 16,
+              color: onProfileTap == null ? null : AdminUi.accent,
+              decoration: onProfileTap == null
+                  ? TextDecoration.none
+                  : TextDecoration.underline,
+            ),
+          ),
         ),
         const SizedBox(height: 7),
         Wrap(
@@ -827,6 +843,35 @@ class _ReportCardContent extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _ReportProfileTrigger extends StatelessWidget {
+  final VoidCallback? onTap;
+  final String semanticLabel;
+  final Widget child;
+
+  const _ReportProfileTrigger({
+    required this.onTap,
+    required this.semanticLabel,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (onTap == null) {
+      return child;
+    }
+
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: child,
+      ),
     );
   }
 }

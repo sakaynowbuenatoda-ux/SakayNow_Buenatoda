@@ -252,6 +252,23 @@ class AdminService {
     });
   }
 
+  static Stream<AdminBookingRecord?> watchBooking(String bookingId) {
+    final normalizedBookingId = bookingId.trim();
+    if (normalizedBookingId.isEmpty) {
+      return Stream<AdminBookingRecord?>.value(null);
+    }
+
+    return _firestore
+        .collection('bookings')
+        .doc(normalizedBookingId)
+        .snapshots()
+        .map(
+          (document) => document.exists
+              ? AdminBookingRecord.fromDocument(document)
+              : null,
+        );
+  }
+
   static Stream<List<AdminBookingRecord>> watchBookingHistory({
     List<String> statuses = const <String>[],
     DateTime? startAt,

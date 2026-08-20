@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../models/driver_document_status.dart';
 import '../../models/ride_location.dart';
+import '../../models/route_result.dart';
 import '../../core/session/user_roles.dart';
 import 'widgets/admin_ui.dart';
 
@@ -518,6 +519,7 @@ class AdminBookingRecord {
   final String dropoffLocation;
   final RideLocation? pickupRideLocation;
   final RideLocation? dropoffRideLocation;
+  final RouteResult? route;
   final String status;
   final DateTime? timestamp;
   final DateTime? completedAt;
@@ -538,6 +540,7 @@ class AdminBookingRecord {
     required this.dropoffLocation,
     required this.pickupRideLocation,
     required this.dropoffRideLocation,
+    required this.route,
     required this.status,
     required this.timestamp,
     required this.completedAt,
@@ -581,6 +584,7 @@ class AdminBookingRecord {
       ),
       pickupRideLocation: pickupRideLocation,
       dropoffRideLocation: dropoffRideLocation,
+      route: data['route'] is Map ? RouteResult.fromMap(data['route']) : null,
       status: (data['status'] ?? 'pending').toString().trim().toLowerCase(),
       timestamp: AdminUserRecord._readDate(data['timestamp']),
       completedAt: AdminUserRecord._readDate(data['completed_at']),

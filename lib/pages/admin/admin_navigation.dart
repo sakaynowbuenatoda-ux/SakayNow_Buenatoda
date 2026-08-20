@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'admin_models.dart';
 import 'active_drivers.dart';
 import 'admin_accounts_page.dart';
 import 'admin_booking_history_page.dart';
 import 'admin_deactivated_users_page.dart';
 import 'admin_document_reviews_page.dart';
 import 'admin_restricted_users_page.dart';
+import 'admin_report_details_page.dart';
 import 'registered_users.dart';
 import 'student_accounts.dart';
 import 'admin_unverified_users_page.dart';
@@ -157,6 +159,19 @@ class AdminNavigation {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ViewUserProfilePage(adminId: adminId, userId: userId),
+      ),
+    );
+  }
+
+  static void openReportDetails(
+    BuildContext context, {
+    required String adminId,
+    required AdminReportRecord report,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            AdminReportDetailsPage(adminId: adminId, report: report),
       ),
     );
   }

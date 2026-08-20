@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../models/ride_location.dart';
+import '../../models/route_result.dart';
+import '../../services/google_directions_service.dart';
 import '../passenger_widgets/passenger_ui.dart';
 import 'sakay_google_map.dart';
 
@@ -11,6 +13,7 @@ Future<void> showRideLocationPreviewDialog({
   required BuildContext context,
   required RideLocation pickupLocation,
   required RideLocation dropoffLocation,
+  RouteResult? route,
 }) {
   if (pickupLocation.latLng == null || dropoffLocation.latLng == null) {
     return Future<void>.value();
@@ -22,6 +25,7 @@ Future<void> showRideLocationPreviewDialog({
     builder: (_) => RideLocationPreviewDialog(
       pickupLocation: pickupLocation,
       dropoffLocation: dropoffLocation,
+      route: route,
     ),
   );
 }
@@ -29,6 +33,7 @@ Future<void> showRideLocationPreviewDialog({
 class RideLocationPreviewButton extends StatelessWidget {
   final RideLocation pickupLocation;
   final RideLocation dropoffLocation;
+  final RouteResult? route;
   final String tooltip;
   final Color? color;
   final double dimension;
@@ -38,6 +43,7 @@ class RideLocationPreviewButton extends StatelessWidget {
     super.key,
     required this.pickupLocation,
     required this.dropoffLocation,
+    this.route,
     this.tooltip = 'Preview route',
     this.color,
     this.dimension = 40,
@@ -71,6 +77,7 @@ class RideLocationPreviewButton extends StatelessWidget {
           context: context,
           pickupLocation: pickupLocation,
           dropoffLocation: dropoffLocation,
+          route: route,
         ),
         icon: Icon(Icons.map_rounded, size: iconSize),
       ),
@@ -81,11 +88,13 @@ class RideLocationPreviewButton extends StatelessWidget {
 class RideLocationPreviewDialog extends StatefulWidget {
   final RideLocation pickupLocation;
   final RideLocation dropoffLocation;
+  final RouteResult? route;
 
   const RideLocationPreviewDialog({
     super.key,
     required this.pickupLocation,
     required this.dropoffLocation,
+    this.route,
   });
 
   @override
@@ -95,11 +104,24 @@ class RideLocationPreviewDialog extends StatefulWidget {
 
 class _RideLocationPreviewDialogState extends State<RideLocationPreviewDialog> {
   MapType _mapType = MapType.normal;
+  RouteResult? _route;
+  bool _isLoadingRoute = false;
+  bool _couldNotLoadRoute = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _route = widget.route;
+    if (!_hasRoadRoute(_route)) {
+      _loadRoadRoute();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final pickup = widget.pickupLocation.latLng!;
     final dropoff = widget.dropoffLocation.latLng!;
+    final routePoints = routePreviewPolylinePoints(_route);
     final size = MediaQuery.sizeOf(context);
     final dialogWidth = math.min(size.width - 32, 620.0);
     final dialogHeight = math.min(math.max(size.height - 48, 320.0), 560.0);
@@ -144,12 +166,23 @@ class _RideLocationPreviewDialogState extends State<RideLocationPreviewDialog> {
                       Positioned.fill(
                         child: SakayGoogleMap(
                           initialCameraTarget: pickup,
-                          bounds: _boundsFor(pickup, dropoff),
+                          bounds: _boundsFor(
+                            pickup,
+                            dropoff,
+                            route: _route,
+                            routePoints: routePoints,
+                          ),
                           markers: _markersFor(pickup, dropoff),
-                          polylines: _polylinesFor(pickup, dropoff),
+                          polylines: _polylinesFor(routePoints),
                           mapType: _mapType,
                         ),
                       ),
+                      if (_isLoadingRoute)
+                        const Positioned.fill(child: _RouteLoadingOverlay()),
+                      if (_couldNotLoadRoute)
+                        const Positioned.fill(
+                          child: _RouteUnavailableOverlay(),
+                        ),
                       Positioned(
                         top: 12,
                         right: 12,
@@ -214,26 +247,141 @@ class _RideLocationPreviewDialogState extends State<RideLocationPreviewDialog> {
     };
   }
 
-  Set<Polyline> _polylinesFor(LatLng pickup, LatLng dropoff) {
+  Future<void> _loadRoadRoute() async {
+    final pickup = widget.pickupLocation.latLng;
+    final dropoff = widget.dropoffLocation.latLng;
+    if (pickup == null || dropoff == null) {
+      return;
+    }
+
+    setState(() => _isLoadingRoute = true);
+    try {
+      final route = await GoogleDirectionsService().fetchRoute(
+        origin: pickup,
+        destination: dropoff,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _route = route;
+        _couldNotLoadRoute = !_hasRoadRoute(route);
+      });
+    } on Exception {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _couldNotLoadRoute = true);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingRoute = false);
+      }
+    }
+  }
+
+  Set<Polyline> _polylinesFor(List<LatLng> routePoints) {
+    if (routePoints.isEmpty) {
+      return const <Polyline>{};
+    }
+
     return <Polyline>{
       Polyline(
         polylineId: const PolylineId('preview_route_line'),
-        points: <LatLng>[pickup, dropoff],
+        points: routePoints,
         width: 4,
         color: PassengerUi.accentBlue.withValues(alpha: 0.75),
       ),
     };
   }
 
-  LatLngBounds _boundsFor(LatLng pickup, LatLng dropoff) {
+  LatLngBounds _boundsFor(
+    LatLng pickup,
+    LatLng dropoff, {
+    required RouteResult? route,
+    required List<LatLng> routePoints,
+  }) {
+    final routeBounds = route?.bounds;
+    if (routeBounds != null) {
+      return routeBounds;
+    }
+
+    final points = <LatLng>[pickup, dropoff, ...routePoints];
     return LatLngBounds(
       southwest: LatLng(
-        math.min(pickup.latitude, dropoff.latitude),
-        math.min(pickup.longitude, dropoff.longitude),
+        points.map((point) => point.latitude).reduce(math.min),
+        points.map((point) => point.longitude).reduce(math.min),
       ),
       northeast: LatLng(
-        math.max(pickup.latitude, dropoff.latitude),
-        math.max(pickup.longitude, dropoff.longitude),
+        points.map((point) => point.latitude).reduce(math.max),
+        points.map((point) => point.longitude).reduce(math.max),
+      ),
+    );
+  }
+}
+
+/// Returns only road geometry. Two points represent the former straight-line
+/// fallback, never a route that should be presented as a recommended journey.
+List<LatLng> routePreviewPolylinePoints(RouteResult? route) {
+  if (!_hasRoadRoute(route)) {
+    return const <LatLng>[];
+  }
+
+  return List<LatLng>.unmodifiable(route!.polylinePoints);
+}
+
+bool _hasRoadRoute(RouteResult? route) =>
+    route != null && route.polylinePoints.length > 2;
+
+class _RouteLoadingOverlay extends StatelessWidget {
+  const _RouteLoadingOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black26,
+      child: Center(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: PassengerUi.surface,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 10),
+                Text('Loading recommended route'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RouteUnavailableOverlay extends StatelessWidget {
+  const _RouteUnavailableOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black26,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'The recommended road route is unavailable for this trip.',
+            textAlign: TextAlign.center,
+            style: PassengerUi.valueText.copyWith(color: PassengerUi.surface),
+          ),
+        ),
       ),
     );
   }

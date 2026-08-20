@@ -183,6 +183,7 @@ class DriverRideRequestCard extends StatelessWidget {
                     RideLocationPreviewButton(
                       pickupLocation: ride.pickupLocation,
                       dropoffLocation: ride.dropoffLocation,
+                      route: ride.route,
                     ),
                   ],
                 ],

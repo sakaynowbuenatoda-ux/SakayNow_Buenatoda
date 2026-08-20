@@ -573,68 +573,189 @@ class AdminBookingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AdminSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '$passengerName to ${booking.dropoffLocation}',
-                  style: AdminUi.cardTitle,
-                ),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useTwoColumns = constraints.maxWidth >= 620;
+          final detailWidth = useTwoColumns
+              ? (constraints.maxWidth - 14) / 2
+              : constraints.maxWidth;
+          final details = <_BookingDetailItem>[
+            _BookingDetailItem(label: 'Pickup', value: booking.pickupLocation),
+            _BookingDetailItem(
+              label: 'Drop-off',
+              value: booking.dropoffLocation,
+            ),
+            _BookingDetailItem(label: 'Passenger', value: passengerName),
+            _BookingDetailItem(label: 'Driver', value: driverName),
+            _BookingDetailItem(
+              label: 'Payment',
+              value: booking.paymentMethod ?? 'Not set yet',
+            ),
+            _BookingDetailItem(
+              label: 'Payment status',
+              value: booking.paymentStatusLabel,
+            ),
+            _BookingDetailItem(
+              label: 'Fare',
+              value: booking.fareLabel ?? 'Pending',
+            ),
+            if (booking.isCompleted) ...<_BookingDetailItem>[
+              _BookingDetailItem(
+                label: 'Gross fare',
+                value: 'PHP ${booking.grossFareAmount}',
               ),
-              if (booking.canPreviewRoute) ...[
-                const SizedBox(width: 8),
-                RideLocationPreviewButton(
-                  pickupLocation: booking.pickupRideLocation!,
-                  dropoffLocation: booking.dropoffRideLocation!,
-                  color: AdminUi.accentBlue,
-                ),
-              ],
-              const SizedBox(width: 8),
-              AdminStatusChip(
-                label: booking.statusLabel,
-                textColor: booking.statusColor,
-                backgroundColor: booking.statusBackgroundColor,
+              _BookingDetailItem(
+                label: 'Commission (${booking.commissionRateLabel})',
+                value: 'PHP ${booking.commissionAmount}',
+              ),
+              _BookingDetailItem(
+                label: 'Driver net earnings',
+                value: 'PHP ${booking.driverNetEarnings}',
+              ),
+              _BookingDetailItem(
+                label: 'Payout status',
+                value: booking.driverPayoutStatusLabel,
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          _DetailRow(label: 'Pickup', value: booking.pickupLocation),
-          _DetailRow(label: 'Drop-off', value: booking.dropoffLocation),
-          _DetailRow(label: 'Passenger', value: passengerName),
-          _DetailRow(label: 'Driver', value: driverName),
-          _DetailRow(
-            label: 'Payment',
-            value: booking.paymentMethod ?? 'Not set yet',
-          ),
-          _DetailRow(
-            label: 'Payment status',
-            value: booking.paymentStatusLabel,
-          ),
-          _DetailRow(label: 'Fare', value: booking.fareLabel ?? 'Pending'),
-          if (booking.isCompleted) ...[
-            _DetailRow(
-              label: 'Gross fare',
-              value: 'PHP ${booking.grossFareAmount}',
-            ),
-            _DetailRow(
-              label: 'Commission (${booking.commissionRateLabel})',
-              value: 'PHP ${booking.commissionAmount}',
-            ),
-            _DetailRow(
-              label: 'Driver net earnings',
-              value: 'PHP ${booking.driverNetEarnings}',
-            ),
-            _DetailRow(
-              label: 'Payout status',
-              value: booking.driverPayoutStatusLabel,
-            ),
-          ],
-          _DetailTimeRow(label: 'Time', value: booking.timestamp),
-        ],
+            _BookingDetailItem.time(time: booking.timestamp),
+          ];
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              _BookingCardHeader(
+                booking: booking,
+                passengerName: passengerName,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 14,
+                runSpacing: 10,
+                children: details
+                    .map(
+                      (detail) => SizedBox(
+                        width: detailWidth,
+                        child: _BookingDetailTile(detail: detail),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+}
+
+class _BookingCardHeader extends StatelessWidget {
+  final AdminBookingRecord booking;
+  final String passengerName;
+
+  const _BookingCardHeader({
+    required this.booking,
+    required this.passengerName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 430;
+        final title = Text(
+          '$passengerName to ${booking.dropoffLocation}',
+          maxLines: compact ? 2 : 1,
+          overflow: TextOverflow.ellipsis,
+          style: AdminUi.cardTitle.copyWith(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: AdminUi.title,
+          ),
+        );
+        final actions = <Widget>[
+          if (booking.canPreviewRoute)
+            RideLocationPreviewButton(
+              pickupLocation: booking.pickupRideLocation!,
+              dropoffLocation: booking.dropoffRideLocation!,
+              route: booking.route,
+              color: AdminUi.accentBlue,
+              dimension: 38,
+              iconSize: 19,
+            ),
+          if (booking.canPreviewRoute) const SizedBox(width: 8),
+          AdminStatusChip(
+            label: booking.statusLabel,
+            textColor: booking.statusColor,
+            backgroundColor: booking.statusBackgroundColor,
+          ),
+        ];
+
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              title,
+              const SizedBox(height: 10),
+              Wrap(spacing: 8, runSpacing: 8, children: actions),
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: title),
+            const SizedBox(width: 12),
+            ...actions,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _BookingDetailItem {
+  final String label;
+  final String? value;
+  final DateTime? time;
+
+  const _BookingDetailItem({required this.label, required String this.value})
+    : time = null;
+
+  const _BookingDetailItem.time({required this.time})
+    : label = 'Time',
+      value = null;
+}
+
+class _BookingDetailTile extends StatelessWidget {
+  final _BookingDetailItem detail;
+
+  const _BookingDetailTile({required this.detail});
+
+  @override
+  Widget build(BuildContext context) {
+    final valueStyle = AdminUi.bodyText.copyWith(
+      color: AdminUi.title,
+      fontWeight: FontWeight.w500,
+      height: 1.3,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          detail.label,
+          style: AdminUi.labelText.copyWith(
+            color: AdminUi.title,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 2),
+        if (detail.time != null)
+          TimeAgoText(dateTime: detail.time, style: valueStyle)
+        else
+          Text(detail.value!, style: valueStyle),
+      ],
     );
   }
 }
@@ -730,64 +851,6 @@ class AdminInfoPanel extends StatelessWidget {
                 Text(description, style: AdminUi.bodyText),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _DetailRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 82,
-            child: Text(
-              label,
-              style: AdminUi.bodyText.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(child: Text(value, style: AdminUi.bodyText)),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailTimeRow extends StatelessWidget {
-  final String label;
-  final DateTime? value;
-
-  const _DetailTimeRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 82,
-            child: Text(
-              label,
-              style: AdminUi.bodyText.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TimeAgoText(dateTime: value, style: AdminUi.bodyText),
           ),
         ],
       ),

@@ -356,7 +356,16 @@ class _AdminSidebar extends StatelessWidget {
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
         color: AdminUi.surface,
-        border: Border(right: BorderSide(color: AdminUi.border)),
+        border: Border(right: BorderSide(color: AdminUi.strongBorder)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: AdminUi.isDarkMode ? 0.18 : 0.045,
+            ),
+            blurRadius: 16,
+            offset: const Offset(4, 0),
+          ),
+        ],
       ),
       child: _AdminNavigationContent(
         firstName: firstName,
@@ -456,12 +465,12 @@ class _AdminNavigationContent extends StatelessWidget {
                 onHomeTap: () => onDestinationSelected(0),
                 onToggleSidebar: onToggleSidebar,
               ),
-              Divider(height: 1, color: AdminUi.border),
+              Divider(height: 1, color: AdminUi.strongBorder),
               Expanded(
                 child: ListView(
                   padding: EdgeInsets.fromLTRB(
                     compact ? 10 : 12,
-                    compact ? 14 : 18,
+                    compact ? 12 : 14,
                     compact ? 10 : 12,
                     14,
                   ),
@@ -475,6 +484,7 @@ class _AdminNavigationContent extends StatelessWidget {
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.9,
+                            color: AdminUi.title.withValues(alpha: 0.72),
                           ),
                         ),
                       ),
@@ -494,9 +504,9 @@ class _AdminNavigationContent extends StatelessWidget {
                   ],
                 ),
               ),
-              Divider(height: 1, color: AdminUi.border),
+              Divider(height: 1, color: AdminUi.strongBorder),
               Padding(
-                padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
                 child: Column(
                   children: [
                     _AdminNavAction(
@@ -553,7 +563,7 @@ class _AdminSidebarHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(compact ? 6 : 12, 10, compact ? 6 : 10, 8),
+      padding: EdgeInsets.fromLTRB(compact ? 6 : 12, 12, compact ? 6 : 10, 10),
       child: SizedBox(
         height: 44,
         child: Row(
@@ -561,26 +571,19 @@ class _AdminSidebarHeader extends StatelessWidget {
               ? MainAxisAlignment.center
               : MainAxisAlignment.start,
           children: [
-            if (!compact) ...[
-              Tooltip(
-                message: 'Admin overview',
-                child: Material(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  child: InkWell(
-                    onTap: onHomeTap,
-                    borderRadius: BorderRadius.circular(8),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.asset(
-                        AppAssets.logo,
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+            if (compact) ...[
+              Expanded(
+                child: Center(
+                  child: Tooltip(
+                    message: 'Admin overview',
+                    child: _AdminSidebarBrandMark(onTap: onHomeTap),
                   ),
                 ),
+              ),
+            ] else ...[
+              Tooltip(
+                message: 'Admin overview',
+                child: _AdminSidebarBrandMark(onTap: onHomeTap),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -592,14 +595,20 @@ class _AdminSidebarHeader extends StatelessWidget {
                       'Admin Console',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AdminUi.cardTitle,
+                      style: AdminUi.cardTitle.copyWith(
+                        color: AdminUi.title,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 1),
                     Text(
                       adminName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AdminUi.labelText,
+                      style: AdminUi.labelText.copyWith(
+                        color: AdminUi.title.withValues(alpha: 0.76),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -610,7 +619,7 @@ class _AdminSidebarHeader extends StatelessWidget {
               Tooltip(
                 message: collapsed ? 'Open sidebar' : 'Close sidebar',
                 child: Material(
-                  color: AdminUi.mutedSurface,
+                  color: AdminUi.subtleSurface,
                   borderRadius: BorderRadius.circular(8),
                   child: InkWell(
                     onTap: onToggleSidebar,
@@ -654,80 +663,109 @@ class _AdminNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected ? AdminUi.accent : AdminUi.body;
-    final control = Material(
-      color: selected ? AdminUi.soft(AdminUi.accent) : Colors.transparent,
-      shape: RoundedRectangleBorder(
+    final foreground = selected
+        ? AdminUi.accent
+        : AdminUi.title.withValues(alpha: AdminUi.isDarkMode ? 0.90 : 0.82);
+    final control = AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      decoration: BoxDecoration(
+        color: selected ? AdminUi.soft(AdminUi.accent, alpha: 0.15) : null,
         borderRadius: AdminUi.radius,
-        side: BorderSide(
+        border: Border.all(
           color: selected
-              ? AdminUi.accent.withValues(alpha: 0.16)
+              ? AdminUi.accent.withValues(
+                  alpha: AdminUi.isDarkMode ? 0.48 : 0.28,
+                )
               : Colors.transparent,
         ),
       ),
-      child: InkWell(
-        onTap: onTap,
+      child: Material(
+        color: Colors.transparent,
         borderRadius: AdminUi.radius,
-        child: compact
-            ? SizedBox(
-                height: 48,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(icon, size: 21, color: foreground),
-                    if (unreadCount > 0)
-                      Positioned(
-                        top: 5,
-                        right: 5,
-                        child: _AdminNavUnreadBadge(
-                          count: unreadCount,
-                          compact: true,
-                        ),
-                      ),
-                  ],
-                ),
-              )
-            : Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 9,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? AdminUi.surface.withValues(
-                                alpha: AdminUi.isDarkMode ? 0.10 : 0.72,
-                              )
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(icon, size: 19, color: foreground),
-                    ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AdminUi.bodyText.copyWith(
-                          color: selected ? AdminUi.title : AdminUi.body,
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    if (unreadCount > 0) ...[
-                      const SizedBox(width: 8),
-                      _AdminNavUnreadBadge(count: unreadCount),
-                    ],
-                  ],
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AdminUi.radius,
+          splashColor: AdminUi.accent.withValues(alpha: 0.10),
+          hoverColor: AdminUi.accent.withValues(alpha: 0.055),
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: selected ? 4 : 0,
+                height: compact ? 48 : 50,
+                decoration: BoxDecoration(
+                  color: AdminUi.accent,
+                  borderRadius: const BorderRadius.horizontal(
+                    right: Radius.circular(4),
+                  ),
                 ),
               ),
+              Expanded(
+                child: compact
+                    ? SizedBox(
+                        height: 48,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Icon(icon, size: 21, color: foreground),
+                            if (unreadCount > 0)
+                              Positioned(
+                                top: 5,
+                                right: 5,
+                                child: _AdminNavUnreadBadge(
+                                  count: unreadCount,
+                                  compact: true,
+                                ),
+                              ),
+                          ],
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 9,
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? AdminUi.accent.withValues(alpha: 0.13)
+                                    : AdminUi.subtleSurface,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(icon, size: 19, color: foreground),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AdminUi.bodyText.copyWith(
+                                  color: foreground,
+                                  fontSize: 13.5,
+                                  height: 1.2,
+                                  fontWeight: selected
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            if (unreadCount > 0) ...[
+                              const SizedBox(width: 8),
+                              _AdminNavUnreadBadge(count: unreadCount),
+                            ],
+                          ],
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
 
@@ -804,9 +842,14 @@ class _AdminNavAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected ? AdminUi.accent : color ?? AdminUi.body;
+    final foreground = selected
+        ? AdminUi.accent
+        : color ??
+              AdminUi.title.withValues(alpha: AdminUi.isDarkMode ? 0.90 : 0.82);
     final control = Material(
-      color: selected ? AdminUi.soft(AdminUi.accent) : Colors.transparent,
+      color: selected
+          ? AdminUi.soft(AdminUi.accent, alpha: 0.15)
+          : Colors.transparent,
       borderRadius: AdminUi.radius,
       child: InkWell(
         onTap: onTap,
@@ -818,20 +861,30 @@ class _AdminNavAction extends StatelessWidget {
               )
             : Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+                  horizontal: 10,
+                  vertical: 9,
                 ),
                 child: Row(
                   children: [
-                    Icon(icon, size: 19, color: foreground),
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AdminUi.accent.withValues(alpha: 0.13)
+                            : AdminUi.subtleSurface,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(icon, size: 19, color: foreground),
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         label,
                         style: AdminUi.bodyText.copyWith(
-                          color: selected
-                              ? AdminUi.title
-                              : color ?? AdminUi.title,
+                          color: foreground,
+                          fontSize: 13.5,
+                          height: 1.2,
                           fontWeight: selected
                               ? FontWeight.w700
                               : FontWeight.w600,
@@ -851,5 +904,37 @@ class _AdminNavAction extends StatelessWidget {
             child: control,
           )
         : control;
+  }
+}
+
+class _AdminSidebarBrandMark extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AdminSidebarBrandMark({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(9),
+        child: Container(
+          width: 34,
+          height: 34,
+          padding: const EdgeInsets.all(1),
+          decoration: BoxDecoration(
+            color: AdminUi.subtleSurface,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: AdminUi.strongBorder),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: Image.asset(AppAssets.logo, fit: BoxFit.cover),
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -185,7 +185,6 @@ class _AccountMetricsPanel extends StatelessWidget {
     return _AccountSurfacePanel(
       title: 'Account Metrics',
       subtitle: 'Tap a card to open the related review page.',
-      accentColor: AdminUi.accentBlue,
       child: LayoutBuilder(
         builder: (context, constraints) {
           const spacing = 12.0;
@@ -311,7 +310,6 @@ class _VerificationQueuesPanel extends StatelessWidget {
       subtitle: pendingUsers == 0
           ? 'There are currently no new accounts waiting for verification.'
           : '$pendingUsers new account(s) are waiting for verification.',
-      accentColor: AdminUi.secondary,
       child: pendingUsers == 0
           ? const AdminEmptyCollection(
               icon: Icons.verified_user_outlined,
@@ -383,7 +381,6 @@ class _RestrictedReviewPanel extends StatelessWidget {
       subtitle: restrictedUsers == 0
           ? 'There are no restricted accounts that need follow-up right now.'
           : '$restrictedUsers restricted account(s) need follow-up.',
-      accentColor: AdminUi.highlightAmber,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -415,56 +412,17 @@ class _RestrictedReviewPanel extends StatelessWidget {
 class _AccountSurfacePanel extends StatelessWidget {
   final String title;
   final String subtitle;
-  final Color accentColor;
   final Widget child;
 
   const _AccountSurfacePanel({
     required this.title,
     required this.subtitle,
-    required this.accentColor,
     required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
-    final background = AdminUi.isDarkMode
-        ? Color.lerp(AdminUi.surface, accentColor, 0.10)
-        : AdminUi.surface;
-
-    return AdminSurfaceCard(
-      color: background,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: AdminUi.cardTitle),
-                    SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AdminUi.bodyText.copyWith(
-                        color: AdminUi.muted,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          child,
-        ],
-      ),
-    );
+    return AdminSectionCard(title: title, subtitle: subtitle, child: child);
   }
 }
 

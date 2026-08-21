@@ -19,17 +19,7 @@ class AdminReportDetailsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AdminUi.background,
-      appBar: AppBar(
-        backgroundColor: AdminUi.surface,
-        surfaceTintColor: AdminUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          tooltip: 'Back',
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
-        ),
-        title: Text('Report Details', style: AdminUi.cardTitle),
-      ),
+      appBar: const AdminDetailAppBar(title: 'Report Details'),
       body: AdminPageContainer(
         maxContentWidth: AdminUi.detailContentWidth,
         child: StreamBuilder<AdminBookingRecord?>(
@@ -125,7 +115,9 @@ class _ReportDetailsContent extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        AdminSurfaceCard(
+        AdminSectionCard(
+          title: 'Report Information',
+          subtitle: 'Submission, category, and linked account identifiers.',
           child: Column(
             children: <Widget>[
               _ReportDetailRow(label: 'Reported user', value: reportedName),
@@ -158,34 +150,31 @@ class _ReportDetailsContent extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 20),
-        Text('Linked Ride', style: AdminUi.sectionTitle),
-        const SizedBox(height: 6),
-        Text(
-          'Latest booking details for the passenger and driver named in this report.',
-          style: AdminUi.bodyText,
+        const SizedBox(height: 16),
+        AdminSectionCard(
+          title: 'Linked Ride',
+          subtitle:
+              'Latest booking details for the passenger and driver named in this report.',
+          child: report.bookingId.isEmpty
+              ? const AdminEmptyCollection(
+                  icon: Icons.link_off_rounded,
+                  title: 'No ride is linked to this report',
+                  description:
+                      'This report was submitted without a booking reference.',
+                )
+              : booking == null
+              ? const AdminEmptyCollection(
+                  icon: Icons.directions_car_filled_outlined,
+                  title: 'Linked ride not found',
+                  description:
+                      'The booking connected to this report is no longer available.',
+                )
+              : AdminBookingCard(
+                  booking: booking!,
+                  passengerName: passengerName,
+                  driverName: driverName,
+                ),
         ),
-        const SizedBox(height: 12),
-        if (report.bookingId.isEmpty)
-          const AdminEmptyCollection(
-            icon: Icons.link_off_rounded,
-            title: 'No ride is linked to this report',
-            description:
-                'This report was submitted without a booking reference.',
-          )
-        else if (booking == null)
-          const AdminEmptyCollection(
-            icon: Icons.directions_car_filled_outlined,
-            title: 'Linked ride not found',
-            description:
-                'The booking connected to this report is no longer available.',
-          )
-        else
-          AdminBookingCard(
-            booking: booking!,
-            passengerName: passengerName,
-            driverName: driverName,
-          ),
       ],
     );
   }

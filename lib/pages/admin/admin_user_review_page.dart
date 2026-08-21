@@ -35,22 +35,10 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
         final user = snapshot.data;
         return Scaffold(
           backgroundColor: AdminUi.background,
-          appBar: AppBar(
-            backgroundColor: AdminUi.surface,
-            surfaceTintColor: AdminUi.surface,
-            elevation: 0,
-            toolbarHeight: 68,
-            leading: IconButton(
-              tooltip: 'Back',
-              onPressed: () => Navigator.of(context).pop(),
-              icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
-            ),
-            title: Text(
-              MediaQuery.sizeOf(context).width < 460
-                  ? 'Review'
-                  : 'Verification Review',
-              style: AdminUi.cardTitle,
-            ),
+          appBar: AdminDetailAppBar(
+            title: MediaQuery.sizeOf(context).width < 460
+                ? 'Review'
+                : 'Verification Review',
             actions: <Widget>[
               if (user != null)
                 Padding(
@@ -125,15 +113,11 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
             children: [
               if (showMissingDocumentsWarning) const SizedBox(height: 46),
               _ReviewSummaryCard(user: user),
-              SizedBox(height: 18),
-              Text('Profile Information', style: AdminUi.sectionTitle),
-              SizedBox(height: 6),
-              Text(
-                'Review the account details submitted during registration.',
-                style: AdminUi.bodyText,
-              ),
-              SizedBox(height: 12),
-              AdminSurfaceCard(
+              SizedBox(height: 16),
+              AdminSectionCard(
+                title: 'Profile Information',
+                subtitle:
+                    'Review the account details submitted during registration.',
                 child: Column(
                   children: [
                     _InfoRow(label: 'User ID', value: user.userId),
@@ -157,10 +141,10 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                 ),
               ),
               if (user.isDriver) ...[
-                SizedBox(height: 18),
-                Text('Vehicle Information', style: AdminUi.sectionTitle),
-                SizedBox(height: 12),
-                AdminSurfaceCard(
+                SizedBox(height: 16),
+                AdminSectionCard(
+                  title: 'Vehicle Information',
+                  subtitle: 'Vehicle identity and exact document expiry dates.',
                   child: Column(
                     children: [
                       _InfoRow(
@@ -188,27 +172,26 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                   ),
                 ),
               ],
-              SizedBox(height: 18),
-              Text('Uploaded Credentials', style: AdminUi.sectionTitle),
-              SizedBox(height: 6),
-              Text(credentialsSubtitle, style: AdminUi.bodyText),
-              SizedBox(height: 12),
-              if (documents.isEmpty)
-                const AdminEmptyCollection(
-                  icon: Icons.image_not_supported_outlined,
-                  title: 'No uploaded credentials found',
-                  description:
-                      'This user does not currently have readable credential images for review.',
-                )
-              else
-                _CredentialGrid(
-                  documents: documents,
-                  onPreview: (document) => _showImagePreview(
-                    context,
-                    title: document.label,
-                    imageUrl: document.url,
-                  ),
-                ),
+              SizedBox(height: 16),
+              AdminSectionCard(
+                title: 'Uploaded Credentials',
+                subtitle: credentialsSubtitle,
+                child: documents.isEmpty
+                    ? const AdminEmptyCollection(
+                        icon: Icons.image_not_supported_outlined,
+                        title: 'No uploaded credentials found',
+                        description:
+                            'This user does not currently have readable credential images for review.',
+                      )
+                    : _CredentialGrid(
+                        documents: documents,
+                        onPreview: (document) => _showImagePreview(
+                          context,
+                          title: document.label,
+                          imageUrl: document.url,
+                        ),
+                      ),
+              ),
               if (user.isPendingRenewal) ...[
                 SizedBox(height: 18),
                 _RenewalReviewPanel(

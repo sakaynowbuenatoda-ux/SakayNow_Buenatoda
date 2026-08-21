@@ -63,16 +63,7 @@ class _AdminBookingHistoryPageState extends State<AdminBookingHistoryPage> {
 
     return Scaffold(
       backgroundColor: AdminUi.background,
-      appBar: AppBar(
-        backgroundColor: AdminUi.surface,
-        surfaceTintColor: AdminUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
-        ),
-        title: Text('Booking History', style: AdminUi.cardTitle),
-      ),
+      appBar: const AdminDetailAppBar(title: 'Booking History'),
       body: AdminPageContainer(
         maxContentWidth: AdminUi.listContentWidth,
         child: StreamBuilder<List<AdminUserRecord>>(

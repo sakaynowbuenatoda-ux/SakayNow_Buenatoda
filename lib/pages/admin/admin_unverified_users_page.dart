@@ -61,16 +61,7 @@ class _AdminUnverifiedUsersPageState extends State<AdminUnverifiedUsersPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AdminUi.background,
-      appBar: AppBar(
-        backgroundColor: AdminUi.surface,
-        surfaceTintColor: AdminUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
-        ),
-        title: Text(_pageTitle, style: AdminUi.cardTitle),
-      ),
+      appBar: AdminDetailAppBar(title: _pageTitle),
       body: AdminPageContainer(
         maxContentWidth: AdminUi.listContentWidth,
         child: StreamBuilder<List<AdminUserRecord>>(

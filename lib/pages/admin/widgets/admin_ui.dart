@@ -26,20 +26,20 @@ class AdminUi {
   static Color get elevatedSurface =>
       isDarkMode ? const Color(0xFF17202C) : const Color(0xFFFFFFFF);
   static Color get mutedSurface =>
-      isDarkMode ? const Color(0xFF1B2532) : const Color(0xFFF1F5F9);
+      isDarkMode ? const Color(0xFF1B2532) : const Color(0xFFF3F4F6);
   static Color get subtleSurface =>
-      isDarkMode ? const Color(0xFF0F1620) : const Color(0xFFF8FAFC);
+      isDarkMode ? const Color(0xFF0F1620) : const Color(0xFFFAFAFA);
   static Color get border =>
-      isDarkMode ? const Color(0xFF273548) : const Color(0xFFD9DDE2);
+      isDarkMode ? const Color(0xFF273548) : const Color(0xFFE1E4E8);
   static Color get strongBorder =>
-      isDarkMode ? const Color(0xFF3A4A61) : const Color(0xFFC9CED5);
+      isDarkMode ? const Color(0xFF3A4A61) : const Color(0xFFCCD1D8);
 
   static Color get title =>
       isDarkMode ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A);
   static Color get body =>
-      isDarkMode ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
+      isDarkMode ? const Color(0xFFCBD5E1) : const Color(0xFF252B35);
   static Color get muted =>
-      isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF596273);
 
   static Color get accent =>
       isDarkMode ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
@@ -66,17 +66,17 @@ class AdminUi {
     return color.withValues(alpha: isDarkMode ? alpha + 0.04 : alpha);
   }
 
-  static BorderRadius get radius => BorderRadius.circular(10);
-  static BorderRadius get cardRadius => BorderRadius.circular(14);
+  static BorderRadius get radius => BorderRadius.circular(9);
+  static BorderRadius get cardRadius => BorderRadius.circular(12);
 
   /// Reserved for controls and cards that can be opened or activated.
   static List<BoxShadow> get interactiveShadow => <BoxShadow>[
     BoxShadow(
       color: const Color(
         0xFF0F172A,
-      ).withValues(alpha: isDarkMode ? 0.30 : 0.09),
-      blurRadius: 22,
-      offset: const Offset(0, 9),
+      ).withValues(alpha: isDarkMode ? 0.26 : 0.055),
+      blurRadius: 16,
+      offset: const Offset(0, 6),
     ),
   ];
 
@@ -84,9 +84,9 @@ class AdminUi {
     BoxShadow(
       color: const Color(
         0xFF0F172A,
-      ).withValues(alpha: isDarkMode ? 0.38 : 0.14),
-      blurRadius: 28,
-      offset: const Offset(0, 12),
+      ).withValues(alpha: isDarkMode ? 0.34 : 0.095),
+      blurRadius: 20,
+      offset: const Offset(0, 8),
     ),
   ];
 
@@ -94,7 +94,7 @@ class AdminUi {
   static List<BoxShadow> get cardShadow => interactiveShadow;
 
   static TextStyle get pageTitle => GoogleFonts.poppins(
-    fontSize: 26,
+    fontSize: 25,
     fontWeight: FontWeight.w700,
     color: title,
     height: 1.18,
@@ -102,7 +102,7 @@ class AdminUi {
   );
 
   static TextStyle get sectionTitle => GoogleFonts.poppins(
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: FontWeight.w700,
     color: title,
     height: 1.25,
@@ -110,7 +110,7 @@ class AdminUi {
   );
 
   static TextStyle get cardTitle => GoogleFonts.poppins(
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: FontWeight.w600,
     color: title,
     height: 1.3,
@@ -126,7 +126,7 @@ class AdminUi {
   );
 
   static TextStyle get bodyText => GoogleFonts.poppins(
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: FontWeight.w400,
     color: body,
     height: 1.5,
@@ -150,9 +150,9 @@ class AdminUi {
 
     return EdgeInsets.fromLTRB(
       horizontal,
-      width >= 700 ? 28 : 18,
+      width >= 700 ? 24 : 16,
       horizontal,
-      MediaQuery.of(context).viewPadding.bottom + 32,
+      MediaQuery.of(context).viewPadding.bottom + 28,
     );
   }
 
@@ -205,7 +205,7 @@ class AdminUi {
       fillColor: surface,
       hintStyle: bodyText.copyWith(color: muted),
       labelStyle: bodyText.copyWith(color: muted),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
       border: outlineBorder,
       enabledBorder: outlineBorder,
       focusedBorder: OutlineInputBorder(
@@ -272,7 +272,7 @@ class AdminSurfaceCard extends StatelessWidget {
   const AdminSurfaceCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(18),
+    this.padding = const EdgeInsets.all(16),
     this.color,
   });
 
@@ -307,7 +307,7 @@ class AdminInteractiveCard extends StatefulWidget {
     super.key,
     required this.child,
     required this.onTap,
-    this.padding = const EdgeInsets.all(18),
+    this.padding = const EdgeInsets.all(16),
     this.color,
     this.accentColor,
     this.semanticLabel,
@@ -416,6 +416,131 @@ class AdminPageHeader extends StatelessWidget {
   }
 }
 
+class AdminSectionCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget child;
+  final Widget? trailing;
+  final EdgeInsetsGeometry bodyPadding;
+
+  const AdminSectionCard({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+    this.trailing,
+    this.bodyPadding = const EdgeInsets.fromLTRB(16, 14, 16, 16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminSurfaceCard(
+      color: AdminUi.surface,
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        title,
+                        style: AdminUi.cardTitle.copyWith(
+                          color: AdminUi.title,
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.25,
+                        ),
+                      ),
+                      if (subtitle.trim().isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 3),
+                        Text(
+                          subtitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AdminUi.bodyText.copyWith(
+                            color: AdminUi.muted,
+                            fontSize: 12.25,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...<Widget>[
+                  const SizedBox(width: 12),
+                  trailing!,
+                ],
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 1, color: AdminUi.border),
+          Padding(padding: bodyPadding, child: child),
+        ],
+      ),
+    );
+  }
+}
+
+class AdminDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  final List<Widget> actions;
+  final VoidCallback? onBack;
+  final bool enableBack;
+  final String backTooltip;
+
+  const AdminDetailAppBar({
+    super.key,
+    required this.title,
+    this.actions = const <Widget>[],
+    this.onBack,
+    this.enableBack = true,
+    this.backTooltip = 'Back',
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(64);
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      backgroundColor: AdminUi.surface,
+      surfaceTintColor: AdminUi.surface,
+      foregroundColor: AdminUi.title,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      toolbarHeight: preferredSize.height,
+      shape: Border(bottom: BorderSide(color: AdminUi.border)),
+      leading: IconButton(
+        tooltip: backTooltip,
+        onPressed: enableBack
+            ? onBack ?? () => Navigator.of(context).pop()
+            : null,
+        icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
+      ),
+      titleSpacing: 4,
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AdminUi.cardTitle.copyWith(
+          color: AdminUi.title,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      actions: actions,
+    );
+  }
+}
+
 class AdminCountPageHeader extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -434,73 +559,85 @@ class AdminCountPageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AdminSurfaceCard(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+    final countPill = Container(
+      constraints: const BoxConstraints(minWidth: 78),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AdminUi.subtleSurface,
+        borderRadius: AdminUi.radius,
+        border: Border.all(color: AdminUi.border),
+      ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AdminUi.sectionTitle,
-                ),
-                if (subtitle.trim().isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AdminUi.bodyText.copyWith(color: AdminUi.muted),
-                  ),
-                ],
-              ],
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: accentColor,
+              shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 14),
-          Container(
-            constraints: const BoxConstraints(minWidth: 72),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AdminUi.soft(accentColor, alpha: 0.10),
-              borderRadius: AdminUi.radius,
-              border: Border.all(color: accentColor.withValues(alpha: 0.12)),
+          const SizedBox(width: 7),
+          Text(
+            count,
+            style: AdminUi.valueText.copyWith(
+              color: AdminUi.title,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              height: 1,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: <Widget>[
-                Text(
-                  count,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                  style: AdminUi.valueText.copyWith(
-                    color: accentColor,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    height: 1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  countLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                  style: AdminUi.labelText.copyWith(
-                    color: AdminUi.body,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
+          ),
+          const SizedBox(width: 6),
+          Text(
+            countLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AdminUi.labelText.copyWith(
+              color: AdminUi.body,
+              fontSize: 10.75,
             ),
           ),
         ],
       ),
+    );
+
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(title, style: AdminUi.pageTitle),
+        if (subtitle.trim().isNotEmpty) ...<Widget>[
+          const SizedBox(height: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Text(subtitle, style: AdminUi.bodyText),
+          ),
+        ],
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 560) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              titleBlock,
+              const SizedBox(height: 12),
+              countPill,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(child: titleBlock),
+            const SizedBox(width: 16),
+            countPill,
+          ],
+        );
+      },
     );
   }
 }

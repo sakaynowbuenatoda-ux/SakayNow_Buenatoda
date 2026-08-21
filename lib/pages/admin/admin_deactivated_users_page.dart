@@ -59,16 +59,7 @@ class _AdminDeactivatedUsersPageState extends State<AdminDeactivatedUsersPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AdminUi.background,
-      appBar: AppBar(
-        backgroundColor: AdminUi.surface,
-        surfaceTintColor: AdminUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
-        ),
-        title: Text('Deactivated Users', style: AdminUi.cardTitle),
-      ),
+      appBar: const AdminDetailAppBar(title: 'Deactivated Users'),
       body: AdminPageContainer(
         maxContentWidth: AdminUi.listContentWidth,
         child: StreamBuilder<List<AdminUserRecord>>(
@@ -318,7 +309,7 @@ class _SearchField extends StatelessWidget {
     return TextField(
       controller: controller,
       textInputAction: TextInputAction.search,
-      decoration: InputDecoration(
+      decoration: AdminUi.inputDecoration(
         hintText: 'Search by name, email, role, or user ID',
         prefixIcon: const Icon(Icons.search_rounded),
         suffixIcon: controller.text.isEmpty
@@ -327,20 +318,6 @@ class _SearchField extends StatelessWidget {
                 onPressed: controller.clear,
                 icon: const Icon(Icons.close_rounded),
               ),
-        filled: true,
-        fillColor: AdminUi.surface,
-        border: OutlineInputBorder(
-          borderRadius: AdminUi.radius,
-          borderSide: BorderSide(color: AdminUi.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: AdminUi.radius,
-          borderSide: BorderSide(color: AdminUi.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: AdminUi.radius,
-          borderSide: BorderSide(color: AdminUi.accent, width: 1.4),
-        ),
       ),
     );
   }
@@ -357,19 +334,10 @@ class _SortMenu extends StatelessWidget {
     return DropdownButtonFormField<DeactivatedUserSort>(
       value: sort,
       isExpanded: true,
-      decoration: InputDecoration(
+      decoration: AdminUi.inputDecoration(
+        hintText: 'Sort',
         labelText: 'Sort',
         prefixIcon: const Icon(Icons.sort_rounded),
-        filled: true,
-        fillColor: AdminUi.surface,
-        border: OutlineInputBorder(
-          borderRadius: AdminUi.radius,
-          borderSide: BorderSide(color: AdminUi.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: AdminUi.radius,
-          borderSide: BorderSide(color: AdminUi.border),
-        ),
       ),
       items: DeactivatedUserSort.values
           .map(

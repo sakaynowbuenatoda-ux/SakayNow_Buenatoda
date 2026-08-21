@@ -108,7 +108,6 @@ class AdminManagementPage extends StatelessWidget {
                       title: 'Fare Management',
                       subtitle:
                           'Update the service-wide fare rules admins control.',
-                      accentColor: AdminUi.accentBlue,
                       child: FareSettingsEditor(adminId: adminId),
                     ),
                   ),
@@ -126,7 +125,6 @@ class AdminManagementPage extends StatelessWidget {
                       title: 'Payment Management',
                       subtitle:
                           'Review cashless readiness and settlement status.',
-                      accentColor: AdminUi.secondary,
                       child: Column(
                         children: [
                           AdminInfoPanel(
@@ -146,7 +144,6 @@ class AdminManagementPage extends StatelessWidget {
                     records: _ManagementSurfacePanel(
                       title: 'Ride History Management',
                       subtitle: 'Keep closed trips ready for review.',
-                      accentColor: AdminUi.accentBlue,
                       child: AdminInfoPanel(
                         title: 'Trip history readiness',
                         description:
@@ -216,7 +213,6 @@ class _AdminAccountsPreviewCard extends StatelessWidget {
     return _ManagementSurfacePanel(
       title: 'Admin Accounts',
       subtitle: 'Message or deactivate regular admin accounts.',
-      accentColor: AdminUi.primary,
       child: StreamBuilder<List<AdminUserRecord>>(
         stream: AdminService.watchManagedAdmins(),
         builder: (context, snapshot) {
@@ -310,7 +306,6 @@ class _AdminLogsPreviewCard extends StatelessWidget {
     return _ManagementSurfacePanel(
       title: 'Admin Action Logs',
       subtitle: 'Recent admin account, fare, and moderation actions.',
-      accentColor: AdminUi.accentBlue,
       child: StreamBuilder<List<AdminActionLogRecord>>(
         stream: AdminService.watchAdminLogs(limit: 3),
         builder: (context, snapshot) {
@@ -780,7 +775,6 @@ class _ManagementMetricsPanel extends StatelessWidget {
       title: 'Management Metrics',
       subtitle:
           'A quick snapshot of fare, payment, and ride history readiness.',
-      accentColor: AdminUi.accentBlue,
       child: LayoutBuilder(
         builder: (context, constraints) {
           const spacing = 12.0;
@@ -854,56 +848,17 @@ class _ManagementMetricsPanel extends StatelessWidget {
 class _ManagementSurfacePanel extends StatelessWidget {
   final String title;
   final String subtitle;
-  final Color accentColor;
   final Widget child;
 
   const _ManagementSurfacePanel({
     required this.title,
     required this.subtitle,
-    required this.accentColor,
     required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
-    final background = AdminUi.isDarkMode
-        ? Color.lerp(AdminUi.surface, accentColor, 0.10)
-        : AdminUi.surface;
-
-    return AdminSurfaceCard(
-      color: background,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: AdminUi.cardTitle),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AdminUi.bodyText.copyWith(
-                        color: AdminUi.muted,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          child,
-        ],
-      ),
-    );
+    return AdminSectionCard(title: title, subtitle: subtitle, child: child);
   }
 }
 

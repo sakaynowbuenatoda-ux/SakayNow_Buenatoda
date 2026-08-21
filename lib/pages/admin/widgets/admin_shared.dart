@@ -222,6 +222,7 @@ class AdminQueueUserTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AdminSurfaceCard(
+      padding: const EdgeInsets.all(14),
       child: Row(
         children: [
           _AdminUserAvatar(user: user, radius: 24),
@@ -261,10 +262,17 @@ class AdminQueueUserTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          OutlinedButton.icon(
+          ElevatedButton.icon(
             onPressed: onView,
             icon: const Icon(Icons.visibility_outlined, size: 18),
             label: const Text('View'),
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor: AdminUi.title,
+              foregroundColor: AdminUi.surface,
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+              shape: RoundedRectangleBorder(borderRadius: AdminUi.radius),
+            ),
           ),
         ],
       ),
@@ -775,7 +783,8 @@ class AdminEmptyCollection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AdminSurfaceCard(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      color: AdminUi.subtleSurface,
       child: Column(
         children: <Widget>[
           Container(
@@ -810,6 +819,7 @@ class AdminErrorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AdminSurfaceCard(
       color: AdminUi.soft(AdminUi.danger, alpha: 0.08),
+      padding: const EdgeInsets.all(14),
       child: Row(
         children: [
           Icon(Icons.error_outline_rounded, color: AdminUi.danger),
@@ -839,6 +849,8 @@ class AdminInfoPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AdminSurfaceCard(
+      padding: const EdgeInsets.all(14),
+      color: AdminUi.subtleSurface,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

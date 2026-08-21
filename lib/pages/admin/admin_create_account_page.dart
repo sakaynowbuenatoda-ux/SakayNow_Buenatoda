@@ -86,15 +86,9 @@ class _AdminCreateAccountPageState extends State<AdminCreateAccountPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AdminUi.background,
-      appBar: AppBar(
-        backgroundColor: AdminUi.surface,
-        surfaceTintColor: AdminUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
-        ),
-        title: Text('Create Admin Account', style: AdminUi.cardTitle),
+      appBar: AdminDetailAppBar(
+        title: 'Create Admin Account',
+        enableBack: !_isSubmitting,
       ),
       body: AdminPageContainer(
         maxContentWidth: AdminUi.formContentWidth,
@@ -107,14 +101,15 @@ class _AdminCreateAccountPageState extends State<AdminCreateAccountPage> {
                   'Add a verified regular admin profile. Super admin access cannot be assigned here.',
             ),
             const SizedBox(height: 16),
-            AdminSurfaceCard(
+            AdminSectionCard(
+              title: 'Account Information',
+              subtitle:
+                  'Enter the identity and sign-in details for the new regular admin.',
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Account Information', style: AdminUi.cardTitle),
-                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,

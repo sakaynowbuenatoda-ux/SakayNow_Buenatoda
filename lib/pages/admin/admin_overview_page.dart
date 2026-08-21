@@ -313,7 +313,7 @@ class _OverviewMetricPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _ModernOverviewCard(
+    return AdminSectionCard(
       title: 'Platform Metrics',
       subtitle: 'Tap any metric to open its detailed admin view',
       child: LayoutBuilder(
@@ -551,7 +551,7 @@ class _TodayRideSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _ModernOverviewCard(
+    return AdminSectionCard(
       title: "Today's Ride Summary",
       subtitle: 'Live booking movement for today',
       child: _RideSummaryStats(
@@ -593,7 +593,7 @@ class _RecentReportsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final recentReports = reports.take(3).toList(growable: false);
 
-    return _ModernOverviewCard(
+    return AdminSectionCard(
       title: 'Recent Reports',
       subtitle: 'Latest service issues from passengers and drivers',
       child: recentReports.isEmpty
@@ -634,7 +634,7 @@ class _SystemHealthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _ModernOverviewCard(
+    return AdminSectionCard(
       title: 'System Health',
       subtitle: 'Live admin dashboard data is available',
       child: Column(
@@ -672,68 +672,10 @@ class _BookingAnalyticsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _ModernOverviewCard(
+    return AdminSectionCard(
       title: '7-Day Booking Trend',
       subtitle: 'Short graph analytics from booking timestamps',
       child: _BookingBarChart(values: overview.dailyBookingCounts),
-    );
-  }
-}
-
-class _ModernOverviewCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final Widget child;
-
-  const _ModernOverviewCard({
-    required this.title,
-    required this.subtitle,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AdminSurfaceCard(
-      color: AdminUi.surface,
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  title,
-                  style: AdminUi.cardTitle.copyWith(
-                    color: AdminUi.title,
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.25,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AdminUi.bodyText.copyWith(
-                    color: AdminUi.muted,
-                    fontSize: 12.25,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1, thickness: 1, color: AdminUi.border),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-            child: child,
-          ),
-        ],
-      ),
     );
   }
 }

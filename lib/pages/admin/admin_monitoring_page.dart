@@ -91,119 +91,148 @@ class AdminMonitoringPage extends StatelessWidget {
                         ],
                       ),
                       SizedBox(height: 16),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          const spacing = 12.0;
-                          final cardWidth = AdminUi.metricCardWidth(
-                            constraints.maxWidth,
-                          );
+                      AdminSectionCard(
+                        title: 'Live Operations',
+                        subtitle:
+                            'Current ride, queue, and driver availability indicators.',
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            const spacing = 12.0;
+                            final cardWidth = AdminUi.metricCardWidth(
+                              constraints.maxWidth,
+                            );
 
-                          return Wrap(
-                            spacing: spacing,
-                            runSpacing: spacing,
-                            children: [
-                              SizedBox(
-                                width: cardWidth,
-                                child: AdminMetricCard(
-                                  label: 'Live trips',
-                                  value: monitoring.activeTrips.toString(),
-                                  helper: 'Accepted or ongoing rides',
-                                  icon: Icons.radar_rounded,
-                                  accentColor: AdminUi.accentBlue,
-                                  onTap: () =>
-                                      AdminNavigation.openTripsInMotion(
-                                        context,
-                                      ),
+                            return Wrap(
+                              spacing: spacing,
+                              runSpacing: spacing,
+                              children: [
+                                SizedBox(
+                                  width: cardWidth,
+                                  child: AdminMetricCard(
+                                    label: 'Live trips',
+                                    value: monitoring.activeTrips.toString(),
+                                    helper: 'Accepted or ongoing rides',
+                                    icon: Icons.radar_rounded,
+                                    accentColor: AdminUi.accentBlue,
+                                    onTap: () =>
+                                        AdminNavigation.openTripsInMotion(
+                                          context,
+                                        ),
+                                  ),
                                 ),
-                              ),
-                              SizedBox(
-                                width: cardWidth,
-                                child: AdminMetricCard(
-                                  label: 'Queue',
-                                  value: monitoring.queuedTrips.toString(),
-                                  helper: 'Waiting for assignment',
-                                  icon: Icons.pending_actions_rounded,
-                                  accentColor: AdminUi.highlightAmber,
+                                SizedBox(
+                                  width: cardWidth,
+                                  child: AdminMetricCard(
+                                    label: 'Queue',
+                                    value: monitoring.queuedTrips.toString(),
+                                    helper: 'Waiting for assignment',
+                                    icon: Icons.pending_actions_rounded,
+                                    accentColor: AdminUi.highlightAmber,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(
-                                width: cardWidth,
-                                child: AdminMetricCard(
-                                  label: 'Online drivers',
-                                  value: monitoring.availableDrivers.toString(),
-                                  helper: 'Active and trackable',
-                                  icon: Icons.two_wheeler_rounded,
-                                  accentColor: AdminUi.secondary,
-                                  onTap: () =>
-                                      AdminNavigation.openActiveDrivers(
-                                        context,
-                                        adminId: adminId,
-                                      ),
+                                SizedBox(
+                                  width: cardWidth,
+                                  child: AdminMetricCard(
+                                    label: 'Online drivers',
+                                    value: monitoring.availableDrivers
+                                        .toString(),
+                                    helper: 'Active and trackable',
+                                    icon: Icons.two_wheeler_rounded,
+                                    accentColor: AdminUi.secondary,
+                                    onTap: () =>
+                                        AdminNavigation.openActiveDrivers(
+                                          context,
+                                          adminId: adminId,
+                                        ),
+                                  ),
                                 ),
-                              ),
-                              SizedBox(
-                                width: cardWidth,
-                                child: AdminMetricCard(
-                                  label: 'Unassigned',
-                                  value: monitoring.unassignedTrips.toString(),
-                                  helper: 'Trips without driver id',
-                                  icon: Icons.person_off_outlined,
-                                  accentColor: AdminUi.primary,
+                                SizedBox(
+                                  width: cardWidth,
+                                  child: AdminMetricCard(
+                                    label: 'Unassigned',
+                                    value: monitoring.unassignedTrips
+                                        .toString(),
+                                    helper: 'Trips without driver id',
+                                    icon: Icons.person_off_outlined,
+                                    accentColor: AdminUi.primary,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          );
-                        },
+                              ],
+                            );
+                          },
+                        ),
                       ),
                       SizedBox(height: 20),
                       const AdminLiveDriverMap(),
                       SizedBox(height: 20),
-                      Text('Live Ride Flow', style: AdminUi.sectionTitle),
-                      SizedBox(height: 12),
-                      if (liveBookings.isEmpty)
-                        AdminEmptyCollection(
-                          icon: Icons.route_outlined,
-                          title: 'No live rides to monitor',
-                          description:
-                              'Queued and active bookings will appear here as passengers request rides.',
-                        )
-                      else
-                        ...liveBookings.map((booking) {
-                          final passenger =
-                              usersById[booking.passengerId]?.fullName ??
-                              'Passenger';
-                          final driver =
-                              usersById[booking.driverId]?.fullName ??
-                              'Unassigned';
+                      AdminSectionCard(
+                        title: 'Live Ride Flow',
+                        subtitle:
+                            '${liveBookings.length} queued or active ride${liveBookings.length == 1 ? '' : 's'} shown.',
+                        child: liveBookings.isEmpty
+                            ? AdminEmptyCollection(
+                                icon: Icons.route_outlined,
+                                title: 'No live rides to monitor',
+                                description:
+                                    'Queued and active bookings will appear here as passengers request rides.',
+                              )
+                            : Column(
+                                children: liveBookings.indexed
+                                    .map((entry) {
+                                      final index = entry.$1;
+                                      final booking = entry.$2;
+                                      final passenger =
+                                          usersById[booking.passengerId]
+                                              ?.fullName ??
+                                          'Passenger';
+                                      final driver =
+                                          usersById[booking.driverId]
+                                              ?.fullName ??
+                                          'Unassigned';
 
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: AdminBookingCard(
-                              booking: booking,
-                              passengerName: passenger,
-                              driverName: driver,
+                                      return Padding(
+                                        padding: EdgeInsets.only(
+                                          bottom:
+                                              index == liveBookings.length - 1
+                                              ? 0
+                                              : 10,
+                                        ),
+                                        child: AdminBookingCard(
+                                          booking: booking,
+                                          passengerName: passenger,
+                                          driverName: driver,
+                                        ),
+                                      );
+                                    })
+                                    .toList(growable: false),
+                              ),
+                      ),
+                      SizedBox(height: 20),
+                      AdminSectionCard(
+                        title: 'System Health',
+                        subtitle:
+                            'Operational signals that may need admin attention.',
+                        child: Column(
+                          children: <Widget>[
+                            AdminInfoPanel(
+                              title: 'Dispatch readiness',
+                              description:
+                                  '${monitoring.availableDrivers} online driver(s) are trackable while ${monitoring.queuedTrips} request(s) are queued. Monitor this during peak hours to avoid passenger wait times.',
                             ),
-                          );
-                        }),
-                      SizedBox(height: 8),
-                      Text('System Health', style: AdminUi.sectionTitle),
-                      SizedBox(height: 12),
-                      AdminInfoPanel(
-                        title: 'Dispatch readiness',
-                        description:
-                            '${monitoring.availableDrivers} online driver(s) are trackable while ${monitoring.queuedTrips} request(s) are queued. Monitor this during peak hours to avoid passenger wait times.',
-                      ),
-                      SizedBox(height: 12),
-                      AdminInfoPanel(
-                        title: 'Verification pressure',
-                        description:
-                            '${monitoring.pendingVerification} account(s) still need approval before they can fully use the platform.',
-                      ),
-                      SizedBox(height: 12),
-                      AdminInfoPanel(
-                        title: 'Completed service volume',
-                        description:
-                            '${monitoring.completedTrips} completed trip(s) are available for admin review and service tracking.',
+                            SizedBox(height: 10),
+                            AdminInfoPanel(
+                              title: 'Verification pressure',
+                              description:
+                                  '${monitoring.pendingVerification} account(s) still need approval before they can fully use the platform.',
+                            ),
+                            SizedBox(height: 10),
+                            AdminInfoPanel(
+                              title: 'Completed service volume',
+                              description:
+                                  '${monitoring.completedTrips} completed trip(s) are available for admin review and service tracking.',
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   );

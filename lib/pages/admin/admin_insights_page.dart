@@ -82,7 +82,7 @@ class AdminInsightsPage extends StatelessWidget {
                       restrictedAccounts: restrictedAccounts,
                       adminId: adminId,
                     ),
-                    leaderboard: _InsightsSurfacePanel(
+                    leaderboard: AdminSectionCard(
                       title: 'Driver Leaderboard',
                       subtitle:
                           'Top-rated drivers ranked for service quality review.',
@@ -674,7 +674,7 @@ class _RideVolumeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _InsightsSurfacePanel(
+    return AdminSectionCard(
       title: 'Ride Volume Analytics',
       subtitle: 'Daily, weekly, and monthly ride frequency.',
       child: Column(
@@ -703,7 +703,7 @@ class _PassengerFrequencyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _InsightsSurfacePanel(
+    return AdminSectionCard(
       title: 'Passenger Type Frequency',
       subtitle: 'Passenger type usage across active periods.',
       child: Column(
@@ -726,7 +726,7 @@ class _TopAreaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _InsightsSurfacePanel(
+    return AdminSectionCard(
       title: 'Highest Pickup and Drop-off Areas',
       subtitle: 'Most frequent locations by period.',
       child: Column(
@@ -747,7 +747,7 @@ class _FareTotalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _InsightsSurfacePanel(
+    return AdminSectionCard(
       title: 'Estimated Cash Generated / Spent',
       subtitle: 'Estimated fare totals from available booking fare labels.',
       child: Column(
@@ -777,7 +777,7 @@ class _CommissionTotalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _InsightsSurfacePanel(
+    return AdminSectionCard(
       title: 'System Commission Totals',
       subtitle: 'Commission earned from completed rides only.',
       child: Column(
@@ -1328,7 +1328,7 @@ class _InsightsMetricsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _InsightsSurfacePanel(
+    return AdminSectionCard(
       title: 'Quality Metrics',
       subtitle: 'Verification and moderation indicators for service quality.',
       child: LayoutBuilder(
@@ -1419,64 +1419,6 @@ class _InsightsMetricsPanel extends StatelessWidget {
     if (width >= 620) return 3;
     if (width >= 420) return 2;
     return 1;
-  }
-}
-
-class _InsightsSurfacePanel extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final Widget child;
-
-  const _InsightsSurfacePanel({
-    required this.title,
-    required this.subtitle,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AdminSurfaceCard(
-      color: AdminUi.surface,
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  title,
-                  style: AdminUi.cardTitle.copyWith(
-                    color: AdminUi.title,
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.25,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AdminUi.bodyText.copyWith(
-                    color: AdminUi.muted,
-                    fontSize: 12.25,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1, thickness: 1, color: AdminUi.border),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-            child: child,
-          ),
-        ],
-      ),
-    );
   }
 }
 

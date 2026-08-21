@@ -14,6 +14,7 @@ import {getStorage} from "firebase-admin/storage";
 import {
   onDocumentCreated,
   onDocumentUpdated,
+  onDocumentUpdatedWithAuthContext,
   onDocumentWritten,
 } from "firebase-functions/v2/firestore";
 import {defineSecret} from "firebase-functions/params";
@@ -1721,6 +1722,84 @@ export const logAdminUserAction = onDocumentUpdated(
           `${targetName}'s document update was ${afterDocumentReviewStatus}.`,
       });
     }
+  },
+);
+
+export const logAdminReportAction = onDocumentUpdatedWithAuthContext(
+  {
+    region: "asia-southeast1",
+    cpu: "gcf_gen1",
+    document: "reports/{reportId}",
+  },
+  async (event) => {
+    const change = event.data;
+    if (!change) {
+      return;
+    }
+
+    const before = change.before.data();
+    const after = change.after.data();
+    const previousStatus = normalizedReportStatus(before.status);
+    const status = normalizedReportStatus(after.status);
+    if (previousStatus === status) {
+      return;
+    }
+
+    const actionDetails = reportActionDetails(status);
+    if (!actionDetails) {
+      return;
+    }
+
+    // Auth context is supplied by Firestore and cannot be spoofed by a client.
+    // It is intentionally used instead of the report's status_updated_by field.
+    const adminId = readOptionalString(event.authId);
+    if (!adminId) {
+      return;
+    }
+
+    const adminSnapshot = await firestore.collection("users").doc(adminId).get();
+    const admin = adminSnapshot.data();
+    if (!adminSnapshot.exists || !admin || !isAdminStaff(admin)) {
+      return;
+    }
+
+    const reportedUserId = readOptionalString(after.reported_user_id);
+    const reportedUserRole = readOptionalString(after.reported_user_role);
+    let reportedUserName = "the reported user";
+    if (reportedUserId) {
+      const reportedUserSnapshot = await firestore
+        .collection("users")
+        .doc(reportedUserId)
+        .get();
+      const reportedUser = reportedUserSnapshot.data();
+      reportedUserName = reportedUserSnapshot.exists && reportedUser ?
+        fullName(reportedUser) :
+        `User ${reportedUserId.slice(0, 8)}`;
+    }
+
+    const adminName = fullName(admin);
+    const reportId = event.params.reportId;
+    await writeAdminLog({
+      logDocumentId: `report_${event.id}`,
+      action: actionDetails.action,
+      adminId,
+      adminName,
+      summary: `${adminName} marked the report about ${reportedUserName} ${
+        actionDetails.summarySuffix
+      }.`,
+      targetId: reportedUserId,
+      targetName: reportedUserName,
+      targetRole: reportedUserRole,
+      metadata: {
+        report_id: reportId,
+        booking_id: readOptionalString(after.booking_id) ?? "",
+        reporter_id: readOptionalString(after.reporter_id) ?? "",
+        reported_user_id: reportedUserId ?? "",
+        previous_status: previousStatus,
+        status,
+        reason: readOptionalString(after.reason) ?? "",
+      },
+    });
   },
 );
 
@@ -3659,6 +3738,34 @@ async function writeAdminLog(params: AdminLogParams) {
     },
     {merge: false},
   );
+}
+
+function normalizedReportStatus(value: unknown) {
+  switch (readOptionalString(value)?.toLowerCase()) {
+  case "resolved":
+  case "closed":
+    return "resolved";
+  case "ignored":
+  case "dismissed":
+    return "ignored";
+  case "spam":
+    return "spam";
+  default:
+    return "pending";
+  }
+}
+
+function reportActionDetails(status: string) {
+  switch (status) {
+  case "resolved":
+    return {action: "report_resolved", summarySuffix: "as resolved"};
+  case "ignored":
+    return {action: "report_ignored", summarySuffix: "as ignored"};
+  case "spam":
+    return {action: "report_marked_spam", summarySuffix: "as spam"};
+  default:
+    return undefined;
+  }
 }
 
 async function adminNameForId(adminId: string) {

@@ -98,16 +98,7 @@ class _AdminRecordListPageState extends State<AdminRecordListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AdminUi.background,
-      appBar: AppBar(
-        backgroundColor: AdminUi.surface,
-        surfaceTintColor: AdminUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
-        ),
-        title: Text(widget.listType.title, style: AdminUi.cardTitle),
-      ),
+      appBar: AdminDetailAppBar(title: widget.listType.title),
       body: widget.listType.isUserList
           ? _AdminUserRecordList(
               adminId: widget.adminId,
@@ -440,7 +431,7 @@ class _AdminSearchField extends StatelessWidget {
     return TextField(
       controller: controller,
       textInputAction: TextInputAction.search,
-      decoration: InputDecoration(
+      decoration: AdminUi.inputDecoration(
         hintText: hintText,
         prefixIcon: const Icon(Icons.search_rounded),
         suffixIcon: controller.text.isEmpty
@@ -449,20 +440,6 @@ class _AdminSearchField extends StatelessWidget {
                 onPressed: controller.clear,
                 icon: const Icon(Icons.close_rounded),
               ),
-        filled: true,
-        fillColor: AdminUi.surface,
-        border: OutlineInputBorder(
-          borderRadius: AdminUi.radius,
-          borderSide: BorderSide(color: AdminUi.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: AdminUi.radius,
-          borderSide: BorderSide(color: AdminUi.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: AdminUi.radius,
-          borderSide: BorderSide(color: AdminUi.accent, width: 1.4),
-        ),
       ),
     );
   }

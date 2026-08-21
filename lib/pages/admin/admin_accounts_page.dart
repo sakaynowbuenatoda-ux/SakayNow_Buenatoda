@@ -76,16 +76,7 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AdminUi.background,
-      appBar: AppBar(
-        backgroundColor: AdminUi.surface,
-        surfaceTintColor: AdminUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
-        ),
-        title: Text('Admin Accounts', style: AdminUi.cardTitle),
-      ),
+      appBar: const AdminDetailAppBar(title: 'Admin Accounts'),
       body: AdminPageContainer(
         maxContentWidth: AdminUi.listContentWidth,
         child: StreamBuilder<AdminUserRecord>(

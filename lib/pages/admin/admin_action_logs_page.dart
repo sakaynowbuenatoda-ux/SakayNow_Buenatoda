@@ -11,16 +11,7 @@ class AdminActionLogsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AdminUi.background,
-      appBar: AppBar(
-        backgroundColor: AdminUi.surface,
-        surfaceTintColor: AdminUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
-        ),
-        title: Text('Admin Action Logs', style: AdminUi.cardTitle),
-      ),
+      appBar: const AdminDetailAppBar(title: 'Admin Action Logs'),
       body: AdminPageContainer(
         maxContentWidth: AdminUi.listContentWidth,
         child: StreamBuilder<List<AdminActionLogRecord>>(
@@ -44,7 +35,7 @@ class AdminActionLogsPage extends StatelessWidget {
                 AdminCountPageHeader(
                   title: 'Admin Action Logs',
                   subtitle:
-                      'Review admin account, verification, restriction, restoration, and fare-setting activity.',
+                      'Review account, verification, report moderation, restoration, and fare-setting activity.',
                   count: logs.length.toString(),
                   countLabel: 'logged actions',
                   accentColor: AdminUi.accentBlue,
@@ -55,7 +46,7 @@ class AdminActionLogsPage extends StatelessWidget {
                     icon: Icons.history_rounded,
                     title: 'No admin actions logged yet',
                     description:
-                        'Admin actions will appear here after account reviews, restores, fare updates, or admin account creation.',
+                        'Admin actions will appear here after account reviews, report moderation, restores, fare updates, or admin account creation.',
                   )
                 else
                   ...logs.map(

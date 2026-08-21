@@ -60,16 +60,7 @@ class _AdminRestrictedUsersPageState extends State<AdminRestrictedUsersPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AdminUi.background,
-      appBar: AppBar(
-        backgroundColor: AdminUi.surface,
-        surfaceTintColor: AdminUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
-        ),
-        title: Text('Restricted Users', style: AdminUi.cardTitle),
-      ),
+      appBar: const AdminDetailAppBar(title: 'Restricted Users'),
       body: AdminPageContainer(
         maxContentWidth: AdminUi.listContentWidth,
         child: StreamBuilder<List<AdminUserRecord>>(

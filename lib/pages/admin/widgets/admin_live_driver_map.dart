@@ -89,73 +89,47 @@ class _AdminLiveDriverMapContentState
       _markLiveDriversFitAfterFrame();
     }
 
-    return AdminSurfaceCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return AdminSectionCard(
+      title: 'Live Driver Map',
+      subtitle: hasDrivers
+          ? '${drivers.length} online driver${drivers.length == 1 ? '' : 's'} currently visible'
+          : 'Buenavista, Bohol is ready for active driver locations',
+      bodyPadding: const EdgeInsets.all(12),
+      child: ClipRRect(
+        borderRadius: AdminUi.radius,
+        child: SizedBox(
+          height: mapHeight,
+          width: double.infinity,
+          child: Stack(
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Live Driver Map', style: AdminUi.sectionTitle),
-                    const SizedBox(height: 2),
-                    Text(
-                      hasDrivers
-                          ? '${drivers.length} online driver${drivers.length == 1 ? '' : 's'} currently visible'
-                          : 'Buenavista, Bohol is ready for active driver locations',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AdminUi.bodyText,
-                    ),
-                  ],
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: AppPreferencesController.instance,
+                  builder: (context, _) {
+                    return SakayGoogleMap(
+                      initialCameraTarget: initialTarget,
+                      bounds: hasDrivers ? _boundsForDrivers(drivers) : null,
+                      markers: _driverMarkers(drivers),
+                      profilePins: _driverProfilePins(drivers),
+                      mapType: AppPreferencesController.instance.googleMapType,
+                      zoomControlsEnabled: true,
+                      autoMoveCameraOnUpdate: shouldAutoFitLiveDrivers,
+                      preferInitialCameraTarget: !hasDrivers,
+                    );
+                  },
                 ),
               ),
+              const Positioned(top: 10, right: 10, child: MapTypeToggle()),
+              if (!hasDrivers)
+                Positioned(
+                  left: 14,
+                  right: 14,
+                  bottom: 14,
+                  child: _MapEmptyOverlay(),
+                ),
             ],
           ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: AdminUi.radius,
-            child: SizedBox(
-              height: mapHeight,
-              width: double.infinity,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: AnimatedBuilder(
-                      animation: AppPreferencesController.instance,
-                      builder: (context, _) {
-                        return SakayGoogleMap(
-                          initialCameraTarget: initialTarget,
-                          bounds: hasDrivers
-                              ? _boundsForDrivers(drivers)
-                              : null,
-                          markers: _driverMarkers(drivers),
-                          profilePins: _driverProfilePins(drivers),
-                          mapType:
-                              AppPreferencesController.instance.googleMapType,
-                          zoomControlsEnabled: true,
-                          autoMoveCameraOnUpdate: shouldAutoFitLiveDrivers,
-                          preferInitialCameraTarget: !hasDrivers,
-                        );
-                      },
-                    ),
-                  ),
-                  const Positioned(top: 10, right: 10, child: MapTypeToggle()),
-                  if (!hasDrivers)
-                    Positioned(
-                      left: 14,
-                      right: 14,
-                      bottom: 14,
-                      child: _MapEmptyOverlay(),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

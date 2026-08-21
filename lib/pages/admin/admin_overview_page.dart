@@ -316,7 +316,6 @@ class _OverviewMetricPanel extends StatelessWidget {
     return _ModernOverviewCard(
       title: 'Platform Metrics',
       subtitle: 'Tap any metric to open its detailed admin view',
-      accentColor: AdminUi.accentBlue,
       child: LayoutBuilder(
         builder: (context, constraints) {
           const spacing = 12.0;
@@ -479,29 +478,37 @@ class _OverviewInsightGrid extends StatelessWidget {
       builder: (context, constraints) {
         const spacing = 12.0;
         final wide = constraints.maxWidth >= 920;
-        final cardWidth = wide
-            ? (constraints.maxWidth - spacing) / 2
-            : constraints.maxWidth;
+        final compactSummary = constraints.maxWidth < 560;
+        final cards = <Widget>[
+          _TodayRideSummaryCard(overview: overview, compact: compactSummary),
+          _SystemHealthCard(overview: overview),
+          _RecentReportsCard(reports: reports, usersById: usersById),
+          _BookingAnalyticsCard(overview: overview),
+        ];
 
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: [
-            SizedBox(
-              width: cardWidth,
-              child: _TodayRideSummaryCard(overview: overview),
+        if (!wide) {
+          return Column(
+            children: <Widget>[
+              for (var index = 0; index < cards.length; index++) ...[
+                if (index > 0) const SizedBox(height: spacing),
+                cards[index],
+              ],
+            ],
+          );
+        }
+
+        return Column(
+          children: <Widget>[
+            _EqualHeightOverviewRow(
+              spacing: spacing,
+              left: cards[0],
+              right: cards[1],
             ),
-            SizedBox(
-              width: cardWidth,
-              child: _SystemHealthCard(overview: overview),
-            ),
-            SizedBox(
-              width: cardWidth,
-              child: _RecentReportsCard(reports: reports, usersById: usersById),
-            ),
-            SizedBox(
-              width: cardWidth,
-              child: _BookingAnalyticsCard(overview: overview),
+            const SizedBox(height: spacing),
+            _EqualHeightOverviewRow(
+              spacing: spacing,
+              left: cards[2],
+              right: cards[3],
             ),
           ],
         );
@@ -510,37 +517,62 @@ class _OverviewInsightGrid extends StatelessWidget {
   }
 }
 
+class _EqualHeightOverviewRow extends StatelessWidget {
+  final double spacing;
+  final Widget left;
+  final Widget right;
+
+  const _EqualHeightOverviewRow({
+    required this.spacing,
+    required this.left,
+    required this.right,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Expanded(child: left),
+          SizedBox(width: spacing),
+          Expanded(child: right),
+        ],
+      ),
+    );
+  }
+}
+
 class _TodayRideSummaryCard extends StatelessWidget {
   final _AdminOverviewData overview;
+  final bool compact;
 
-  const _TodayRideSummaryCard({required this.overview});
+  const _TodayRideSummaryCard({required this.overview, required this.compact});
 
   @override
   Widget build(BuildContext context) {
     return _ModernOverviewCard(
       title: "Today's Ride Summary",
       subtitle: 'Live booking movement for today',
-      accentColor: AdminUi.accentBlue,
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: [
-          _MiniStatPill(
+      child: _RideSummaryStats(
+        compact: compact,
+        stats: <_RideSummaryStat>[
+          _RideSummaryStat(
             label: 'Requested',
             value: overview.todayRequestedBookings.toString(),
             color: AdminUi.primary,
           ),
-          _MiniStatPill(
+          _RideSummaryStat(
             label: 'Accepted',
             value: overview.todayAcceptedBookings.toString(),
             color: AdminUi.accentBlue,
           ),
-          _MiniStatPill(
+          _RideSummaryStat(
             label: 'Completed',
             value: overview.todayCompletedBookings.toString(),
             color: AdminUi.successText,
           ),
-          _MiniStatPill(
+          _RideSummaryStat(
             label: 'Cancelled',
             value: overview.todayCancelledBookings.toString(),
             color: AdminUi.danger,
@@ -564,7 +596,6 @@ class _RecentReportsCard extends StatelessWidget {
     return _ModernOverviewCard(
       title: 'Recent Reports',
       subtitle: 'Latest service issues from passengers and drivers',
-      accentColor: AdminUi.highlightAmber,
       child: recentReports.isEmpty
           ? _InlineEmptyState(
               icon: Icons.verified_user_outlined,
@@ -572,8 +603,10 @@ class _RecentReportsCard extends StatelessWidget {
               description: 'New reports will appear here for quick triage.',
             )
           : Column(
-              children: recentReports
-                  .map((report) {
+              children: recentReports.indexed
+                  .map((entry) {
+                    final index = entry.$1;
+                    final report = entry.$2;
                     final reporter =
                         usersById[report.reporterId]?.fullName ??
                         report.reporterRoleLabel;
@@ -584,8 +617,8 @@ class _RecentReportsCard extends StatelessWidget {
                     return _ReportIssueTile(
                       title: report.reasonLabel,
                       subtitle: '$reporter reported $reported',
-                      status: report.statusLabel,
-                      isOpen: report.isOpen,
+                      status: report.reportStatus,
+                      isLast: index == recentReports.length - 1,
                     );
                   })
                   .toList(growable: false),
@@ -604,18 +637,19 @@ class _SystemHealthCard extends StatelessWidget {
     return _ModernOverviewCard(
       title: 'System Health',
       subtitle: 'Live admin dashboard data is available',
-      accentColor: AdminUi.secondary,
       child: Column(
         children: [
           _HealthRow(
             label: 'Account profiles',
             value: '${overview.totalUsers} profiles synced',
             color: AdminUi.successText,
+            isLast: false,
           ),
           _HealthRow(
             label: 'Booking stream',
             value: '${overview.activeBookings} active trips tracked',
             color: AdminUi.accentBlue,
+            isLast: false,
           ),
           _HealthRow(
             label: 'Open reports',
@@ -623,6 +657,7 @@ class _SystemHealthCard extends StatelessWidget {
             color: overview.openReports == 0
                 ? AdminUi.successText
                 : AdminUi.highlightAmber,
+            isLast: true,
           ),
         ],
       ),
@@ -640,7 +675,6 @@ class _BookingAnalyticsCard extends StatelessWidget {
     return _ModernOverviewCard(
       title: '7-Day Booking Trend',
       subtitle: 'Short graph analytics from booking timestamps',
-      accentColor: const Color(0xFF7C3AED),
       child: _BookingBarChart(values: overview.dailyBookingCounts),
     );
   }
@@ -649,99 +683,167 @@ class _BookingAnalyticsCard extends StatelessWidget {
 class _ModernOverviewCard extends StatelessWidget {
   final String title;
   final String subtitle;
-  final Color accentColor;
   final Widget child;
 
   const _ModernOverviewCard({
     required this.title,
     required this.subtitle,
-    required this.accentColor,
     required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
-    final background = AdminUi.isDarkMode
-        ? Color.lerp(AdminUi.surface, accentColor, 0.10)
-        : AdminUi.surface;
-
     return AdminSurfaceCard(
-      color: background,
-      padding: const EdgeInsets.all(16),
+      color: AdminUi.surface,
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: AdminUi.cardTitle),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AdminUi.bodyText.copyWith(
-                        color: AdminUi.muted,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: AdminUi.cardTitle.copyWith(
+                    color: AdminUi.title,
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.25,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AdminUi.bodyText.copyWith(
+                    color: AdminUi.muted,
+                    fontSize: 12.25,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
-          child,
+          Divider(height: 1, thickness: 1, color: AdminUi.border),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            child: child,
+          ),
         ],
       ),
     );
   }
 }
 
-class _MiniStatPill extends StatelessWidget {
+class _RideSummaryStat {
   final String label;
   final String value;
   final Color color;
 
-  const _MiniStatPill({
+  const _RideSummaryStat({
     required this.label,
     required this.value,
     required this.color,
   });
+}
+
+class _RideSummaryStats extends StatelessWidget {
+  final bool compact;
+  final List<_RideSummaryStat> stats;
+
+  const _RideSummaryStats({required this.compact, required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    if (compact) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final tileWidth = (constraints.maxWidth - 8) / 2;
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: stats
+                .map(
+                  (stat) => SizedBox(
+                    width: tileWidth,
+                    child: _MiniStatPill(stat: stat),
+                  ),
+                )
+                .toList(growable: false),
+          );
+        },
+      );
+    }
+
+    return Row(
+      children: <Widget>[
+        for (var index = 0; index < stats.length; index++) ...[
+          if (index > 0) const SizedBox(width: 8),
+          Expanded(child: _MiniStatPill(stat: stats[index])),
+        ],
+      ],
+    );
+  }
+}
+
+class _MiniStatPill extends StatelessWidget {
+  final _RideSummaryStat stat;
+
+  const _MiniStatPill({required this.stat});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 122,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      constraints: const BoxConstraints(minHeight: 96),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AdminUi.surface.withValues(alpha: AdminUi.isDarkMode ? 0.55 : 1),
+        color: AdminUi.subtleSurface,
         borderRadius: AdminUi.radius,
-        border: Border.all(color: color.withValues(alpha: 0.14)),
+        border: Border.all(color: AdminUi.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            value,
+            stat.value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AdminUi.valueText.copyWith(
-              color: color,
-              fontSize: 22,
+              color: AdminUi.title,
+              fontSize: 21,
               height: 1,
+              letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AdminUi.labelText.copyWith(color: AdminUi.body),
+          const SizedBox(height: 8),
+          Row(
+            children: <Widget>[
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: stat.color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  stat.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AdminUi.labelText.copyWith(
+                    color: AdminUi.body,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -752,33 +854,45 @@ class _MiniStatPill extends StatelessWidget {
 class _ReportIssueTile extends StatelessWidget {
   final String title;
   final String subtitle;
-  final String status;
-  final bool isOpen;
+  final AdminReportStatus status;
+  final bool isLast;
 
   const _ReportIssueTile({
     required this.title,
     required this.subtitle,
     required this.status,
-    required this.isOpen,
+    required this.isLast,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = isOpen ? AdminUi.highlightAmber : AdminUi.successText;
+    final color = switch (status) {
+      AdminReportStatus.pending => AdminUi.highlightAmber,
+      AdminReportStatus.resolved => AdminUi.successText,
+      AdminReportStatus.ignored => AdminUi.muted,
+      AdminReportStatus.spam => AdminUi.danger,
+    };
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+    return Container(
+      padding: EdgeInsets.only(top: 9, bottom: isLast ? 2 : 9),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : Border(bottom: BorderSide(color: AdminUi.border)),
+      ),
       child: Row(
         children: [
           Container(
-            width: 8,
-            height: 42,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(999),
+              color: AdminUi.subtleSurface,
+              borderRadius: AdminUi.radius,
+              border: Border.all(color: AdminUi.border),
             ),
+            child: Icon(Icons.report_outlined, size: 17, color: AdminUi.title),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -787,23 +901,64 @@ class _ReportIssueTile extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AdminUi.cardTitle.copyWith(fontSize: 13.5),
+                  style: AdminUi.cardTitle.copyWith(
+                    color: AdminUi.title,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AdminUi.bodyText.copyWith(fontSize: 12),
+                  style: AdminUi.bodyText.copyWith(
+                    color: AdminUi.muted,
+                    fontSize: 11.5,
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 10),
-          AdminStatusChip(
-            label: status,
-            textColor: color,
-            backgroundColor: AdminUi.soft(color, alpha: 0.12),
+          _MinimalStatusBadge(label: status.label, color: color),
+        ],
+      ),
+    );
+  }
+}
+
+class _MinimalStatusBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _MinimalStatusBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: AdminUi.subtleSurface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AdminUi.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: AdminUi.labelText.copyWith(
+              color: AdminUi.title,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -815,34 +970,57 @@ class _HealthRow extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final bool isLast;
 
   const _HealthRow({
     required this.label,
     required this.value,
     required this.color,
+    required this.isLast,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+    return Container(
+      padding: EdgeInsets.only(top: 9, bottom: isLast ? 2 : 9),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : Border(bottom: BorderSide(color: AdminUi.border)),
+      ),
       child: Row(
         children: [
           Container(
-            width: 10,
-            height: 10,
+            width: 7,
+            height: 7,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: AdminUi.cardTitle)),
-          const SizedBox(width: 10),
-          Flexible(
+          const SizedBox(width: 11),
+          Expanded(
+            flex: 3,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AdminUi.cardTitle.copyWith(
+                color: AdminUi.title,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 2,
             child: Text(
               value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.end,
-              style: AdminUi.bodyText.copyWith(fontSize: 12.5),
+              style: AdminUi.bodyText.copyWith(
+                color: AdminUi.body,
+                fontSize: 12,
+              ),
             ),
           ),
         ],
@@ -864,19 +1042,20 @@ class _BookingBarChart extends StatelessWidget {
     );
 
     return SizedBox(
-      height: 168,
+      height: 176,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: values
             .map((item) {
               final heightFactor = item.count / maxValue;
-              final barHeight = 34 + (86 * heightFactor);
+              final barHeight = item.count == 0
+                  ? 0.0
+                  : 10 + (92 * heightFactor);
 
               return Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
                         item.count.toString(),
@@ -886,26 +1065,28 @@ class _BookingBarChart extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 240),
-                        curve: Curves.easeOutCubic,
-                        width: double.infinity,
-                        height: barHeight,
-                        constraints: const BoxConstraints(maxWidth: 32),
-                        decoration: BoxDecoration(
-                          color: Color.lerp(
-                            AdminUi.accentBlue,
-                            AdminUi.secondary,
-                            heightFactor,
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AdminUi.accentBlue.withValues(alpha: 0.14),
-                              blurRadius: 10,
-                              offset: const Offset(0, 6),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Container(
+                            width: 26,
+                            decoration: BoxDecoration(
+                              color: AdminUi.subtleSurface,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AdminUi.border),
                             ),
-                          ],
+                            alignment: Alignment.bottomCenter,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 240),
+                              curve: Curves.easeOutCubic,
+                              width: double.infinity,
+                              height: barHeight,
+                              decoration: BoxDecoration(
+                                color: AdminUi.title,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 8),

@@ -86,7 +86,6 @@ class AdminInsightsPage extends StatelessWidget {
                       title: 'Driver Leaderboard',
                       subtitle:
                           'Top-rated drivers ranked for service quality review.',
-                      accentColor: AdminUi.highlightAmber,
                       child: DriverRatingLeaderboardPanel(
                         limit: 20,
                         title: 'Driver Leaderboard',
@@ -155,38 +154,69 @@ class _InsightsAnalyticsGrid extends StatelessWidget {
       builder: (context, constraints) {
         const spacing = 14.0;
         final twoColumns = constraints.maxWidth >= 920;
-        final itemWidth = twoColumns
-            ? (constraints.maxWidth - spacing) / 2
-            : constraints.maxWidth;
+        final cards = <Widget>[
+          _RideVolumeCard(analytics: analytics),
+          _PassengerFrequencyCard(analytics: analytics),
+          _TopAreaCard(analytics: analytics),
+          _FareTotalCard(analytics: analytics),
+          _CommissionTotalCard(analytics: analytics),
+        ];
 
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          crossAxisAlignment: WrapCrossAlignment.start,
-          children: [
-            SizedBox(
-              width: itemWidth,
-              child: _RideVolumeCard(analytics: analytics),
+        if (!twoColumns) {
+          return Column(
+            children: <Widget>[
+              for (var index = 0; index < cards.length; index++) ...[
+                if (index > 0) const SizedBox(height: spacing),
+                cards[index],
+              ],
+            ],
+          );
+        }
+
+        return Column(
+          children: <Widget>[
+            _EqualHeightInsightsRow(
+              spacing: spacing,
+              left: cards[0],
+              right: cards[1],
             ),
-            SizedBox(
-              width: itemWidth,
-              child: _PassengerFrequencyCard(analytics: analytics),
+            const SizedBox(height: spacing),
+            _EqualHeightInsightsRow(
+              spacing: spacing,
+              left: cards[2],
+              right: cards[3],
             ),
-            SizedBox(
-              width: itemWidth,
-              child: _TopAreaCard(analytics: analytics),
-            ),
-            SizedBox(
-              width: itemWidth,
-              child: _FareTotalCard(analytics: analytics),
-            ),
-            SizedBox(
-              width: itemWidth,
-              child: _CommissionTotalCard(analytics: analytics),
-            ),
+            const SizedBox(height: spacing),
+            cards[4],
           ],
         );
       },
+    );
+  }
+}
+
+class _EqualHeightInsightsRow extends StatelessWidget {
+  final double spacing;
+  final Widget left;
+  final Widget right;
+
+  const _EqualHeightInsightsRow({
+    required this.spacing,
+    required this.left,
+    required this.right,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Expanded(child: left),
+          SizedBox(width: spacing),
+          Expanded(child: right),
+        ],
+      ),
     );
   }
 }
@@ -647,7 +677,6 @@ class _RideVolumeCard extends StatelessWidget {
     return _InsightsSurfacePanel(
       title: 'Ride Volume Analytics',
       subtitle: 'Daily, weekly, and monthly ride frequency.',
-      accentColor: AdminUi.accentBlue,
       child: Column(
         children: [
           _MiniBarChart(
@@ -656,7 +685,6 @@ class _RideVolumeCard extends StatelessWidget {
               _ChartValue(label: 'Week', value: analytics.weeklyRides.value),
               _ChartValue(label: 'Month', value: analytics.monthlyRides.value),
             ],
-            color: AdminUi.accentBlue,
           ),
           SizedBox(height: 14),
           _PeriodComparisonRow.count(data: analytics.dailyRides),
@@ -678,7 +706,6 @@ class _PassengerFrequencyCard extends StatelessWidget {
     return _InsightsSurfacePanel(
       title: 'Passenger Type Frequency',
       subtitle: 'Passenger type usage across active periods.',
-      accentColor: AdminUi.secondary,
       child: Column(
         children: [
           _PassengerSplitBar(data: analytics.monthlyPassengers),
@@ -702,7 +729,6 @@ class _TopAreaCard extends StatelessWidget {
     return _InsightsSurfacePanel(
       title: 'Highest Pickup and Drop-off Areas',
       subtitle: 'Most frequent locations by period.',
-      accentColor: AdminUi.highlightAmber,
       child: Column(
         children: [
           _AreaPeriodRow(data: analytics.dailyAreas),
@@ -724,7 +750,6 @@ class _FareTotalCard extends StatelessWidget {
     return _InsightsSurfacePanel(
       title: 'Estimated Cash Generated / Spent',
       subtitle: 'Estimated fare totals from available booking fare labels.',
-      accentColor: AdminUi.primary,
       child: Column(
         children: [
           _MiniBarChart(
@@ -733,7 +758,6 @@ class _FareTotalCard extends StatelessWidget {
               _ChartValue(label: 'Week', value: analytics.weeklyFare.value),
               _ChartValue(label: 'Month', value: analytics.monthlyFare.value),
             ],
-            color: AdminUi.primary,
             money: true,
           ),
           SizedBox(height: 14),
@@ -756,7 +780,6 @@ class _CommissionTotalCard extends StatelessWidget {
     return _InsightsSurfacePanel(
       title: 'System Commission Totals',
       subtitle: 'Commission earned from completed rides only.',
-      accentColor: AdminUi.secondary,
       child: Column(
         children: [
           _MiniBarChart(
@@ -771,7 +794,6 @@ class _CommissionTotalCard extends StatelessWidget {
                 value: analytics.monthlyCommission.value,
               ),
             ],
-            color: AdminUi.secondary,
             money: true,
           ),
           SizedBox(height: 14),
@@ -793,14 +815,9 @@ class _ChartValue {
 
 class _MiniBarChart extends StatelessWidget {
   final List<_ChartValue> values;
-  final Color color;
   final bool money;
 
-  const _MiniBarChart({
-    required this.values,
-    required this.color,
-    this.money = false,
-  });
+  const _MiniBarChart({required this.values, this.money = false});
 
   @override
   Widget build(BuildContext context) {
@@ -810,18 +827,18 @@ class _MiniBarChart extends StatelessWidget {
     );
 
     return SizedBox(
-      height: 144,
+      height: 150,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: values
             .map((item) {
               final factor = (item.value / maxValue).clamp(0.0, 1.0).toDouble();
+              final barHeight = item.value == 0 ? 0.0 : 8 + (76 * factor);
 
               return Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
                         money
@@ -835,47 +852,32 @@ class _MiniBarChart extends StatelessWidget {
                           fontSize: 11,
                         ),
                       ),
-                      SizedBox(height: 6),
+                      const SizedBox(height: 6),
                       Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final availableHeight = constraints.maxHeight;
-                            final minHeight = availableHeight < 24
-                                ? availableHeight
-                                : 24.0;
-                            final height =
-                                minHeight +
-                                ((availableHeight - minHeight) * factor);
-
-                            return Align(
-                              alignment: Alignment.bottomCenter,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 240),
-                                curve: Curves.easeOutCubic,
-                                width: double.infinity,
-                                height: height,
-                                constraints: const BoxConstraints(maxWidth: 44),
-                                decoration: BoxDecoration(
-                                  color: Color.lerp(
-                                    color,
-                                    AdminUi.secondary,
-                                    factor,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: color.withValues(alpha: 0.14),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
-                                ),
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Container(
+                            width: 34,
+                            decoration: BoxDecoration(
+                              color: AdminUi.subtleSurface,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AdminUi.border),
+                            ),
+                            alignment: Alignment.bottomCenter,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 240),
+                              curve: Curves.easeOutCubic,
+                              width: double.infinity,
+                              height: barHeight,
+                              decoration: BoxDecoration(
+                                color: AdminUi.title,
+                                borderRadius: BorderRadius.circular(5),
                               ),
-                            );
-                          },
+                            ),
+                          ),
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       SizedBox(
                         height: 16,
                         child: Text(
@@ -904,54 +906,64 @@ class _PassengerSplitBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = data.total == 0 ? 1 : data.total;
-    final regularFlex = data.regular == 0 ? 1 : data.regular;
-    final studentFlex = data.student == 0 ? 1 : data.student;
-    final seniorFlex = data.senior == 0 ? 1 : data.senior;
+    final segmentColors = <Color>[
+      AdminUi.title,
+      AdminUi.body,
+      AdminUi.strongBorder,
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: SizedBox(
-            height: 18,
-            child: Row(
-              children: [
-                Expanded(
-                  flex: regularFlex,
-                  child: ColoredBox(color: AdminUi.accentBlue),
-                ),
-                Expanded(
-                  flex: studentFlex,
-                  child: ColoredBox(color: AdminUi.secondary),
-                ),
-                Expanded(
-                  flex: seniorFlex,
-                  child: ColoredBox(color: AdminUi.highlightAmber),
-                ),
-              ],
-            ),
+        Container(
+          height: 16,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: AdminUi.subtleSurface,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AdminUi.border),
           ),
+          child: data.total == 0
+              ? null
+              : Row(
+                  children: <Widget>[
+                    if (data.regular > 0)
+                      Expanded(
+                        flex: data.regular,
+                        child: ColoredBox(color: segmentColors[0]),
+                      ),
+                    if (data.student > 0)
+                      Expanded(
+                        flex: data.student,
+                        child: ColoredBox(color: segmentColors[1]),
+                      ),
+                    if (data.senior > 0)
+                      Expanded(
+                        flex: data.senior,
+                        child: ColoredBox(color: segmentColors[2]),
+                      ),
+                  ],
+                ),
         ),
-        SizedBox(height: 10),
+        const SizedBox(height: 12),
         Wrap(
-          spacing: 16,
+          spacing: 18,
           runSpacing: 8,
           children: [
             _LegendLabel(
-              color: AdminUi.accentBlue,
+              color: segmentColors[0],
               label: 'Regular',
               value:
                   '${data.regular} (${((data.regular / total) * 100).round()}%)',
             ),
             _LegendLabel(
-              color: AdminUi.secondary,
+              color: segmentColors[1],
               label: 'Student',
               value:
                   '${data.student} (${((data.student / total) * 100).round()}%)',
             ),
             _LegendLabel(
-              color: AdminUi.highlightAmber,
+              color: segmentColors[2],
               label: 'Senior Citizen',
               value:
                   '${data.senior} (${((data.senior / total) * 100).round()}%)',
@@ -977,6 +989,7 @@ class _LegendLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 9,
@@ -984,13 +997,11 @@ class _LegendLabel extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         SizedBox(width: 7),
-        Expanded(
-          child: Text(
-            '$label $value',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AdminUi.labelText.copyWith(color: AdminUi.body),
-          ),
+        Text(
+          '$label $value',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AdminUi.labelText.copyWith(color: AdminUi.body),
         ),
       ],
     );
@@ -1072,9 +1083,7 @@ class _AreaPeriodRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AdminUi.surface.withValues(
-            alpha: AdminUi.isDarkMode ? 0.55 : 1,
-          ),
+          color: AdminUi.subtleSurface,
           borderRadius: AdminUi.radius,
           border: Border.all(color: AdminUi.border),
         ),
@@ -1083,7 +1092,15 @@ class _AreaPeriodRow extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(child: Text(data.label, style: AdminUi.cardTitle)),
+                Expanded(
+                  child: Text(
+                    data.label,
+                    style: AdminUi.cardTitle.copyWith(
+                      color: AdminUi.title,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
                 _ComparisonChip(
                   difference:
                       (data.pickupCount + data.dropoffCount) -
@@ -1092,14 +1109,14 @@ class _AreaPeriodRow extends StatelessWidget {
                 ),
               ],
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 10),
             _AreaLine(
               label: 'Pickup',
               area: data.pickupArea,
               count: data.pickupCount,
               color: AdminUi.accentBlue,
             ),
-            SizedBox(height: 6),
+            const SizedBox(height: 7),
             _AreaLine(
               label: 'Drop-off',
               area: data.dropoffArea,
@@ -1135,19 +1152,31 @@ class _AreaLine extends StatelessWidget {
           height: 8,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        SizedBox(width: 8),
-        SizedBox(width: 62, child: Text(label, style: AdminUi.labelText)),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 62,
+          child: Text(
+            label,
+            style: AdminUi.labelText.copyWith(color: AdminUi.body),
+          ),
+        ),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
             area,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AdminUi.bodyText,
+            style: AdminUi.bodyText.copyWith(color: AdminUi.title),
           ),
         ),
-        SizedBox(width: 8),
-        Text('$count', style: AdminUi.cardTitle),
+        const SizedBox(width: 8),
+        Text(
+          '$count',
+          style: AdminUi.cardTitle.copyWith(
+            color: AdminUi.title,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ],
     );
   }
@@ -1171,9 +1200,7 @@ class _InsightRowShell extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: AdminUi.surface.withValues(
-            alpha: AdminUi.isDarkMode ? 0.55 : 1,
-          ),
+          color: AdminUi.subtleSurface,
           borderRadius: AdminUi.radius,
           border: Border.all(color: AdminUi.border),
         ),
@@ -1183,18 +1210,24 @@ class _InsightRowShell extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: AdminUi.labelText),
-                  SizedBox(height: 3),
+                  Text(
+                    label,
+                    style: AdminUi.labelText.copyWith(color: AdminUi.body),
+                  ),
+                  const SizedBox(height: 3),
                   Text(
                     value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AdminUi.cardTitle,
+                    style: AdminUi.cardTitle.copyWith(
+                      color: AdminUi.title,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             trailing,
           ],
         ),
@@ -1233,19 +1266,30 @@ class _ComparisonChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: AdminUi.soft(color, alpha: 0.10),
+        color: AdminUi.surface,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.12)),
+        border: Border.all(color: AdminUi.border),
       ),
-      child: Text(
-        '$formatted vs $previousLabel',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: AdminUi.labelText.copyWith(
-          color: color,
-          fontWeight: FontWeight.w800,
-          fontSize: 10.5,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$formatted vs $previousLabel',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AdminUi.labelText.copyWith(
+              color: AdminUi.title,
+              fontWeight: FontWeight.w700,
+              fontSize: 10.25,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1287,7 +1331,6 @@ class _InsightsMetricsPanel extends StatelessWidget {
     return _InsightsSurfacePanel(
       title: 'Quality Metrics',
       subtitle: 'Verification and moderation indicators for service quality.',
-      accentColor: AdminUi.accentBlue,
       child: LayoutBuilder(
         builder: (context, constraints) {
           const spacing = 10.0;
@@ -1382,53 +1425,55 @@ class _InsightsMetricsPanel extends StatelessWidget {
 class _InsightsSurfacePanel extends StatelessWidget {
   final String title;
   final String subtitle;
-  final Color accentColor;
   final Widget child;
 
   const _InsightsSurfacePanel({
     required this.title,
     required this.subtitle,
-    required this.accentColor,
     required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
-    final background = AdminUi.isDarkMode
-        ? Color.lerp(AdminUi.surface, accentColor, 0.10)
-        : AdminUi.surface;
-
     return AdminSurfaceCard(
-      color: background,
-      padding: const EdgeInsets.all(16),
+      color: AdminUi.surface,
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: AdminUi.cardTitle),
-                    SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AdminUi.bodyText.copyWith(
-                        color: AdminUi.muted,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: AdminUi.cardTitle.copyWith(
+                    color: AdminUi.title,
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.25,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AdminUi.bodyText.copyWith(
+                    color: AdminUi.muted,
+                    fontSize: 12.25,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
           ),
-          SizedBox(height: 16),
-          child,
+          Divider(height: 1, thickness: 1, color: AdminUi.border),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            child: child,
+          ),
         ],
       ),
     );
@@ -1452,9 +1497,7 @@ class _CompactInsightMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = AdminUi.isDarkMode
-        ? Color.lerp(AdminUi.surface, accentColor, 0.08)
-        : AdminUi.surface;
+    final background = AdminUi.subtleSurface;
 
     final content = Row(
       children: [
@@ -1462,27 +1505,42 @@ class _CompactInsightMetricCard extends StatelessWidget {
           width: 30,
           height: 30,
           decoration: BoxDecoration(
-            color: AdminUi.soft(accentColor, alpha: 0.12),
+            color: AdminUi.surface,
             borderRadius: AdminUi.radius,
-            border: Border.all(color: accentColor.withValues(alpha: 0.10)),
+            border: Border.all(color: AdminUi.border),
           ),
-          child: Icon(icon, color: accentColor, size: 16),
+          child: Icon(icon, color: AdminUi.title, size: 16),
         ),
-        const SizedBox(width: 9),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AdminUi.labelText.copyWith(
-                  color: AdminUi.body,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: accentColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AdminUi.labelText.copyWith(
+                        color: AdminUi.body,
+                        fontSize: 10.75,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 5),
               Text(
@@ -1491,7 +1549,7 @@ class _CompactInsightMetricCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: AdminUi.valueText.copyWith(
                   color: AdminUi.title,
-                  fontSize: 21,
+                  fontSize: 20,
                   fontWeight: FontWeight.w800,
                   height: 1,
                 ),
@@ -1500,7 +1558,7 @@ class _CompactInsightMetricCard extends StatelessWidget {
           ),
         ),
         if (onTap != null)
-          Icon(Icons.north_east_rounded, size: 14, color: AdminUi.muted),
+          Icon(Icons.arrow_forward_rounded, size: 14, color: AdminUi.muted),
       ],
     );
 
@@ -1531,6 +1589,6 @@ class _MetricFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(width: width, height: 72, child: child);
+    return SizedBox(width: width, height: 76, child: child);
   }
 }

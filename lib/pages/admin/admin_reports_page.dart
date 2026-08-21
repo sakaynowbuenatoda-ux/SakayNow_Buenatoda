@@ -37,7 +37,9 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
   String _query = '';
   String _selectedCategory = _allCategoryValue;
   _ReportDateFilter _dateFilter = _ReportDateFilter.all;
+  AdminReportStatus _selectedStatus = AdminReportStatus.pending;
   DateTime? _selectedDate;
+  final Set<String> _updatingReportIds = <String>{};
 
   @override
   void initState() {
@@ -91,7 +93,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
               final activeCategory = categories.contains(_selectedCategory)
                   ? _selectedCategory
                   : _allCategoryValue;
-              final filteredReports = reports
+              final matchingReports = reports
                   .where(
                     (report) => _matchesReport(
                       report,
@@ -100,6 +102,9 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                       category: activeCategory,
                     ),
                   )
+                  .toList(growable: false);
+              final filteredReports = matchingReports
+                  .where((report) => report.reportStatus == _selectedStatus)
                   .toList(growable: false);
 
               return Column(
@@ -136,7 +141,20 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                         .length,
                     filteredCount: filteredReports.length,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
+                  _ReportStatusToggle(
+                    selectedStatus: _selectedStatus,
+                    counts: <AdminReportStatus, int>{
+                      for (final status in AdminReportStatus.values)
+                        status: matchingReports
+                            .where((report) => report.reportStatus == status)
+                            .length,
+                    },
+                    onChanged: (status) {
+                      setState(() => _selectedStatus = status);
+                    },
+                  ),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
@@ -162,7 +180,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                           : 'No matching reports found',
                       description: reports.isEmpty
                           ? 'Submitted passenger and driver reports will appear here.'
-                          : 'Try a different search, category, or date filter.',
+                          : 'No ${_selectedStatus.label.toLowerCase()} reports match the current filters.',
                     )
                   else
                     ...filteredReports.map(
@@ -172,6 +190,9 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                           report: report,
                           reportedUser: usersById[report.reportedUserId],
                           reporter: usersById[report.reporterId],
+                          isUpdating: _updatingReportIds.contains(
+                            report.reportId,
+                          ),
                           onProfileTap: report.reportedUserId.isEmpty
                               ? null
                               : () => AdminNavigation.openUserProfile(
@@ -184,6 +205,8 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                             adminId: widget.adminId,
                             report: report,
                           ),
+                          onStatusSelected: (status) =>
+                              _updateReportStatus(report, status),
                         ),
                       ),
                     ),
@@ -199,7 +222,8 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
   bool _hasActiveFilters(String activeCategory) {
     return _query.isNotEmpty ||
         activeCategory != _allCategoryValue ||
-        _dateFilter != _ReportDateFilter.all;
+        _dateFilter != _ReportDateFilter.all ||
+        _selectedStatus != AdminReportStatus.pending;
   }
 
   void _clearFilters() {
@@ -208,8 +232,43 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
       _query = '';
       _selectedCategory = _allCategoryValue;
       _dateFilter = _ReportDateFilter.all;
+      _selectedStatus = AdminReportStatus.pending;
       _selectedDate = null;
     });
+  }
+
+  Future<void> _updateReportStatus(
+    AdminReportRecord report,
+    AdminReportStatus status,
+  ) async {
+    if (report.reportId.isEmpty ||
+        _updatingReportIds.contains(report.reportId)) {
+      return;
+    }
+
+    setState(() => _updatingReportIds.add(report.reportId));
+    try {
+      await AdminService.updateReportStatus(
+        reportId: report.reportId,
+        status: status,
+        adminId: widget.adminId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Report marked as ${status.label.toLowerCase()}.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to update report: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingReportIds.remove(report.reportId));
+      }
+    }
   }
 
   void _handleDateFilterChanged(_ReportDateFilter? value) {
@@ -536,6 +595,42 @@ class _DateFilter extends StatelessWidget {
   }
 }
 
+class _ReportStatusToggle extends StatelessWidget {
+  final AdminReportStatus selectedStatus;
+  final Map<AdminReportStatus, int> counts;
+  final ValueChanged<AdminReportStatus> onChanged;
+
+  const _ReportStatusToggle({
+    required this.selectedStatus,
+    required this.counts,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SegmentedButton<AdminReportStatus>(
+          selected: <AdminReportStatus>{selectedStatus},
+          showSelectedIcon: false,
+          segments: AdminReportStatus.values
+              .map(
+                (status) => ButtonSegment<AdminReportStatus>(
+                  value: status,
+                  icon: Icon(status.icon, size: 17),
+                  label: Text('${status.label} ${counts[status] ?? 0}'),
+                ),
+              )
+              .toList(growable: false),
+          onSelectionChanged: (values) => onChanged(values.first),
+        ),
+      ),
+    );
+  }
+}
+
 class _ReportMetrics extends StatelessWidget {
   final int reportCount;
   final int reportedUserCount;
@@ -565,7 +660,7 @@ class _ReportMetrics extends StatelessWidget {
         color: AdminUi.accent,
       ),
       _ReportMetricData(
-        label: 'Open',
+        label: 'Pending',
         value: openReportCount.toString(),
         icon: Icons.pending_actions_rounded,
         color: AdminUi.warning,
@@ -685,15 +780,19 @@ class _ReportUserCard extends StatelessWidget {
   final AdminReportRecord report;
   final AdminUserRecord? reportedUser;
   final AdminUserRecord? reporter;
+  final bool isUpdating;
   final VoidCallback? onProfileTap;
   final VoidCallback onDetailsTap;
+  final ValueChanged<AdminReportStatus> onStatusSelected;
 
   const _ReportUserCard({
     required this.report,
     required this.reportedUser,
     required this.reporter,
+    required this.isUpdating,
     required this.onProfileTap,
     required this.onDetailsTap,
+    required this.onStatusSelected,
   });
 
   @override
@@ -704,7 +803,8 @@ class _ReportUserCard extends StatelessWidget {
 
     return AdminInteractiveCard(
       onTap: onDetailsTap,
-      accentColor: report.isOpen ? AdminUi.warning : AdminUi.accent,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      accentColor: report.reportStatus.color,
       semanticLabel: 'Open report and linked ride details for $displayName',
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -717,7 +817,7 @@ class _ReportUserCard extends StatelessWidget {
               name: displayName,
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: _ReportCardContent(
               report: report,
@@ -727,8 +827,36 @@ class _ReportUserCard extends StatelessWidget {
               onProfileTap: onProfileTap,
             ),
           ),
-          const SizedBox(width: 10),
-          Icon(Icons.chevron_right_rounded, color: AdminUi.muted),
+          const SizedBox(width: 6),
+          if (isUpdating)
+            const SizedBox.square(
+              dimension: 38,
+              child: Padding(
+                padding: EdgeInsets.all(9),
+                child: CircularProgressIndicator(strokeWidth: 2.2),
+              ),
+            )
+          else
+            PopupMenuButton<AdminReportStatus>(
+              tooltip: 'Change report status',
+              icon: Icon(Icons.more_vert_rounded, color: AdminUi.neutral),
+              onSelected: onStatusSelected,
+              itemBuilder: (context) => AdminReportStatus.moderationActions
+                  .map(
+                    (status) => PopupMenuItem<AdminReportStatus>(
+                      value: status,
+                      enabled: status != report.reportStatus,
+                      child: Row(
+                        children: <Widget>[
+                          Icon(status.icon, size: 19, color: status.color),
+                          const SizedBox(width: 10),
+                          Text(status.actionLabel),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
         ],
       ),
     );
@@ -770,28 +898,29 @@ class _ReportCardContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _ReportProfileTrigger(
-          onTap: onProfileTap,
-          semanticLabel: 'Open $displayName profile',
-          child: Text(
-            displayName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AdminUi.cardTitle.copyWith(
-              fontSize: 16,
-              color: onProfileTap == null ? null : AdminUi.accent,
-              decoration: onProfileTap == null
-                  ? TextDecoration.none
-                  : TextDecoration.underline,
-            ),
-          ),
-        ),
-        const SizedBox(height: 7),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 7,
+          runSpacing: 5,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            _ReportProfileTrigger(
+              onTap: onProfileTap,
+              semanticLabel: 'Open $displayName profile',
+              child: Text(
+                displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AdminUi.cardTitle.copyWith(
+                  fontSize: 15,
+                  color: onProfileTap == null ? null : AdminUi.accent,
+                  decoration: onProfileTap == null
+                      ? TextDecoration.none
+                      : TextDecoration.underline,
+                ),
+              ),
+            ),
             AdminStatusChip(
               label: roleLabel,
               textColor: AdminUi.accent,
@@ -809,24 +938,19 @@ class _ReportCardContent extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 7),
         Text(
-          'Reason: ${report.reasonLabel}',
+          report.details.isEmpty
+              ? 'Reason: ${report.reasonLabel}'
+              : 'Reason: ${report.reasonLabel} - ${report.details}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: AdminUi.valueText.copyWith(fontSize: 13.5),
         ),
-        if (report.details.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Text(
-            report.details,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: AdminUi.bodyText,
-          ),
-        ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 7),
         Wrap(
-          spacing: 12,
-          runSpacing: 8,
+          spacing: 10,
+          runSpacing: 5,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _ReportMetaItem(
@@ -903,7 +1027,7 @@ class _ReportAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const size = 52.0;
+    const size = 44.0;
 
     return Container(
       width: size,
@@ -911,8 +1035,7 @@ class _ReportAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: AdminUi.blueSoft,
-        border: Border.all(color: AdminUi.surface, width: 3),
-        boxShadow: AdminUi.cardShadow,
+        border: Border.all(color: AdminUi.surface, width: 2),
       ),
       child: ClipOval(
         child: FirebaseStorageImage(
@@ -927,7 +1050,7 @@ class _ReportAvatar extends StatelessWidget {
               _initials(name),
               style: TextStyle(
                 color: AdminUi.accent,
-                fontSize: 17,
+                fontSize: 15,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -958,30 +1081,64 @@ extension _ReportDateFilterLabel on _ReportDateFilter {
 }
 
 Color _statusColor(AdminReportRecord report) {
-  switch (report.status) {
-    case 'closed':
-    case 'resolved':
-    case 'dismissed':
-      return AdminUi.successText;
-    case 'in_review':
-    case 'reviewing':
-      return AdminUi.accent;
-    default:
-      return AdminUi.danger;
-  }
+  return report.reportStatus.color;
 }
 
 Color _statusBackgroundColor(AdminReportRecord report) {
-  switch (report.status) {
-    case 'closed':
-    case 'resolved':
-    case 'dismissed':
-      return AdminUi.successBackground;
-    case 'in_review':
-    case 'reviewing':
-      return AdminUi.blueSoft;
-    default:
-      return AdminUi.dangerSoft;
+  return report.reportStatus.backgroundColor;
+}
+
+extension _AdminReportStatusPresentation on AdminReportStatus {
+  String get actionLabel {
+    switch (this) {
+      case AdminReportStatus.pending:
+        return 'Pending';
+      case AdminReportStatus.resolved:
+        return 'Resolved';
+      case AdminReportStatus.ignored:
+        return 'Ignore';
+      case AdminReportStatus.spam:
+        return 'Spam';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case AdminReportStatus.pending:
+        return Icons.schedule_rounded;
+      case AdminReportStatus.resolved:
+        return Icons.check_circle_rounded;
+      case AdminReportStatus.ignored:
+        return Icons.visibility_off_rounded;
+      case AdminReportStatus.spam:
+        return Icons.report_gmailerrorred_rounded;
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case AdminReportStatus.pending:
+        return AdminUi.highlightAmber;
+      case AdminReportStatus.resolved:
+        return AdminUi.successText;
+      case AdminReportStatus.ignored:
+        return AdminUi.neutral;
+      case AdminReportStatus.spam:
+        return AdminUi.danger;
+    }
+  }
+
+  Color get backgroundColor {
+    switch (this) {
+      case AdminReportStatus.pending:
+        return AdminUi.warningSoft;
+      case AdminReportStatus.resolved:
+        return AdminUi.successBackground;
+      case AdminReportStatus.ignored:
+        return AdminUi.mutedSurface;
+      case AdminReportStatus.spam:
+        return AdminUi.dangerSoft;
+    }
   }
 }
 

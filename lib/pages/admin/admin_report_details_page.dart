@@ -252,29 +252,27 @@ class _ReportTimeRow extends StatelessWidget {
 }
 
 Color _statusColor(AdminReportRecord report) {
-  switch (report.status) {
-    case 'closed':
-    case 'resolved':
-    case 'dismissed':
+  switch (report.reportStatus) {
+    case AdminReportStatus.resolved:
       return AdminUi.successText;
-    case 'in_review':
-    case 'reviewing':
-      return AdminUi.accent;
-    default:
+    case AdminReportStatus.ignored:
+      return AdminUi.neutral;
+    case AdminReportStatus.spam:
       return AdminUi.danger;
+    case AdminReportStatus.pending:
+      return AdminUi.highlightAmber;
   }
 }
 
 Color _statusBackgroundColor(AdminReportRecord report) {
-  switch (report.status) {
-    case 'closed':
-    case 'resolved':
-    case 'dismissed':
+  switch (report.reportStatus) {
+    case AdminReportStatus.resolved:
       return AdminUi.successBackground;
-    case 'in_review':
-    case 'reviewing':
-      return AdminUi.blueSoft;
-    default:
+    case AdminReportStatus.ignored:
+      return AdminUi.mutedSurface;
+    case AdminReportStatus.spam:
       return AdminUi.dangerSoft;
+    case AdminReportStatus.pending:
+      return AdminUi.warningSoft;
   }
 }

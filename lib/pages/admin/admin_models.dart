@@ -830,6 +830,43 @@ class AdminReviewRecord {
   }
 }
 
+enum AdminReportStatus {
+  pending('pending', 'Pending'),
+  resolved('resolved', 'Resolved'),
+  ignored('ignored', 'Ignored'),
+  spam('spam', 'Spam');
+
+  final String value;
+  final String label;
+
+  const AdminReportStatus(this.value, this.label);
+
+  static const List<AdminReportStatus> moderationActions = <AdminReportStatus>[
+    resolved,
+    ignored,
+    spam,
+  ];
+
+  static AdminReportStatus fromValue(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'resolved':
+      case 'closed':
+        return AdminReportStatus.resolved;
+      case 'ignored':
+      case 'dismissed':
+        return AdminReportStatus.ignored;
+      case 'spam':
+        return AdminReportStatus.spam;
+      case 'open':
+      case 'pending':
+      case 'in_review':
+      case 'reviewing':
+      default:
+        return AdminReportStatus.pending;
+    }
+  }
+}
+
 class AdminReportRecord {
   final String reportId;
   final String bookingId;
@@ -887,21 +924,16 @@ class AdminReportRecord {
     return value.isEmpty ? 'No reason provided' : value;
   }
 
-  String get statusLabel {
-    if (status.isEmpty) {
-      return 'Open';
-    }
+  AdminReportStatus get reportStatus => AdminReportStatus.fromValue(status);
 
-    final normalized = status.replaceAll('_', ' ');
-    return normalized[0].toUpperCase() + normalized.substring(1);
-  }
+  String get statusLabel => reportStatus.label;
 
   String get reporterRoleLabel => _roleLabel(reporterRole);
   String get reportedUserRoleLabel => _roleLabel(reportedUserRole);
 
   DateTime? get sortDate => createdAt ?? updatedAt;
 
-  bool get isOpen => status.isEmpty || status == 'open' || status == 'pending';
+  bool get isOpen => reportStatus == AdminReportStatus.pending;
 
   static String _readReason(Map<String, dynamic> data) {
     final candidates = <Object?>[

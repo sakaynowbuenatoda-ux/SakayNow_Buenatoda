@@ -325,6 +325,28 @@ class AdminService {
     });
   }
 
+  static Future<void> updateReportStatus({
+    required String reportId,
+    required AdminReportStatus status,
+    required String adminId,
+  }) async {
+    final normalizedReportId = reportId.trim();
+    final normalizedAdminId = adminId.trim();
+    if (normalizedReportId.isEmpty) {
+      throw ArgumentError('A report ID is required.');
+    }
+    if (normalizedAdminId.isEmpty) {
+      throw ArgumentError('An admin ID is required.');
+    }
+
+    await _firestore.collection('reports').doc(normalizedReportId).update({
+      'status': status.value,
+      'status_updated_by': normalizedAdminId,
+      'status_updated_at': FieldValue.serverTimestamp(),
+      'updated_at': FieldValue.serverTimestamp(),
+    });
+  }
+
   static Stream<List<AdminActionLogRecord>> watchAdminLogs({int? limit}) {
     Query<Map<String, dynamic>> query = _firestore
         .collection('admin_logs')

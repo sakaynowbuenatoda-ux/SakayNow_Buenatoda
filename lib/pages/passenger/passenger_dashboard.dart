@@ -6,6 +6,7 @@ import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../services/payment_method_service.dart';
 import '../../services/ride_tracking_service.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_payment_method_card.dart';
 import '../../widgets/passenger_widgets/passenger_recent_trips_section.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
@@ -96,9 +97,7 @@ class _PassengerRideSummary extends StatelessWidget {
       stream: rideTrackingService.watchPassengerRides(userId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const PassengerSurfaceCard(
-            child: Center(child: CircularProgressIndicator()),
-          );
+          return const AppSkeletonCard(lineCount: 4);
         }
 
         if (snapshot.hasError) {
@@ -299,9 +298,7 @@ class _DashboardPaymentMethodsPreview extends StatelessWidget {
       stream: paymentMethodService.watchPaymentMethods(userId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const PassengerSurfaceCard(
-            child: Center(child: CircularProgressIndicator()),
-          );
+          return const AppSkeletonCard(lineCount: 3);
         }
 
         if (snapshot.hasError) {

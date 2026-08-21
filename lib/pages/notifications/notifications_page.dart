@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/app_notification.dart';
 import '../../services/notification_service.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/time_ago_text.dart';
 
@@ -39,7 +40,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
               stream: _notificationService.watchNotifications(user.uid),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const AppSkeletonList(itemCount: 5);
                 }
 
                 if (snapshot.hasError) {

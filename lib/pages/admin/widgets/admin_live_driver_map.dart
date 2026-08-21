@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../config/map_config.dart';
 import '../../../core/preferences/app_preferences_controller.dart';
+import '../../../widgets/app_skeleton.dart';
 import '../../../widgets/maps/map_type_toggle.dart';
 import '../../../widgets/maps/sakay_google_map.dart';
 import '../admin_models.dart';
@@ -236,7 +237,12 @@ class _AdminLiveDriverMapLoading extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       child: SizedBox(
         height: _mapHeightFor(MediaQuery.sizeOf(context).width),
-        child: const Center(child: CircularProgressIndicator()),
+        child: const AppSkeletonShimmer(
+          child: AppSkeletonBox(
+            height: double.infinity,
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+          ),
+        ),
       ),
     );
   }

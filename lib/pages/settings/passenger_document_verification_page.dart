@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/auth/registration_service.dart';
 import '../../core/session/account_flags.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_verification_upload_card.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 
@@ -237,7 +238,11 @@ class _PassengerDocumentVerificationPageState
       body: PassengerPageContainer(
         maxContentWidth: PassengerUi.settingsContentWidth,
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppSkeletonPage(
+                padding: EdgeInsets.zero,
+                showHeader: false,
+                itemCount: 3,
+              )
             : SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

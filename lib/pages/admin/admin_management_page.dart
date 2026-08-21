@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import 'admin_action_logs_page.dart';
 import 'admin_create_account_page.dart';
 import 'admin_models.dart';
@@ -28,7 +29,10 @@ class AdminManagementPage extends StatelessWidget {
           }
 
           if (!adminSnapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppSkeletonPage(
+              padding: EdgeInsets.zero,
+              showMetrics: true,
+            );
           }
 
           final currentAdmin = adminSnapshot.data!;
@@ -43,7 +47,10 @@ class AdminManagementPage extends StatelessWidget {
               }
 
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return const AppSkeletonPage(
+                  padding: EdgeInsets.zero,
+                  showMetrics: true,
+                );
               }
 
               final bookings = snapshot.data!;
@@ -227,12 +234,7 @@ class _AdminAccountsPreviewCard extends StatelessWidget {
           }
 
           if (!snapshot.hasData) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: CircularProgressIndicator(),
-              ),
-            );
+            return const AppSkeletonCard(lineCount: 2);
           }
 
           final admins = snapshot.data!;
@@ -319,11 +321,10 @@ class _AdminLogsPreviewCard extends StatelessWidget {
           }
 
           if (!snapshot.hasData) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: CircularProgressIndicator(),
-              ),
+            return const AppSkeletonList(
+              itemCount: 3,
+              showAvatar: false,
+              padding: EdgeInsets.zero,
             );
           }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/app_skeleton.dart';
 import 'admin_navigation.dart';
 import 'admin_models.dart';
 import 'admin_service.dart';
@@ -28,7 +29,10 @@ class AdminOverviewPage extends StatelessWidget {
           }
 
           if (!usersSnapshot.hasData) {
-            return Center(child: CircularProgressIndicator());
+            return const AppSkeletonPage(
+              padding: EdgeInsets.zero,
+              showMetrics: true,
+            );
           }
 
           return StreamBuilder<List<AdminUserRecord>>(
@@ -42,7 +46,10 @@ class AdminOverviewPage extends StatelessWidget {
               }
 
               if (!activeDriversSnapshot.hasData) {
-                return Center(child: CircularProgressIndicator());
+                return const AppSkeletonPage(
+                  padding: EdgeInsets.zero,
+                  showMetrics: true,
+                );
               }
 
               return StreamBuilder<List<AdminBookingRecord>>(
@@ -56,7 +63,10 @@ class AdminOverviewPage extends StatelessWidget {
                   }
 
                   if (!bookingsSnapshot.hasData) {
-                    return Center(child: CircularProgressIndicator());
+                    return const AppSkeletonPage(
+                      padding: EdgeInsets.zero,
+                      showMetrics: true,
+                    );
                   }
 
                   return StreamBuilder<List<AdminReportRecord>>(
@@ -70,7 +80,10 @@ class AdminOverviewPage extends StatelessWidget {
                       }
 
                       if (!reportsSnapshot.hasData) {
-                        return Center(child: CircularProgressIndicator());
+                        return const AppSkeletonPage(
+                          padding: EdgeInsets.zero,
+                          showMetrics: true,
+                        );
                       }
 
                       final users = usersSnapshot.data!;

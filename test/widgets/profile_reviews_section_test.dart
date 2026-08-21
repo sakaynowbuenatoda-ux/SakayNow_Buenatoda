@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sakaynow_buenatoda/widgets/app_skeleton.dart';
 import 'package:sakaynow_buenatoda/pages/admin/admin_models.dart';
 import 'package:sakaynow_buenatoda/pages/profile/models/profile_review_item.dart';
 import 'package:sakaynow_buenatoda/pages/profile/widgets/profile_reviews_section.dart';
@@ -159,7 +160,7 @@ void main() {
         ),
       ),
     );
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(AppSkeletonList), findsOneWidget);
 
     controller.add(const <ProfileReviewItem>[]);
     await tester.pumpAndSettle();

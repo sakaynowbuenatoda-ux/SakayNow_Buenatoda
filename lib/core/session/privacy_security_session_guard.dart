@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../preferences/privacy_security_preferences_controller.dart';
 import '../../services/device_auth_service.dart';
+import '../../widgets/app_skeleton.dart';
 import 'session_service.dart';
 
 class PrivacySecuritySessionGuard extends StatefulWidget {
@@ -404,23 +405,27 @@ class _StartupSessionPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Material(
-      color: theme.colorScheme.surface,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            CircularProgressIndicator(color: theme.colorScheme.primary),
-            const SizedBox(height: 16),
-            Text(
-              'Securing your session...',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.70),
+      color: Theme.of(context).colorScheme.surface,
+      child: const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: SizedBox(
+            width: 320,
+            child: AppSkeletonShimmer(
+              semanticLabel: 'Securing your session',
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  AppSkeletonCircle(diameter: 72),
+                  SizedBox(height: 20),
+                  AppSkeletonLine(width: 210, height: 18),
+                  SizedBox(height: 12),
+                  AppSkeletonLine(width: 280),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

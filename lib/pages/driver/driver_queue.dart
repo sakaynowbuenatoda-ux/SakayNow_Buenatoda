@@ -8,6 +8,7 @@ import '../../services/booking_action_cooldown_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/action_cooldown_notice.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../rides/ride_monitoring_page.dart';
 import 'widgets/driver_ride_request_card.dart';
@@ -100,7 +101,10 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
                 ),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const AppSkeletonList(
+                      itemCount: 4,
+                      padding: EdgeInsets.zero,
+                    );
                   }
 
                   if (snapshot.hasError) {

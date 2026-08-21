@@ -5,6 +5,7 @@ import '../../models/ride_status.dart';
 import '../../pages/profile/driver_profile.dart';
 import '../../services/ride_tracking_service.dart';
 import '../firebase_storage_image.dart';
+import '../app_skeleton.dart';
 import '../maps/ride_location_preview_dialog.dart';
 import '../time_ago_text.dart';
 import '../trip_history_sort.dart';
@@ -48,12 +49,7 @@ class PassengerRecentTripsSection extends StatelessWidget {
                 onActionTap: onViewAllTap,
               ),
               const SizedBox(height: 14),
-              const SizedBox(
-                height: 126,
-                child: PassengerSurfaceCard(
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              ),
+              const AppSkeletonCard(showAvatar: true, height: 126),
             ],
           );
         }

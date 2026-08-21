@@ -5,6 +5,7 @@ import '../../config/map_config.dart';
 import '../../controllers/quick_destinations_controller.dart';
 import '../../models/ride_location.dart';
 import '../../services/location_service.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/maps/location_pin_picker_sheet.dart';
 import '../../widgets/maps/map_text_styles.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
@@ -55,7 +56,7 @@ class _PassengerQuickDestinationsPageState
         animation: widget.controller,
         builder: (context, _) {
           if (widget.controller.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppSkeletonList(itemCount: 4);
           }
 
           if (widget.controller.destinations.isEmpty) {

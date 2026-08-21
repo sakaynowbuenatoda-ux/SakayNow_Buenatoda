@@ -7,6 +7,7 @@ import '../../models/ride.dart';
 import '../../models/ride_status.dart';
 import '../../services/driver_payout_account_service.dart';
 import '../../services/ride_tracking_service.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/driver_widgets/driver_payout_account_card.dart';
 import '../../widgets/driver_widgets/driver_earnings_card.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
@@ -88,8 +89,11 @@ class _DriverRideSummary extends StatelessWidget {
       stream: rideTrackingService.watchDriverRides(driverId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const PassengerSurfaceCard(
-            child: Center(child: CircularProgressIndicator()),
+          return const AppSkeletonPage(
+            padding: EdgeInsets.zero,
+            showHeader: false,
+            showMetrics: true,
+            itemCount: 2,
           );
         }
 
@@ -220,9 +224,7 @@ class _DriverPayoutAccountsPreview extends StatelessWidget {
       stream: payoutAccountService.watchPayoutAccounts(driverId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const PassengerSurfaceCard(
-            child: Center(child: CircularProgressIndicator()),
-          );
+          return const AppSkeletonCard(lineCount: 3);
         }
 
         if (snapshot.hasError) {
@@ -305,6 +307,11 @@ class _DriverStandingCard extends StatelessWidget {
     return StreamBuilder<DriverReviewProfile>(
       stream: rideTrackingService.watchDriverProfile(driverId),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const AppSkeletonCard(showAvatar: true, lineCount: 3);
+        }
+
         final profile = snapshot.data;
         final ratingLabel = profile?.ratingLabel ?? 'No ratings yet';
         final reviewCount = profile?.reviewCount ?? 0;

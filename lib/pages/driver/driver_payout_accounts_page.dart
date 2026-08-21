@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/driver_payout_account.dart';
 import '../../services/driver_payout_account_service.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/driver_widgets/driver_payout_account_card.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 
@@ -51,7 +52,10 @@ class _DriverPayoutAccountsPageState extends State<DriverPayoutAccountsPage> {
               ),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const AppSkeletonList(
+                    itemCount: 3,
+                    padding: EdgeInsets.zero,
+                  );
                 }
 
                 if (snapshot.hasError) {

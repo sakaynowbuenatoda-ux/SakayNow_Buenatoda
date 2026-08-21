@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/app_skeleton.dart';
 import 'admin_models.dart';
 import 'admin_service.dart';
 import 'widgets/admin_shared.dart';
@@ -76,7 +77,7 @@ class _AdminBookingHistoryPageState extends State<AdminBookingHistoryPage> {
             }
 
             if (!usersSnapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const AppSkeletonList(padding: EdgeInsets.zero);
             }
 
             final usersById = <String, AdminUserRecord>{
@@ -98,7 +99,7 @@ class _AdminBookingHistoryPageState extends State<AdminBookingHistoryPage> {
                 }
 
                 if (!bookingsSnapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const AppSkeletonList(padding: EdgeInsets.zero);
                 }
 
                 final bookings = bookingsSnapshot.data!

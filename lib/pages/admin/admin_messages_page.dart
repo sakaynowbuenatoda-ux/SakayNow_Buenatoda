@@ -4,6 +4,7 @@ import '../../models/chat_conversation.dart';
 import '../../models/chat_participant_profile.dart';
 import '../../services/chat_service.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/conversation_actions_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
@@ -84,9 +85,7 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
     Widget content;
     if (snapshot.connectionState == ConnectionState.waiting &&
         !snapshot.hasData) {
-      content = const AdminSurfaceCard(
-        child: Center(child: CircularProgressIndicator()),
-      );
+      content = const AppSkeletonList(itemCount: 4, padding: EdgeInsets.zero);
     } else if (snapshot.hasError) {
       content = const AdminErrorCard(
         message: 'Unable to load admin messages. Please try again.',
@@ -212,7 +211,7 @@ class _AdminMessagesPageState extends State<AdminMessagesPage> {
     Widget child;
     if (snapshot.connectionState == ConnectionState.waiting &&
         !snapshot.hasData) {
-      child = const Center(child: CircularProgressIndicator());
+      child = const AppSkeletonList(itemCount: 5);
     } else if (snapshot.hasError) {
       child = const Padding(
         padding: EdgeInsets.all(16),
@@ -1106,7 +1105,7 @@ class _AdminStaffDirectoryDialog extends StatelessWidget {
               );
             }
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const AppSkeletonList(itemCount: 4);
             }
 
             final staff = snapshot.data!;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/app_skeleton.dart';
 import 'admin_navigation.dart';
 import 'admin_models.dart';
 import 'admin_service.dart';
@@ -23,7 +24,10 @@ class AdminAccountManagementPage extends StatelessWidget {
           }
 
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppSkeletonPage(
+              padding: EdgeInsets.zero,
+              showMetrics: true,
+            );
           }
 
           final users = snapshot.data!;

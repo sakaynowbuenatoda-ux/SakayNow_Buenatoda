@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/ride_tracking_service.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/reports/report_user_sheet.dart';
 import 'models/profile_review_item.dart';
@@ -48,7 +49,7 @@ class _PassengerProfilePageState extends State<PassengerProfilePage> {
         stream: _rideTrackingService.watchPassengerProfile(widget.passengerId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppSkeletonProfile();
           }
 
           if (snapshot.hasError) {

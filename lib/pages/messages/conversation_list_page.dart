@@ -7,6 +7,7 @@ import '../../models/chat_conversation.dart';
 import '../../models/chat_participant_profile.dart';
 import '../../services/chat_service.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/conversation_actions_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
@@ -93,8 +94,9 @@ class _ConversationListPageState extends State<ConversationListPage> {
                   children: <Widget>[
                     header,
                     const SizedBox(height: 16),
-                    const PassengerSurfaceCard(
-                      child: Center(child: CircularProgressIndicator()),
+                    const AppSkeletonList(
+                      itemCount: 4,
+                      padding: EdgeInsets.zero,
                     ),
                   ],
                 );

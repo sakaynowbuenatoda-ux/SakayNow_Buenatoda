@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/app_skeleton.dart';
 import 'admin_models.dart';
 import 'admin_service.dart';
 import 'widgets/admin_shared.dart';
@@ -24,7 +25,7 @@ class AdminActionLogsPage extends StatelessWidget {
             }
 
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const AppSkeletonList(padding: EdgeInsets.zero);
             }
 
             final logs = snapshot.data!;

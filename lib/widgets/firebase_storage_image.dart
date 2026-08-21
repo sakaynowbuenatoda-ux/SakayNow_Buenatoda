@@ -1,6 +1,8 @@
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 
+import 'app_skeleton.dart';
+
 class FirebaseStorageImage extends StatelessWidget {
   static final Map<String, String> _resolvedUrlCache = <String, String>{};
   static final Map<String, Future<String>> _downloadFutureCache =
@@ -43,7 +45,7 @@ class FirebaseStorageImage extends StatelessWidget {
       builder: (context, snapshot) {
         final resolvedUrl = snapshot.data;
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return loading ?? fallback;
+          return _loadingPlaceholder();
         }
 
         if (resolvedUrl == null || resolvedUrl.isEmpty || snapshot.hasError) {
@@ -64,8 +66,22 @@ class FirebaseStorageImage extends StatelessWidget {
       fit: fit,
       gaplessPlayback: true,
       webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+      loadingBuilder: (context, child, progress) =>
+          progress == null ? child : _loadingPlaceholder(),
       errorBuilder: (context, error, stackTrace) => errorFallback ?? fallback,
     );
+  }
+
+  Widget _loadingPlaceholder() {
+    return loading ??
+        SizedBox(
+          width: width,
+          height: height,
+          child: const AppSkeletonShimmer(
+            semanticLabel: 'Loading image',
+            child: SizedBox.expand(child: ColoredBox(color: Colors.white)),
+          ),
+        );
   }
 
   static Future<String> _cachedDownloadUrlFor(String source) {

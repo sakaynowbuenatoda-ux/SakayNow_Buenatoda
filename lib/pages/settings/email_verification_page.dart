@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/email_verification_service.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'change_update_email_page.dart';
 
@@ -513,21 +514,6 @@ class _EmailVerificationLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Row(
-        children: <Widget>[
-          SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.4,
-              color: PassengerUi.highlightAmber,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text('Loading email status...', style: PassengerUi.bodyText),
-        ],
-      ),
-    );
+    return const AppSkeletonCard(showAvatar: true, lineCount: 3);
   }
 }

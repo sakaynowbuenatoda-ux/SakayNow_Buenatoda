@@ -4,6 +4,7 @@ import '../../models/ride.dart';
 import '../../pages/messages/chat_page.dart';
 import '../../services/chat_service.dart';
 import '../../services/ride_tracking_service.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/reviews/review_dialogs.dart';
 import '../../widgets/reports/report_user_sheet.dart';
@@ -49,7 +50,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
         stream: _rideTrackingService.watchDriverProfile(widget.driverId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppSkeletonProfile();
           }
 
           if (snapshot.hasError) {

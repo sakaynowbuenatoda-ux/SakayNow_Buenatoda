@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../models/fare_settings.dart';
+import '../../../widgets/app_skeleton.dart';
 import '../admin_service.dart';
 import 'admin_shared.dart';
 
@@ -22,9 +23,7 @@ class FareSettingsEditor extends StatelessWidget {
         }
 
         if (!snapshot.hasData) {
-          return const AdminSurfaceCard(
-            child: Center(child: CircularProgressIndicator()),
-          );
+          return const AppSkeletonCard(lineCount: 4);
         }
 
         final settings = snapshot.data!;

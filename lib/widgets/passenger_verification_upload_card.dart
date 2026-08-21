@@ -162,12 +162,6 @@ class PassengerVerificationDocumentPreview extends StatelessWidget {
                 title: 'Preview unavailable',
                 message: 'Check your internet connection and try again.',
               ),
-              loading: const VerificationDocumentPreviewPlaceholder(
-                state: VerificationPreviewState.loading,
-                icon: Icons.image_search_outlined,
-                title: 'Loading uploaded photo',
-                message: 'Your saved document preview will appear here.',
-              ),
               errorFallback: const VerificationDocumentPreviewPlaceholder(
                 state: VerificationPreviewState.unavailable,
                 icon: Icons.cloud_off_outlined,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/notification_preferences.dart';
 import '../../services/notification_service.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 
@@ -362,21 +363,10 @@ class _NotificationLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Row(
-        children: <Widget>[
-          SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.4,
-              color: PassengerUi.secondary,
-            ),
-          ),
-          SizedBox(width: 12),
-          Text('Loading notification settings...', style: PassengerUi.bodyText),
-        ],
-      ),
+    return const AppSkeletonList(
+      itemCount: 4,
+      showAvatar: false,
+      padding: EdgeInsets.zero,
     );
   }
 }

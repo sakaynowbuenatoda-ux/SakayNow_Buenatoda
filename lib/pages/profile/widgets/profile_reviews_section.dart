@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../widgets/app_skeleton.dart';
 import '../../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../../widgets/time_ago_text.dart';
 import '../models/profile_review_item.dart';
@@ -32,9 +33,7 @@ class ProfileReviewsPreview extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
-          return const PassengerSurfaceCard(
-            child: Center(child: CircularProgressIndicator()),
-          );
+          return const AppSkeletonCard(showAvatar: true, lineCount: 3);
         }
 
         if (snapshot.hasError) {
@@ -225,7 +224,7 @@ class _AllReviewsPageState extends State<AllReviewsPage> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppSkeletonList(itemCount: 4);
           }
 
           if (snapshot.hasError) {

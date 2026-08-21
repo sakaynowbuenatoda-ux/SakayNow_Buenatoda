@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/confirmation_dialog.dart';
 import 'admin_models.dart';
 import 'admin_navigation.dart';
@@ -73,7 +74,7 @@ class _AdminRestrictedUsersPageState extends State<AdminRestrictedUsersPage> {
             }
 
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const AppSkeletonList(padding: EdgeInsets.zero);
             }
 
             final users = _sortedUsers(

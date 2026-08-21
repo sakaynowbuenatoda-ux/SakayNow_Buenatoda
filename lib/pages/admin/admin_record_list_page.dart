@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/confirmation_dialog.dart';
 import 'admin_models.dart';
 import 'admin_navigation.dart';
@@ -161,7 +162,7 @@ class _AdminUserRecordList extends StatelessWidget {
           }
 
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppSkeletonList(padding: EdgeInsets.zero);
           }
 
           final users = snapshot.data!
@@ -283,7 +284,7 @@ class _AdminBookingRecordList extends StatelessWidget {
           }
 
           if (!usersSnapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppSkeletonList(padding: EdgeInsets.zero);
           }
 
           final usersById = <String, AdminUserRecord>{
@@ -301,7 +302,7 @@ class _AdminBookingRecordList extends StatelessWidget {
               }
 
               if (!bookingsSnapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return const AppSkeletonList(padding: EdgeInsets.zero);
               }
 
               final bookings = bookingsSnapshot.data!

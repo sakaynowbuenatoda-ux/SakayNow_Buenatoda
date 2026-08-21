@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sakaynow_buenatoda/widgets/app_skeleton.dart';
 import 'package:sakaynow_buenatoda/widgets/firebase_storage_image.dart';
 import 'package:sakaynow_buenatoda/widgets/passenger_verification_upload_card.dart';
 
@@ -117,6 +118,6 @@ void main() {
     expect(image.imageUrl, 'https://example.test/id.jpg');
     expect(image.fit, BoxFit.contain);
     expect(find.text('No ID uploaded yet'), findsNothing);
-    expect(find.text('Loading uploaded photo'), findsOneWidget);
+    expect(find.byType(AppSkeletonShimmer), findsOneWidget);
   });
 }

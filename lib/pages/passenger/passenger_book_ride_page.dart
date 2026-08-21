@@ -20,6 +20,7 @@ import '../../services/payment_method_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/action_cooldown_notice.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/driver_vehicle_details_sheet.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/maps/location_pin_picker_sheet.dart';
@@ -737,6 +738,10 @@ class _BookingPaymentMethodCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const AppSkeletonCard(showAvatar: true, lineCount: 2, height: 76);
+    }
+
     return PassengerSurfaceCard(
       child: Row(
         children: <Widget>[
@@ -763,29 +768,24 @@ class _BookingPaymentMethodCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  isLoading ? 'Loading...' : selectedMethod.displayLabel,
+                  selectedMethod.displayLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: MapTextStyles.value,
                 ),
-                if (!isLoading) ...<Widget>[
-                  const SizedBox(height: 2),
-                  Text(
-                    selectedMethod.usesOnlineCheckout
-                        ? '${selectedMethod.accountLabel} - driver must support online'
-                        : selectedMethod.accountLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MapTextStyles.body.copyWith(fontSize: 12),
-                  ),
-                ],
+                const SizedBox(height: 2),
+                Text(
+                  selectedMethod.usesOnlineCheckout
+                      ? '${selectedMethod.accountLabel} - driver must support online'
+                      : selectedMethod.accountLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MapTextStyles.body.copyWith(fontSize: 12),
+                ),
               ],
             ),
           ),
-          TextButton(
-            onPressed: isLoading ? null : onChange,
-            child: const Text('Change'),
-          ),
+          TextButton(onPressed: onChange, child: const Text('Change')),
         ],
       ),
     );
@@ -1132,7 +1132,7 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
                     14 + PassengerUi.pageBottomInset(context),
                   ),
                   child: snapshot.connectionState == ConnectionState.waiting
-                      ? const Center(child: CircularProgressIndicator())
+                      ? const AppSkeletonList(itemCount: 3)
                       : _DriverPanelContent(
                           nearbyDrivers: nearbyDrivers,
                           otherActiveDrivers: otherActiveDrivers,
@@ -1821,11 +1821,18 @@ class _AvailableDriverCard extends StatelessWidget {
                   ),
                   borderRadius: BorderRadius.circular(6),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 2,
+                      horizontal: 4,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        Icon(Icons.info_outline_rounded, size: 14, color: PassengerUi.accentBlue),
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 14,
+                          color: PassengerUi.accentBlue,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           'View Vehicle Details & Photos',
@@ -1934,13 +1941,17 @@ class _SavedDestinationRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return SizedBox(
+      return const SizedBox(
         height: 68,
-        child: Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2),
+        child: AppSkeletonShimmer(
+          child: Row(
+            children: <Widget>[
+              Expanded(child: AppSkeletonBox(height: 44)),
+              SizedBox(width: 10),
+              Expanded(child: AppSkeletonBox(height: 44)),
+              SizedBox(width: 10),
+              Expanded(child: AppSkeletonBox(height: 44)),
+            ],
           ),
         ),
       );

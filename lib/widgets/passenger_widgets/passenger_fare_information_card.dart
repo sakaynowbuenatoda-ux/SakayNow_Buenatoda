@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/fare_settings.dart';
 import '../../pages/passenger/passenger_data.dart';
 import '../../services/fare_settings_service.dart';
+import '../app_skeleton.dart';
 import 'passenger_ui.dart';
 
 class PassengerFareInformationCard extends StatefulWidget {
@@ -60,12 +61,14 @@ class _PassengerFareInformationCardState
     return StreamBuilder<FareSettings>(
       stream: _fareSettingsStream,
       builder: (context, snapshot) {
+        if (!snapshot.hasData && !snapshot.hasError) {
+          return const AppSkeletonCard(lineCount: 5);
+        }
+
         final settings = snapshot.data ?? FareSettings.defaults;
         final statusMessage = snapshot.hasError
             ? 'Unable to load the latest fare guide. Default fare values are shown for now.'
-            : snapshot.hasData
-            ? null
-            : 'Loading latest fare guide...';
+            : null;
 
         return _buildCard(
           fareDetails: _fareDetailsFor(settings),

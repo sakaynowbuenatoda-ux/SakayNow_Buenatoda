@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/session/session_service.dart';
 import '../../services/profile_picture_service.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../settings/email_verification_page.dart';
 import '../settings/settings_page.dart';
@@ -49,7 +50,7 @@ class _ProfilePageState extends State<ProfilePage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
-          return Center(child: CircularProgressIndicator());
+          return const AppSkeletonProfile();
         }
 
         if (snapshot.hasError) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/login_activity_entry.dart';
 import '../../services/login_activity_service.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 
 class LoginActivityPage extends StatelessWidget {
@@ -197,22 +198,7 @@ class _HistoryLoadingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Row(
-        children: <Widget>[
-          SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.2,
-              color: PassengerUi.accentBlue,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text('Loading login history...', style: PassengerUi.bodyText),
-        ],
-      ),
-    );
+    return const AppSkeletonList(itemCount: 3, padding: EdgeInsets.zero);
   }
 }
 

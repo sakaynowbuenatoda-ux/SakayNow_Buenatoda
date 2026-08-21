@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../pages/profile/driver_profile.dart';
 import '../services/ride_tracking_service.dart';
+import 'app_skeleton.dart';
 import 'firebase_storage_image.dart';
 import 'passenger_widgets/passenger_ui.dart';
 
@@ -706,15 +707,20 @@ class _LeaderboardLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    return const SizedBox(
       height: 168,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: PassengerUi.mutedSurface,
-        borderRadius: BorderRadius.circular(28),
+      child: AppSkeletonShimmer(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: <Widget>[
+            Expanded(child: AppSkeletonBox(height: 112)),
+            SizedBox(width: 10),
+            Expanded(child: AppSkeletonBox(height: 152)),
+            SizedBox(width: 10),
+            Expanded(child: AppSkeletonBox(height: 96)),
+          ],
+        ),
       ),
-      child: CircularProgressIndicator(color: _accentFor(context)),
     );
   }
 }

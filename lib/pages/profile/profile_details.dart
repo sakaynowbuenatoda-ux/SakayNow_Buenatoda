@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../../core/auth/signup_validators.dart';
 import '../../services/profile_picture_service.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'models/profile_view_data.dart';
@@ -25,9 +26,7 @@ class ProfileDetailsLoaderPage extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
             backgroundColor: PassengerUi.background,
-            body: const SafeArea(
-              child: Center(child: CircularProgressIndicator()),
-            ),
+            body: const SafeArea(child: AppSkeletonProfile()),
           );
         }
 

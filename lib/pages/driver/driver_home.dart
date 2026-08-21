@@ -15,6 +15,7 @@ import '../../services/ride_tracking_service.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/action_cooldown_notice.dart';
 import '../../widgets/app_bar.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/driver_rating_leaderboard_panel.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/maps/map_type_toggle.dart';
@@ -151,7 +152,10 @@ class DriverActiveRideShortcut extends StatelessWidget {
       stream: rideTrackingService.watchDriverActiveRides(driverId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox.shrink();
+          return const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: AppSkeletonCard(showAvatar: true, lineCount: 2),
+          );
         }
 
         if (snapshot.hasError) {
@@ -990,9 +994,7 @@ class _LiveIncomingRequestsPreviewState
       stream: _rideTrackingService.watchOpenBookings(driverId: widget.driverId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const PassengerSurfaceCard(
-            child: Center(child: CircularProgressIndicator()),
-          );
+          return const AppSkeletonList(itemCount: 3, padding: EdgeInsets.zero);
         }
 
         if (snapshot.hasError) {
@@ -1223,12 +1225,7 @@ class DriverRecentTripsSection extends StatelessWidget {
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return SizedBox(
-            height: 126,
-            child: PassengerSurfaceCard(
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          );
+          return const AppSkeletonCard(showAvatar: true, height: 126);
         }
 
         if (snapshot.hasError) {

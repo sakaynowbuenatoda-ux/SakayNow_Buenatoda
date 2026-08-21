@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/time_ago_text.dart';
 import 'admin_models.dart';
@@ -68,7 +69,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
           }
 
           if (!reportsSnapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppSkeletonList(padding: EdgeInsets.zero);
           }
 
           return StreamBuilder<List<AdminUserRecord>>(
@@ -82,7 +83,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
               }
 
               if (!usersSnapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return const AppSkeletonList(padding: EdgeInsets.zero);
               }
 
               final reports = reportsSnapshot.data!;

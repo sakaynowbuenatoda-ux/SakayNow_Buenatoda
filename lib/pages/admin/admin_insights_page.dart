@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/driver_rating_leaderboard_panel.dart';
 import '../driver_ratings/driver_leaderboard_page.dart';
 import 'admin_navigation.dart';
@@ -25,7 +26,10 @@ class AdminInsightsPage extends StatelessWidget {
           }
 
           if (!usersSnapshot.hasData) {
-            return Center(child: CircularProgressIndicator());
+            return const AppSkeletonPage(
+              padding: EdgeInsets.zero,
+              showMetrics: true,
+            );
           }
 
           return StreamBuilder<List<AdminBookingRecord>>(
@@ -39,7 +43,10 @@ class AdminInsightsPage extends StatelessWidget {
               }
 
               if (!bookingsSnapshot.hasData) {
-                return Center(child: CircularProgressIndicator());
+                return const AppSkeletonPage(
+                  padding: EdgeInsets.zero,
+                  showMetrics: true,
+                );
               }
 
               final users = usersSnapshot.data!;

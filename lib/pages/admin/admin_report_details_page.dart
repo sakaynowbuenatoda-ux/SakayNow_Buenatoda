@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/time_ago_text.dart';
 import 'admin_models.dart';
 import 'admin_service.dart';
@@ -45,7 +46,10 @@ class AdminReportDetailsPage extends StatelessWidget {
                 if (!usersSnapshot.hasData ||
                     bookingSnapshot.connectionState ==
                         ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const AppSkeletonPage(
+                    padding: EdgeInsets.zero,
+                    showMetrics: true,
+                  );
                 }
 
                 final usersById = <String, AdminUserRecord>{

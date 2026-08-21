@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/passenger_payment_method.dart';
 import '../../services/payment_method_service.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_payment_method_card.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 
@@ -51,7 +52,10 @@ class _PassengerPaymentMethodsPageState
               ),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const AppSkeletonList(
+                    itemCount: 3,
+                    padding: EdgeInsets.zero,
+                  );
                 }
 
                 if (snapshot.hasError) {

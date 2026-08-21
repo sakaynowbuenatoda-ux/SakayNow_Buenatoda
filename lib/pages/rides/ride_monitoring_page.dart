@@ -14,6 +14,7 @@ import '../../services/payment_method_service.dart';
 import '../../services/ride_tracking_service.dart';
 import '../../services/xendit_checkout_service.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/maps/map_type_toggle.dart';
 import '../../widgets/maps/sakay_google_map.dart';
@@ -201,7 +202,7 @@ class _RideMonitoringPageState extends State<RideMonitoringPage> {
         animation: _controller,
         builder: (context, _) {
           if (_controller.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppSkeletonPage(showMetrics: true);
           }
 
           final ride = _controller.ride;

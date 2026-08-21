@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/auth/signup_validators.dart';
 import '../../services/email_verification_service.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 
 class ChangeUpdateEmailPage extends StatefulWidget {
@@ -538,21 +539,6 @@ class _ChangeUpdateEmailLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Row(
-        children: <Widget>[
-          SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.4,
-              color: PassengerUi.accentBlue,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text('Loading email status...', style: PassengerUi.bodyText),
-        ],
-      ),
-    );
+    return const AppSkeletonCard(showAvatar: true, lineCount: 3);
   }
 }

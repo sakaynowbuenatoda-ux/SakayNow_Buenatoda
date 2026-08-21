@@ -10,6 +10,7 @@ import '../../services/driver_registration_recovery_service.dart';
 import '../../services/driver_renewal_service.dart';
 import '../../services/driver_vehicle_service.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import '../../widgets/registration_image_preview.dart';
@@ -98,7 +99,7 @@ class _DriverInfoHubPageState extends State<DriverInfoHubPage> {
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting &&
                 !snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const AppSkeletonPage(showMetrics: true);
             }
             if (snapshot.hasError) {
               return PassengerPageContainer(

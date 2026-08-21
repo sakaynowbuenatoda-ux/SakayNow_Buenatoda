@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/app_assets.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
 import 'auth_ui.dart';
 
@@ -44,10 +45,7 @@ class LoadingScreen extends StatelessWidget {
                         ],
                       ),
                       clipBehavior: Clip.antiAlias,
-                      child: Image.asset(
-                        AppAssets.logo,
-                        fit: BoxFit.cover,
-                      ),
+                      child: Image.asset(AppAssets.logo, fit: BoxFit.cover),
                     ),
 
                     SizedBox(height: 24),
@@ -76,20 +74,14 @@ class LoadingScreen extends StatelessWidget {
 
                     SizedBox(height: 36),
 
-                    SizedBox(
-                      width: 34,
-                      height: 34,
-                      child: CircularProgressIndicator(strokeWidth: 3.2),
-                    ),
-
-                    SizedBox(height: 14),
-
-                    Text(
-                      'Loading...',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AuthUi.title,
-                        fontWeight: FontWeight.w500,
+                    const AppSkeletonShimmer(
+                      semanticLabel: 'Restoring your session',
+                      child: Column(
+                        children: <Widget>[
+                          AppSkeletonLine(width: 156, height: 14),
+                          SizedBox(height: 10),
+                          AppSkeletonLine(width: 104, height: 11),
+                        ],
                       ),
                     ),
                   ],

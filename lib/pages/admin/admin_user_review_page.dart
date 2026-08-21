@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/driver_document_status.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
 import '../../widgets/time_ago_text.dart';
@@ -69,7 +70,7 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
     AsyncSnapshot<AdminUserRecord> snapshot,
   ) {
     if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppSkeletonProfile();
     }
 
     if (snapshot.hasError) {

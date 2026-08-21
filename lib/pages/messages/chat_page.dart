@@ -10,6 +10,7 @@ import '../../models/chat_participant_profile.dart';
 import '../../models/chat_quick_replies.dart';
 import '../../services/chat_service.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/chat_quick_reply_bar.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/firebase_storage_image.dart';
@@ -675,7 +676,7 @@ class _MessageList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (conversationLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppSkeletonList(itemCount: 5);
     }
 
     return StreamBuilder<List<ChatMessage>>(
@@ -687,7 +688,7 @@ class _MessageList extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData &&
             pendingMessages.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
+          return const AppSkeletonList(itemCount: 5);
         }
 
         if (snapshot.hasError) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/admin_account_service.dart';
 import '../../services/chat_service.dart';
 import '../../utils/user_facing_error_message.dart';
+import '../../widgets/app_skeleton.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../messages/chat_page.dart';
 import 'admin_models.dart';
@@ -90,7 +91,7 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
             }
 
             if (!currentAdminSnapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const AppSkeletonPage(padding: EdgeInsets.zero);
             }
 
             final currentAdmin = currentAdminSnapshot.data!;
@@ -111,7 +112,7 @@ class _AdminAccountsPageState extends State<AdminAccountsPage> {
                 }
 
                 if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const AppSkeletonList(padding: EdgeInsets.zero);
                 }
 
                 final allAdmins = snapshot.data!;

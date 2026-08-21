@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../models/ride.dart';
 import '../../../services/booking_action_cooldown_service.dart';
 import '../../../services/ride_tracking_service.dart';
+import '../../../widgets/app_skeleton.dart';
 import '../../../widgets/firebase_storage_image.dart';
 import '../../../widgets/maps/ride_location_preview_dialog.dart';
 import '../../../widgets/passenger_widgets/passenger_ui.dart';
@@ -50,6 +51,11 @@ class DriverRideRequestCard extends StatelessWidget {
     return StreamBuilder<PassengerReviewProfile>(
       stream: rideTrackingService.watchPassengerProfile(ride.passengerId),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const AppSkeletonCard(showAvatar: true, lineCount: 4);
+        }
+
         final passenger = snapshot.data;
 
         return PassengerSurfaceCard(

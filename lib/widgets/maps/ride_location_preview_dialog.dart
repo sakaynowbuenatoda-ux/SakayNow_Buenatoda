@@ -111,8 +111,17 @@ class _RideLocationPreviewDialogState extends State<RideLocationPreviewDialog> {
   @override
   void initState() {
     super.initState();
-    _route = widget.route;
-    if (!_hasRoadRoute(_route)) {
+    final pickup = widget.pickupLocation.latLng!;
+    final dropoff = widget.dropoffLocation.latLng!;
+    final savedRoute =
+        routeMatchesPreviewTrip(widget.route, pickup: pickup, dropoff: dropoff)
+        ? widget.route
+        : null;
+
+    // Keep the route used for the original ETA when it is valid. If historical
+    // geometry is missing or corrupt, load a replacement road route.
+    _route = savedRoute;
+    if (savedRoute == null) {
       _loadRoadRoute();
     }
   }
@@ -169,7 +178,6 @@ class _RideLocationPreviewDialogState extends State<RideLocationPreviewDialog> {
                           bounds: _boundsFor(
                             pickup,
                             dropoff,
-                            route: _route,
                             routePoints: routePoints,
                           ),
                           markers: _markersFor(pickup, dropoff),
@@ -265,8 +273,13 @@ class _RideLocationPreviewDialogState extends State<RideLocationPreviewDialog> {
       }
 
       setState(() {
-        _route = route;
-        _couldNotLoadRoute = !_hasRoadRoute(route);
+        final matchesTrip = routeMatchesPreviewTrip(
+          route,
+          pickup: pickup,
+          dropoff: dropoff,
+        );
+        _route = matchesTrip ? route : null;
+        _couldNotLoadRoute = !matchesTrip;
       });
     } on Exception {
       if (!mounted) {
@@ -298,14 +311,10 @@ class _RideLocationPreviewDialogState extends State<RideLocationPreviewDialog> {
   LatLngBounds _boundsFor(
     LatLng pickup,
     LatLng dropoff, {
-    required RouteResult? route,
     required List<LatLng> routePoints,
   }) {
-    final routeBounds = route?.bounds;
-    if (routeBounds != null) {
-      return routeBounds;
-    }
-
+    // Derive the viewport from the geometry that is actually drawn. Stored
+    // bounds may predate corrected pickup/drop-off coordinates.
     final points = <LatLng>[pickup, dropoff, ...routePoints];
     return LatLngBounds(
       southwest: LatLng(
@@ -332,6 +341,78 @@ List<LatLng> routePreviewPolylinePoints(RouteResult? route) {
 
 bool _hasRoadRoute(RouteResult? route) =>
     route != null && route.polylinePoints.length > 2;
+
+/// Rejects saved geometry that belongs to another trip or does not terminate
+/// near the selected pickup and drop-off. Google may snap endpoints to a road,
+/// so a small tolerance is intentional.
+bool routeMatchesPreviewTrip(
+  RouteResult? route, {
+  required LatLng pickup,
+  required LatLng dropoff,
+}) {
+  if (!_hasRoadRoute(route)) {
+    return false;
+  }
+
+  final points = route!.polylinePoints;
+  if (points.any((point) => !_isValidCoordinate(point))) {
+    return false;
+  }
+
+  const endpointToleranceMeters = 750.0;
+  if (_distanceMeters(points.first, pickup) > endpointToleranceMeters ||
+      _distanceMeters(points.last, dropoff) > endpointToleranceMeters) {
+    return false;
+  }
+
+  final directDistanceMeters = _distanceMeters(pickup, dropoff);
+  final storedDistanceMeters = route.distanceMeters.toDouble();
+  final expectedDistanceMeters = math.max(
+    directDistanceMeters,
+    storedDistanceMeters,
+  );
+  final maximumPlausibleGeometryMeters = math.max(
+    3000.0,
+    expectedDistanceMeters * 2.5,
+  );
+
+  var geometryDistanceMeters = 0.0;
+  for (var index = 1; index < points.length; index += 1) {
+    geometryDistanceMeters += _distanceMeters(points[index - 1], points[index]);
+    if (geometryDistanceMeters > maximumPlausibleGeometryMeters) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool _isValidCoordinate(LatLng point) {
+  return point.latitude.isFinite &&
+      point.longitude.isFinite &&
+      point.latitude >= -90 &&
+      point.latitude <= 90 &&
+      point.longitude >= -180 &&
+      point.longitude <= 180;
+}
+
+double _distanceMeters(LatLng a, LatLng b) {
+  const earthRadiusMeters = 6371000.0;
+  final latitudeDelta = _toRadians(b.latitude - a.latitude);
+  final longitudeDelta = _toRadians(b.longitude - a.longitude);
+  final aLatitude = _toRadians(a.latitude);
+  final bLatitude = _toRadians(b.latitude);
+  final haversine =
+      math.pow(math.sin(latitudeDelta / 2), 2) +
+      math.cos(aLatitude) *
+          math.cos(bLatitude) *
+          math.pow(math.sin(longitudeDelta / 2), 2);
+  return earthRadiusMeters *
+      2 *
+      math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine));
+}
+
+double _toRadians(double degrees) => degrees * math.pi / 180;
 
 class _RouteLoadingOverlay extends StatelessWidget {
   const _RouteLoadingOverlay();

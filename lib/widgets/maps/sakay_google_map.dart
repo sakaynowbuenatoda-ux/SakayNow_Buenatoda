@@ -105,6 +105,7 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
   MarkerId? _selectedProfilePinId;
   ScreenCoordinate? _selectedProfilePinCoordinate;
   bool _isDisposed = false;
+  int _cameraMoveRevision = 0;
 
   @override
   void initState() {
@@ -151,6 +152,7 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
   @override
   void dispose() {
     _isDisposed = true;
+    _cameraMoveRevision += 1;
     super.dispose();
   }
 
@@ -340,14 +342,15 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
   }
 
   void _scheduleMoveCamera() {
+    final revision = ++_cameraMoveRevision;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_isDisposed && mounted) {
-        _moveCamera();
+        _moveCamera(revision);
       }
     });
   }
 
-  Future<void> _moveCamera() async {
+  Future<void> _moveCamera(int revision) async {
     final controller = _controller;
     if (controller == null || _isDisposed || !mounted) {
       return;
@@ -359,14 +362,11 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
       if (!widget.preferInitialCameraTarget &&
           bounds != null &&
           !_isSinglePoint(bounds)) {
-        await Future<void>.delayed(const Duration(milliseconds: 120));
-        if (_isDisposed || !mounted) {
-          return;
-        }
-        await controller.animateCamera(
-          CameraUpdate.newLatLngBounds(bounds, 56),
-        );
-        await _applyCameraTargetOffset(controller);
+        await _fitBoundsWhenMapIsReady(controller, bounds, revision);
+        return;
+      }
+
+      if (revision != _cameraMoveRevision) {
         return;
       }
 
@@ -381,6 +381,37 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
       await _applyCameraTargetOffset(controller);
     } catch (_) {
       // GoogleMap can reject camera bounds before the first layout pass.
+    }
+  }
+
+  Future<void> _fitBoundsWhenMapIsReady(
+    GoogleMapController controller,
+    LatLngBounds bounds,
+    int revision,
+  ) async {
+    const retryDelays = <Duration>[
+      Duration(milliseconds: 120),
+      Duration(milliseconds: 240),
+      Duration(milliseconds: 480),
+      Duration(milliseconds: 800),
+    ];
+
+    for (final delay in retryDelays) {
+      await Future<void>.delayed(delay);
+      if (_isDisposed || !mounted || revision != _cameraMoveRevision) {
+        return;
+      }
+
+      try {
+        await controller.animateCamera(
+          CameraUpdate.newLatLngBounds(bounds, 56),
+        );
+        await _applyCameraTargetOffset(controller);
+        return;
+      } catch (_) {
+        // Web platform views can need more than one layout pass before bounds
+        // camera updates are accepted.
+      }
     }
   }
 

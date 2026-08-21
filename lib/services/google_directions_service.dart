@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../config/app_environment.dart';
 import '../config/map_config.dart';
 import '../models/route_result.dart';
+import 'google_directions_web_api.dart';
 import 'google_maps_api_exception.dart';
 
 class GoogleDirectionsService {
@@ -18,6 +19,13 @@ class GoogleDirectionsService {
     required LatLng origin,
     required LatLng destination,
   }) async {
+    if (googleDirectionsWebApiSupported) {
+      return fetchRouteWithGoogleDirectionsWeb(
+        origin: origin,
+        destination: destination,
+      );
+    }
+
     final apiKey = _requireApiKey();
     final uri = Uri.https(
       MapConfig.googleApisHost,

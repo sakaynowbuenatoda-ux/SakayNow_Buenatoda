@@ -132,11 +132,11 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                           label: 'Plate / Franchise No.',
                           value: user.effectivePlateNumber ?? 'Not provided',
                         ),
-                        _InfoTimeRow(
+                        _InfoDateRow(
                           label: 'Driver\'s License Expiry',
                           value: user.effectiveDriversLicenseExpiry,
                         ),
-                        _InfoTimeRow(
+                        _InfoDateRow(
                           label: 'OR/CR Expiry',
                           value: user.effectiveOrCrExpiry,
                           isLast: true,
@@ -882,7 +882,7 @@ class _ActionPanel extends StatelessWidget {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Cannot verify account: This driver has incomplete vehicle information or missing verification documents.',
+                      'Some driver documents or vehicle details are missing or expired. Admin verification is still available as an override; confirm the driver\'s identity before approving.',
                       style: TextStyle(
                         fontSize: 13,
                         color: AdminUi.title,
@@ -1076,6 +1076,41 @@ class _InfoTimeRow extends StatelessWidget {
           SizedBox(width: 10),
           Expanded(
             child: TimeAgoText(dateTime: value, style: AdminUi.valueText),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoDateRow extends StatelessWidget {
+  final String label;
+  final DateTime? value;
+  final bool isLast;
+
+  const _InfoDateRow({
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 112,
+            child: Text(
+              label,
+              style: AdminUi.bodyText.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: SelectableText(formatDate(value), style: AdminUi.valueText),
           ),
         ],
       ),

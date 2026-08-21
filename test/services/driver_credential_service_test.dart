@@ -9,7 +9,8 @@ void main() {
       await firestore.collection('users').doc('driver-1').set(<String, dynamic>{
         'user_id': 'driver-1',
         'role': 'driver',
-        'is_verified': true,
+        'is_verified': false,
+        'isVerified': true,
         'is_active': true,
         'drivers_license_url': 'https://example.com/approved-license.jpg',
         'drivers_license_path': 'users/driver-1/drivers_license.jpg',
@@ -37,6 +38,7 @@ void main() {
       expect(data['drivers_license_url'], contains('approved-license'));
       expect(data['document_review_status'], 'pending');
       expect(data['is_verified'], isTrue);
+      expect(data['isVerified'], isTrue);
       expect(data['is_active'], isTrue);
     });
 

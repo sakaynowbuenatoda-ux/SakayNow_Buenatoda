@@ -282,6 +282,11 @@ void main() {
         rules,
         contains("userData.get('account_status', 'active') != 'deactivated'"),
       );
+      expect(
+        rules,
+        contains('function isValidVerificationCanonicalization(affectedKeys)'),
+      );
+      expect(rules, contains('request.resource.data.is_verified == true'));
     });
 
     test('gate live driver locations to driver-owned verified accounts', () {

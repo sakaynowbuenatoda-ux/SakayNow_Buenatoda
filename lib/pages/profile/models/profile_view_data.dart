@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/session/account_flags.dart';
 import '../../../models/driver_rating.dart';
 import '../../../core/session/user_roles.dart';
 
@@ -128,12 +129,7 @@ class ProfileViewData {
       passengerType: normalizedPassengerType,
       gender: (data['gender'] ?? '').toString().trim(),
       age: (data['age'] ?? '').toString().trim(),
-      isVerified:
-          (data['is_verified'] ??
-              data['isVerified'] ??
-              data['isVerrified'] ??
-              false) ==
-          true,
+      isVerified: isVerifiedAccountData(data),
       profilePictureUrl: _normalizeOptional(
         data['profile_picture_url'] ?? data['profile_image_url'],
       ),

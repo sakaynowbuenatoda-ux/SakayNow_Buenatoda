@@ -61,6 +61,18 @@ service cloud.firestore {
         || userData.get('isVerrified', false) == true;
     }
 
+    function isValidVerificationCanonicalization(affectedKeys) {
+      return !affectedKeys.hasAny(['is_verified'])
+        || (
+          resource.data.get('is_verified', false) != true
+          && (
+            resource.data.get('isVerified', false) == true
+            || resource.data.get('isVerrified', false) == true
+          )
+          && request.resource.data.is_verified == true
+        );
+    }
+
     function isNotBanned(userData) {
       return userData.get('is_banned', false) != true
         && userData.get('isBanned', false) != true;
@@ -459,6 +471,7 @@ service cloud.firestore {
 
     function driverVehicleUpdateFields() {
       return [
+        'is_verified',
         'pending_document_review',
         'document_review_status',
         'document_review_submitted_at',
@@ -503,6 +516,7 @@ service cloud.firestore {
         && resource.data.get('document_review_status', 'none') != 'pending'
         && affectedKeys.hasOnly(driverVehicleUpdateFields())
         && affectedKeys.hasAny(['pending_document_review'])
+        && isValidVerificationCanonicalization(affectedKeys)
         && pendingReview is map
         && pendingReview.keys().hasOnly([
           'kind',
@@ -644,6 +658,7 @@ service cloud.firestore {
 
     function driverCredentialUpdateFields() {
       return [
+        'is_verified',
         'pending_document_review',
         'document_review_status',
         'document_review_submitted_at',
@@ -693,6 +708,7 @@ service cloud.firestore {
         && resource.data.get('document_review_status', 'none') != 'pending'
         && affectedKeys.hasOnly(driverCredentialUpdateFields())
         && affectedKeys.hasAny(['pending_document_review'])
+        && isValidVerificationCanonicalization(affectedKeys)
         && pendingReview is map
         && pendingReview.keys().hasOnly([
           'kind',
@@ -988,6 +1004,7 @@ service cloud.firestore {
 
     function passengerDocumentUploadFields() {
       return [
+        'is_verified',
         'pending_document_review',
         'document_review_status',
         'document_review_submitted_at',
@@ -1028,6 +1045,7 @@ service cloud.firestore {
         && resource.data.get('document_review_status', 'none') != 'pending'
         && affectedKeys.hasOnly(passengerDocumentUploadFields())
         && affectedKeys.hasAny(['pending_document_review'])
+        && isValidVerificationCanonicalization(affectedKeys)
         && pendingReview is map
         && pendingReview.keys().hasOnly([
           'kind',

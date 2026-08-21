@@ -870,6 +870,14 @@ String formatDateTime(DateTime? value) {
   return '${_monthLabel(value.month)} ${value.day}, ${value.year} - $hour:$minute $period';
 }
 
+String formatDate(DateTime? value) {
+  if (value == null) {
+    return 'Not recorded';
+  }
+
+  return '${_monthLabel(value.month)} ${value.day}, ${value.year}';
+}
+
 String _monthLabel(int month) {
   const labels = <String>[
     'Jan',

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 import '../core/auth/registration_service.dart';
+import '../core/session/account_flags.dart';
 
 class DriverVehicleService {
   DriverVehicleService({FirebaseFirestore? firestore, FirebaseStorage? storage})
@@ -78,6 +79,9 @@ class DriverVehicleService {
         'vehicle_details_updated_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
       };
+      if (isVerified && data['is_verified'] != true) {
+        updates['is_verified'] = true;
+      }
       final pendingReview = <String, dynamic>{
         'kind': 'driver_vehicle',
         'vehicle_type': normalizedVehicleType,
@@ -183,9 +187,7 @@ class DriverVehicleService {
   static bool _hasValue(String? value) => value?.trim().isNotEmpty == true;
 
   static bool _isVerified(Map<String, dynamic> data) {
-    return data['is_verified'] == true ||
-        data['isVerified'] == true ||
-        data['isVerrified'] == true;
+    return isVerifiedAccountData(data);
   }
 
   static String _fileExtension(String fileName) {

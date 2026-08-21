@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../models/driver_document_status.dart';
 import '../../models/ride_location.dart';
 import '../../models/route_result.dart';
+import '../../core/session/account_flags.dart';
 import '../../core/session/user_roles.dart';
 import 'widgets/admin_ui.dart';
 
@@ -110,12 +111,7 @@ class AdminUserRecord {
           .toLowerCase(),
       gender: (data['gender'] ?? '').toString().trim(),
       age: (data['age'] ?? '').toString().trim(),
-      isVerified:
-          (data['is_verified'] ??
-              data['isVerified'] ??
-              data['isVerrified'] ??
-              false) ==
-          true,
+      isVerified: isVerifiedAccountData(data),
       isActive: (data['is_active'] ?? data['isActive'] ?? false) == true,
       isBanned: (data['is_banned'] ?? data['isBanned'] ?? false) == true,
       isDeactivated:
@@ -263,8 +259,7 @@ class AdminUserRecord {
       effectiveDriversLicenseExpiry!.isAfter(DateTime.now()) &&
       effectiveOrCrExpiry!.isAfter(DateTime.now());
 
-  bool get canBeApproved =>
-      isPendingVerification && (!isDriver || isDriverVerificationComplete);
+  bool get canBeApproved => isPendingVerification;
 
   String get roleLabel {
     if (isSuperAdmin) return 'Super Admin';

@@ -652,6 +652,91 @@ export const restoreAdminAccount = onCall(
   },
 );
 
+export const verifyUserAccount = onCall(
+  {
+    region: "asia-southeast1",
+  },
+  async (request) => {
+    const requesterId = request.auth?.uid;
+    if (!requesterId) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in with an admin account to verify users.",
+      );
+    }
+
+    const requesterSnapshot = await firestore
+      .collection("users")
+      .doc(requesterId)
+      .get();
+    const requester = requesterSnapshot.data();
+    if (!requesterSnapshot.exists || !requester || !isAdminStaff(requester)) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only active admin staff can verify users.",
+      );
+    }
+
+    const userId = readRequiredString(request.data, "user_id");
+    if (userId === requesterId) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Admin accounts are managed separately.",
+      );
+    }
+
+    const userRef = firestore.collection("users").doc(userId);
+    await firestore.runTransaction(async (transaction) => {
+      const targetSnapshot = await transaction.get(userRef);
+      const target = targetSnapshot.data();
+      if (!targetSnapshot.exists || !target) {
+        throw new HttpsError("not-found", "User account was not found.");
+      }
+
+      const targetRole = normalizedUserRole(target);
+      if (
+        isAdminStaffRole(targetRole) ||
+        (targetRole !== "driver" && targetRole !== "passenger")
+      ) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Only passenger and driver accounts can be verified here.",
+        );
+      }
+      if (isDeletedAccount(target)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Deleted accounts cannot be verified.",
+        );
+      }
+
+      const updates = approvedPendingReviewUpdates(target, requesterId);
+      transaction.set(
+        userRef,
+        {
+          ...updates,
+          is_verified: true,
+          isVerified: true,
+          isVerrified: true,
+          is_active: true,
+          isActive: true,
+          is_banned: false,
+          isBanned: false,
+          is_deactivated: false,
+          isDeactivated: false,
+          account_status: "active",
+          reviewed_by: requesterId,
+          reviewed_at: FieldValue.serverTimestamp(),
+          updated_at: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+    });
+
+    return {user_id: userId, verified: true};
+  },
+);
+
 export const ensureAdminDirectConversation = onCall(
   {
     region: "asia-southeast1",
@@ -3160,6 +3245,82 @@ function documentReviewLabel(review: Record<string, unknown>) {
   if (kind === "driver_vehicle") return "vehicle profile update";
   if (kind === "passenger_identity") return "passenger identity update";
   return "document update";
+}
+
+function approvedPendingReviewUpdates(
+  user: Record<string, unknown>,
+  reviewerId: string,
+) {
+  if (readOptionalString(user.document_review_status) !== "pending") {
+    return {};
+  }
+
+  const review = readMap(user.pending_document_review);
+  const kind = readOptionalString(review.kind);
+  const updates: Record<string, unknown> = {};
+
+  if (kind === "driver_credential") {
+    const credentialType = readOptionalString(review.credential_type);
+    if (
+      credentialType &&
+      ["nbi_clearance", "drivers_license", "selfie", "or_cr"]
+        .includes(credentialType)
+    ) {
+      const documentUrl = readOptionalString(review.document_url);
+      const documentPath = readOptionalString(review.document_path);
+      if (documentUrl) updates[`${credentialType}_url`] = documentUrl;
+      if (documentPath) updates[`${credentialType}_path`] = documentPath;
+
+      if (credentialType === "drivers_license" || credentialType === "or_cr") {
+        const expiry = timestampFromUnknown(review.expiry);
+        if (expiry) updates[`${credentialType}_expiry`] = expiry;
+      }
+    }
+  } else if (kind === "driver_vehicle") {
+    for (const field of [
+      "vehicle_type",
+      "tricycle_color",
+      "plate_number",
+      "tricycle_front_url",
+      "tricycle_front_path",
+      "tricycle_back_url",
+      "tricycle_back_path",
+    ]) {
+      const value = readOptionalString(review[field]);
+      if (value) updates[field] = value;
+    }
+  } else if (kind === "passenger_identity") {
+    for (const field of [
+      "id_image_url",
+      "id_image_path",
+      "selfie_url",
+      "selfie_path",
+    ]) {
+      const value = readOptionalString(review[field]);
+      if (value) updates[field] = value;
+    }
+  }
+
+  if (normalizedUserRole(user) === "driver") {
+    const documentState = driverDocumentExpiryState(
+      {...user, ...updates},
+      Timestamp.now(),
+    );
+    if (documentState) {
+      updates.document_status = documentState;
+      updates.document_status_updated_at = FieldValue.serverTimestamp();
+    }
+  }
+
+  return {
+    ...updates,
+    document_review_status: "approved",
+    document_upload_status: "approved",
+    document_review_reviewed_by: reviewerId,
+    document_review_reviewed_at: FieldValue.serverTimestamp(),
+    document_review_rejection_reason: FieldValue.delete(),
+    pending_document_review: FieldValue.delete(),
+  };
 }
 
 function retentionExpiresFromNow() {

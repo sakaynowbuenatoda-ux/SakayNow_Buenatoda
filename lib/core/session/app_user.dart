@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 export 'user_roles.dart';
 
 import '../../models/driver_document_status.dart';
+import 'account_flags.dart';
 import 'user_roles.dart';
 
 enum PassengerType { regular, student, seniorCitizen }
@@ -99,12 +100,7 @@ class AppUser {
       email: (data['email'] ?? '').toString(),
       role: normalizedRole,
       passengerType: normalizedPassengerType,
-      isVerified:
-          (data['is_verified'] ??
-              data['isVerified'] ??
-              data['isVerrified'] ??
-              false) ==
-          true,
+      isVerified: isVerifiedAccountData(data),
       isActive: (data['is_active'] ?? data['isActive'] ?? false) == true,
       isBanned: (data['is_banned'] ?? data['isBanned'] ?? false) == true,
       isDeactivated:

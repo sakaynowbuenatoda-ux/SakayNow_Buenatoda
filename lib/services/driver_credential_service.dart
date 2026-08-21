@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 import '../core/auth/registration_service.dart';
+import '../core/session/account_flags.dart';
 
 enum DriverCredentialType {
   driversLicense,
@@ -130,6 +131,9 @@ class DriverCredentialService {
         'credential_updated_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
       };
+      if (isVerified && data['is_verified'] != true) {
+        updates['is_verified'] = true;
+      }
       if (isVerified) {
         final pendingReview = <String, dynamic>{
           'kind': 'driver_credential',
@@ -186,9 +190,7 @@ class DriverCredentialService {
   }
 
   static bool _isVerified(Map<String, dynamic> data) {
-    return data['is_verified'] == true ||
-        data['isVerified'] == true ||
-        data['isVerrified'] == true;
+    return isVerifiedAccountData(data);
   }
 
   static String _fileExtension(String fileName) {

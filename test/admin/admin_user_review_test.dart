@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sakaynow_buenatoda/models/driver_document_status.dart';
 import 'package:sakaynow_buenatoda/pages/admin/admin_models.dart';
+import 'package:sakaynow_buenatoda/pages/admin/widgets/admin_shared.dart';
 
 void main() {
   AdminUserRecord buildUser({
@@ -91,7 +92,7 @@ void main() {
     );
 
     test(
-      'driver missing OR/CR document is flagged as incomplete and cannot be approved',
+      'admin can override missing OR/CR while the profile remains flagged',
       () {
         final driver = buildUser(
           role: 'driver',
@@ -101,12 +102,12 @@ void main() {
         expect(driver.isPendingVerification, isTrue);
         expect(driver.hasDriverDocuments, isFalse);
         expect(driver.isDriverVerificationComplete, isFalse);
-        expect(driver.canBeApproved, isFalse);
+        expect(driver.canBeApproved, isTrue);
       },
     );
 
     test(
-      'driver missing plate number is flagged as incomplete and cannot be approved',
+      'admin can override a missing plate number while it remains flagged',
       () {
         final driver = buildUser(
           role: 'driver',
@@ -115,9 +116,14 @@ void main() {
         );
         expect(driver.isPendingVerification, isTrue);
         expect(driver.isDriverVerificationComplete, isFalse);
-        expect(driver.canBeApproved, isFalse);
+        expect(driver.canBeApproved, isTrue);
       },
     );
+
+    test('expiry dates use an exact calendar date', () {
+      expect(formatDate(DateTime(2028, 7, 9)), 'Jul 9, 2028');
+      expect(formatDate(null), 'Not recorded');
+    });
 
     test('passenger does not require vehicle data to be approved', () {
       final passenger = buildUser(

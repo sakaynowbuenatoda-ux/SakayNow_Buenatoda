@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../core/session/account_flags.dart';
 import '../models/distance_matrix_result.dart';
 import '../models/driver_rating.dart';
 import '../models/driver_document_status.dart';
@@ -1662,11 +1663,7 @@ class RideTrackingService {
   }
 
   static bool _isVerifiedFlag(Map<String, dynamic> data) {
-    return (data['is_verified'] ??
-            data['isVerified'] ??
-            data['isVerrified'] ??
-            false) ==
-        true;
+    return isVerifiedAccountData(data);
   }
 
   static String _normalizedRole(Map<String, dynamic> data) {
@@ -1929,12 +1926,7 @@ class PassengerFareProfile {
         'senior_citizen' => 'senior_citizen',
         _ => 'regular',
       },
-      isVerified:
-          (data['is_verified'] ??
-              data['isVerified'] ??
-              data['isVerrified'] ??
-              false) ==
-          true,
+      isVerified: isVerifiedAccountData(data),
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/auth/registration_service.dart';
+import '../../core/session/account_flags.dart';
 import '../../models/driver_document_status.dart';
 import '../../services/driver_credential_service.dart';
 import '../../services/driver_registration_recovery_service.dart';
@@ -1465,7 +1466,7 @@ class _DriverHubProfile {
       gender: gender.isEmpty
           ? ''
           : '${gender[0].toUpperCase()}${gender.substring(1).toLowerCase()}',
-      isVerified: (data['is_verified'] ?? data['isVerified'] ?? false) == true,
+      isVerified: isVerifiedAccountData(data),
       vehicleType: value('vehicle_type'),
       tricycleColor: value('tricycle_color'),
       plateNumber: value('plate_number'),

@@ -9,7 +9,7 @@ void main() {
       await firestore.collection('users').doc('driver-1').set(<String, dynamic>{
         'user_id': 'driver-1',
         'role': 'driver',
-        'is_verified': true,
+        'is_verified': false,
         'isVerified': true,
         'is_active': true,
         'isActive': true,

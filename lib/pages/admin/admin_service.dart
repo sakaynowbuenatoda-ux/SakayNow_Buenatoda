@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../models/fare_settings.dart';
 import '../../services/fare_settings_service.dart';
@@ -9,6 +10,9 @@ class AdminService {
   AdminService._();
 
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: 'asia-southeast1',
+  );
   static final FareSettingsService _fareSettingsService = FareSettingsService(
     firestore: _firestore,
   );
@@ -381,27 +385,10 @@ class AdminService {
     required String userId,
     required String adminId,
   }) async {
-    final userRef = _firestore.collection('users').doc(userId);
-    await _firestore.runTransaction((transaction) async {
-      final snapshot = await transaction.get(userRef);
-      if (!snapshot.exists) {
-        throw StateError('User account not found.');
-      }
-      final data = snapshot.data() ?? <String, dynamic>{};
-      final updates = <String, dynamic>{
-        ..._approvedPendingDocumentReviewUpdates(data),
-        'is_verified': true,
-        'is_active': true,
-        'is_banned': false,
-        'account_status': 'active',
-        'reviewed_by': adminId,
-        'reviewed_at': FieldValue.serverTimestamp(),
-        'updated_at': FieldValue.serverTimestamp(),
-      };
-      if (_hasPendingDocumentReview(data)) {
-        _markDocumentReviewApproved(updates, adminId: adminId);
-      }
-      transaction.update(userRef, updates);
+    final callable = _functions.httpsCallable('verifyUserAccount');
+    await callable.call<Map<String, dynamic>>(<String, dynamic>{
+      'user_id': userId.trim(),
+      'admin_id': adminId.trim(),
     });
   }
 

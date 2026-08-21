@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/auth/registration_service.dart';
+import '../../core/session/account_flags.dart';
 import '../../utils/user_facing_error_message.dart';
 import '../../widgets/passenger_verification_upload_card.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
@@ -51,10 +52,7 @@ class _PassengerDocumentVerificationPageState
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
         setState(() {
-          _isVerified =
-              data['is_verified'] == true ||
-              data['isVerified'] == true ||
-              data['isVerrified'] == true;
+          _isVerified = isVerifiedAccountData(data);
           _uploadStatus = data['document_upload_status'] as String? ?? 'none';
           _documentReviewStatus =
               data['document_review_status'] as String? ?? 'none';
@@ -177,6 +175,9 @@ class _PassengerDocumentVerificationPageState
       updates['document_review_rejection_reason'] = FieldValue.delete();
       updates['pending_document_review'] = pendingReview;
       updates['updated_at'] = FieldValue.serverTimestamp();
+      if (_isVerified) {
+        updates['is_verified'] = true;
+      }
 
       await FirebaseFirestore.instance
           .collection('users')

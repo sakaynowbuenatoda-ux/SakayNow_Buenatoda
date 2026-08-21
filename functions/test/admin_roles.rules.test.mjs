@@ -72,6 +72,18 @@ beforeEach(async () => {
         account_status: "active",
       },
       "driver-1": activeUser("driver"),
+      "legacy-driver": {
+        role: "driver",
+        email: "legacy-driver@example.com",
+        is_verified: false,
+        isVerified: true,
+        is_active: true,
+        is_banned: false,
+        is_deactivated: false,
+        account_status: "active",
+        tricycle_front_url: "https://example.com/legacy-front.jpg",
+        tricycle_back_url: "https://example.com/legacy-back.jpg",
+      },
       "new-driver": {
         role: "driver",
         email: "new-driver@example.com",
@@ -478,6 +490,38 @@ test("verified drivers stage credential replacements without losing access", asy
       updated_at: serverTimestamp(),
     }),
   );
+});
+
+test("legacy verified drivers canonicalize verification during review", async () => {
+  const firestore = environment
+    .authenticatedContext("legacy-driver")
+    .firestore();
+
+  await assertSucceeds(
+    updateDoc(doc(firestore, "users", "legacy-driver"), {
+      is_verified: true,
+      pending_document_review: {
+        kind: "driver_vehicle",
+        vehicle_type: "Traditional Tricycle",
+        tricycle_color: "Black",
+        plate_number: "LEGACY-1",
+        tricycle_front_url: "https://example.com/legacy-front.jpg",
+        tricycle_back_url: "https://example.com/legacy-back.jpg",
+        submitted_at: serverTimestamp(),
+      },
+      document_review_status: "pending",
+      document_review_submitted_at: serverTimestamp(),
+      document_upload_status: "uploaded",
+      document_upload_error: deleteField(),
+      vehicle_details_updated_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    }),
+  );
+
+  const profile = await getDoc(doc(firestore, "users", "legacy-driver"));
+  assert.equal(profile.data().is_verified, true);
+  assert.equal(profile.data().isVerified, true);
+  assert.equal(profile.data().document_review_status, "pending");
 });
 
 test("admin-direct threads are restricted to active participants", async () => {

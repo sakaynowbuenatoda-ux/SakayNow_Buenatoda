@@ -1943,7 +1943,7 @@ export const refreshDriverDocumentStatuses = onSchedule(
             "Driver document expired" :
             "Driver document expiring soon",
           body: status === "expired" ?
-            "You are offline until an admin approves a valid replacement document." :
+            "Your account remains verified, but you are offline until an admin approves a valid replacement document." :
             "Your Driver's License or OR/CR expires within 30 days. Submit a renewal in the Driver Info Hub.",
           channel: "account",
           sourceId: `driver_document_${status}_${doc.id}_${expiry?.seconds ?? 0}`,
@@ -1954,6 +1954,25 @@ export const refreshDriverDocumentStatuses = onSchedule(
           },
           sendPush: true,
         });
+
+        if (status === "expired") {
+          await notifyAdmins({
+            role: "admin",
+            type: "driver_documents_expired_admin",
+            title: "Driver documents expired",
+            body: `${fullName(driver)} has an expired Driver's License or OR/CR. Review the driver's profile and submitted renewal.`,
+            channel: "account",
+            sourceId:
+              `driver_documents_expired_admin_${doc.id}_${expiry?.seconds ?? 0}`,
+            data: {
+              user_id: doc.id,
+              driver_id: doc.id,
+              role: "driver",
+              document_status: status,
+            },
+            sendPush: true,
+          });
+        }
       }
     }));
   },

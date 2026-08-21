@@ -15,12 +15,14 @@ import 'widgets/driver_ride_request_card.dart';
 class DriverQueuePage extends StatefulWidget {
   final String driverId;
   final bool isVerified;
+  final bool canReceiveBookings;
   final bool isActive;
 
   const DriverQueuePage({
     super.key,
     required this.driverId,
     required this.isVerified,
+    required this.canReceiveBookings,
     required this.isActive,
   });
 
@@ -75,6 +77,13 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
                 title: 'Pending verification',
                 description:
                     'Admin verification is required before accepting passenger bookings.',
+              )
+            else if (!widget.canReceiveBookings)
+              const PassengerEmptyState(
+                icon: Icons.event_busy_rounded,
+                title: 'Documents expired',
+                description:
+                    'Your account remains verified. Submit a current Driver\'s License or OR/CR before opening the booking queue.',
               )
             else if (!widget.isActive)
               const PassengerEmptyState(
@@ -177,6 +186,16 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
       );
       return;
     }
+    if (!widget.canReceiveBookings) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Your account remains verified, but current driver documents are required before accepting bookings.',
+          ),
+        ),
+      );
+      return;
+    }
 
     final acceptCooldownRemaining = _acceptCooldownRemaining;
     if (acceptCooldownRemaining > Duration.zero) {
@@ -244,6 +263,16 @@ class _DriverQueuePageState extends State<DriverQueuePage> {
         const SnackBar(
           content: Text(
             'Admin verification is required before declining bookings.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (!widget.canReceiveBookings) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Your account remains verified, but current driver documents are required before managing booking requests.',
           ),
         ),
       );

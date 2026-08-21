@@ -188,7 +188,7 @@ class _AdminOverviewData {
   final int unverifiedPassengers;
   final int pendingDocumentReviews;
   final int activeDrivers;
-  final int studentPassengers;
+  final int expiredDriverDocuments;
   final int completedBookings;
   final int activeBookings;
   final int todayRequestedBookings;
@@ -204,7 +204,7 @@ class _AdminOverviewData {
     required this.unverifiedPassengers,
     required this.pendingDocumentReviews,
     required this.activeDrivers,
-    required this.studentPassengers,
+    required this.expiredDriverDocuments,
     required this.completedBookings,
     required this.activeBookings,
     required this.todayRequestedBookings,
@@ -239,7 +239,9 @@ class _AdminOverviewData {
       unverifiedPassengers: unverifiedPassengers,
       pendingDocumentReviews: pendingDocumentReviews,
       activeDrivers: activeDriverCount,
-      studentPassengers: users.where((user) => user.isStudentPassenger).length,
+      expiredDriverDocuments: users
+          .where((user) => user.hasExpiredDriverDocuments)
+          .length,
       completedBookings: bookings
           .where((booking) => booking.isCompleted)
           .length,
@@ -399,12 +401,12 @@ class _OverviewMetricPanel extends StatelessWidget {
               _MetricTileFrame(
                 width: cardWidth,
                 child: AdminMetricCard(
-                  label: 'Student accounts',
-                  value: overview.studentPassengers.toString(),
-                  helper: 'Discount-eligible users',
-                  icon: Icons.school_rounded,
-                  accentColor: AdminUi.accentBlue,
-                  onTap: () => AdminNavigation.openStudentAccounts(
+                  label: 'Expired documents',
+                  value: overview.expiredDriverDocuments.toString(),
+                  helper: 'Verified drivers requiring renewal',
+                  icon: Icons.event_busy_rounded,
+                  accentColor: AdminUi.danger,
+                  onTap: () => AdminNavigation.openExpiredDriverDocuments(
                     context,
                     adminId: adminId,
                   ),

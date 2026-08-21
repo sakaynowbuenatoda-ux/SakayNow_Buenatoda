@@ -215,6 +215,11 @@ class AdminUserRecord {
       !isDeactivated &&
       !isDeleted &&
       driverDocumentStatus.isEligibleAt(DateTime.now());
+  bool get hasExpiredDriverDocuments =>
+      isDriver &&
+      isVerified &&
+      !isDeleted &&
+      !driverDocumentStatus.isEligibleAt(DateTime.now());
   bool get canReceiveBookings => isEligibleDriverAccount && isActive;
 
   bool get isPendingVerification =>

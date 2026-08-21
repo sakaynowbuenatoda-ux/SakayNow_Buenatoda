@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sakaynow_buenatoda/models/driver_document_status.dart';
 import 'package:sakaynow_buenatoda/pages/admin/admin_models.dart';
+import 'package:sakaynow_buenatoda/pages/admin/admin_record_list_page.dart';
 import 'package:sakaynow_buenatoda/pages/admin/widgets/admin_shared.dart';
 
 void main() {
@@ -123,6 +124,53 @@ void main() {
     test('expiry dates use an exact calendar date', () {
       expect(formatDate(DateTime(2028, 7, 9)), 'Jul 9, 2028');
       expect(formatDate(null), 'Not recorded');
+    });
+
+    test(
+      'expired documents preserve verification and enter the admin queue',
+      () {
+        final driver = buildUser(
+          role: 'driver',
+          isVerified: true,
+          driverDocumentStatus: DriverDocumentStatus(
+            driversLicenseExpiry: DateTime(2025, 7, 9),
+            orCrExpiry: DateTime(2028, 1, 1),
+            documentStatus: 'expired',
+          ),
+        );
+
+        expect(driver.isVerified, isTrue);
+        expect(driver.isPendingVerification, isFalse);
+        expect(driver.hasExpiredDriverDocuments, isTrue);
+        expect(driver.isEligibleDriverAccount, isFalse);
+        expect(
+          AdminRecordListType.expiredDriverDocuments.matchesUser(driver),
+          isTrue,
+        );
+        expect(
+          AdminRecordListType.expiredDriverDocuments.title,
+          'Expired Driver Documents',
+        );
+        expect(
+          AdminRecordListType.expiredDriverDocuments.userHint(driver),
+          contains('License: Jul 9, 2025'),
+        );
+      },
+    );
+
+    test('unverified expired drivers stay in the verification queue only', () {
+      final driver = buildUser(
+        role: 'driver',
+        isVerified: false,
+        driverDocumentStatus: DriverDocumentStatus(
+          driversLicenseExpiry: DateTime(2025, 7, 9),
+          orCrExpiry: DateTime(2028, 1, 1),
+          documentStatus: 'expired',
+        ),
+      );
+
+      expect(driver.isPendingVerification, isTrue);
+      expect(driver.hasExpiredDriverDocuments, isFalse);
     });
 
     test('passenger does not require vehicle data to be approved', () {

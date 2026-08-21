@@ -6,6 +6,7 @@ import 'admin_accounts_page.dart';
 import 'admin_booking_history_page.dart';
 import 'admin_deactivated_users_page.dart';
 import 'admin_document_reviews_page.dart';
+import 'admin_expired_driver_documents_page.dart';
 import 'admin_restricted_users_page.dart';
 import 'admin_report_details_page.dart';
 import 'registered_users.dart';
@@ -123,6 +124,17 @@ class AdminNavigation {
   }) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => StudentAccountsPage(adminId: adminId)),
+    );
+  }
+
+  static void openExpiredDriverDocuments(
+    BuildContext context, {
+    required String adminId,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AdminExpiredDriverDocumentsPage(adminId: adminId),
+      ),
     );
   }
 

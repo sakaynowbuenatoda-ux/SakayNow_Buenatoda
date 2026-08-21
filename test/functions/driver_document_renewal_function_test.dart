@@ -22,6 +22,32 @@ void main() {
     expect(functionsSource, contains('is_available: false'));
   });
 
+  test('document expiry preserves verification and notifies admins', () {
+    final functionStart = functionsSource.indexOf(
+      'export const refreshDriverDocumentStatuses = onSchedule',
+    );
+    final nextFunction = functionsSource.indexOf(
+      'export const notifyNewBookingRequest',
+      functionStart,
+    );
+    final scheduledFunction = functionsSource.substring(
+      functionStart,
+      nextFunction,
+    );
+
+    expect(functionStart, greaterThanOrEqualTo(0));
+    expect(nextFunction, greaterThan(functionStart));
+    expect(scheduledFunction, isNot(contains('is_verified')));
+    expect(scheduledFunction, isNot(contains('isVerified')));
+    expect(scheduledFunction, isNot(contains('isVerrified')));
+    expect(scheduledFunction, contains('await notifyAdmins({'));
+    expect(
+      scheduledFunction,
+      contains('type: "driver_documents_expired_admin"'),
+    );
+    expect(scheduledFunction, contains('Your account remains verified'));
+  });
+
   test('expiry and renewal transitions create notifications', () {
     expect(
       functionsSource,

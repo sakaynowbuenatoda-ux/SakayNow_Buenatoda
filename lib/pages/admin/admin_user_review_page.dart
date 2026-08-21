@@ -7,8 +7,8 @@ import '../../widgets/time_ago_text.dart';
 import '../../utils/user_facing_error_message.dart';
 import 'admin_models.dart';
 import 'admin_service.dart';
-import 'widgets/admin_message_user_button.dart';
 import 'widgets/admin_shared.dart';
+import 'widgets/admin_user_app_bar_actions.dart';
 
 class AdminUserReviewPage extends StatefulWidget {
   final String userId;
@@ -29,238 +29,283 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AdminUi.background,
-      appBar: AppBar(
-        backgroundColor: AdminUi.surface,
-        surfaceTintColor: AdminUi.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
-        ),
-        title: Text('Verification Review', style: AdminUi.cardTitle),
-      ),
-      body: StreamBuilder<AdminUserRecord>(
-        stream: AdminService.watchUser(widget.userId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return AdminPageContainer(
-              maxContentWidth: AdminUi.detailContentWidth,
-              child: AdminErrorCard(
-                message:
-                    'Unable to load this verification review. Please try again.',
-              ),
-            );
-          }
-
-          final user = snapshot.data;
-          if (user == null) {
-            return const AdminPageContainer(
-              maxContentWidth: AdminUi.detailContentWidth,
-              child: AdminEmptyCollection(
-                icon: Icons.person_off_outlined,
-                title: 'User not found',
-                description:
-                    'This account profile could not be loaded for review.',
-              ),
-            );
-          }
-
-          final documents = _buildDocuments(user);
-          final credentialsSubtitle = user.isDriver
-              ? 'Tap any image card to inspect the submitted selfie, NBI clearance, or driver\'s license.'
-              : 'Tap any image card to inspect the submitted selfie and ID.';
-
-          return AdminPageContainer(
-            maxContentWidth: AdminUi.detailContentWidth,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _ReviewSummaryCard(user: user),
-                SizedBox(height: 18),
-                Text('Profile Information', style: AdminUi.sectionTitle),
-                SizedBox(height: 6),
-                Text(
-                  'Review the account details submitted during registration.',
-                  style: AdminUi.bodyText,
+    return StreamBuilder<AdminUserRecord>(
+      stream: AdminService.watchUser(widget.userId),
+      builder: (context, snapshot) {
+        final user = snapshot.data;
+        return Scaffold(
+          backgroundColor: AdminUi.background,
+          appBar: AppBar(
+            backgroundColor: AdminUi.surface,
+            surfaceTintColor: AdminUi.surface,
+            elevation: 0,
+            toolbarHeight: 68,
+            leading: IconButton(
+              tooltip: 'Back',
+              onPressed: () => Navigator.of(context).pop(),
+              icon: Icon(Icons.arrow_back_rounded, color: AdminUi.title),
+            ),
+            title: Text(
+              MediaQuery.sizeOf(context).width < 460
+                  ? 'Review'
+                  : 'Verification Review',
+              style: AdminUi.cardTitle,
+            ),
+            actions: <Widget>[
+              if (user != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: AdminUserAppBarActions(
+                    user: user,
+                    adminId: widget.adminId,
+                    isProcessing: _isProcessing,
+                    onVerify: user.canBeApproved
+                        ? () => _verifyUser(user)
+                        : null,
+                    onRestrict: !user.isBanned && !user.isDeleted
+                        ? () => _restrictUser(user)
+                        : null,
+                    onRestore: user.isBanned ? () => _restoreUser(user) : null,
+                  ),
                 ),
+            ],
+          ),
+          body: _buildReviewBody(context, snapshot),
+        );
+      },
+    );
+  }
+
+  Widget _buildReviewBody(
+    BuildContext context,
+    AsyncSnapshot<AdminUserRecord> snapshot,
+  ) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (snapshot.hasError) {
+      return AdminPageContainer(
+        maxContentWidth: AdminUi.detailContentWidth,
+        child: AdminErrorCard(
+          message: 'Unable to load this verification review. Please try again.',
+        ),
+      );
+    }
+
+    final user = snapshot.data;
+    if (user == null) {
+      return const AdminPageContainer(
+        maxContentWidth: AdminUi.detailContentWidth,
+        child: AdminEmptyCollection(
+          icon: Icons.person_off_outlined,
+          title: 'User not found',
+          description: 'This account profile could not be loaded for review.',
+        ),
+      );
+    }
+
+    final documents = _buildDocuments(user);
+    final credentialsSubtitle = user.isDriver
+        ? 'Tap any image card to inspect the submitted selfie, NBI clearance, or driver\'s license.'
+        : 'Tap any image card to inspect the submitted selfie and ID.';
+    final showMissingDocumentsWarning =
+        user.isDriver &&
+        !user.isVerified &&
+        !user.isBanned &&
+        !user.isDeleted &&
+        !user.isDriverVerificationComplete;
+
+    return Stack(
+      children: <Widget>[
+        AdminPageContainer(
+          maxContentWidth: AdminUi.detailContentWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showMissingDocumentsWarning) const SizedBox(height: 46),
+              _ReviewSummaryCard(user: user),
+              SizedBox(height: 18),
+              Text('Profile Information', style: AdminUi.sectionTitle),
+              SizedBox(height: 6),
+              Text(
+                'Review the account details submitted during registration.',
+                style: AdminUi.bodyText,
+              ),
+              SizedBox(height: 12),
+              AdminSurfaceCard(
+                child: Column(
+                  children: [
+                    _InfoRow(label: 'User ID', value: user.userId),
+                    _InfoRow(label: 'Email', value: user.email),
+                    _InfoRow(label: 'Role', value: user.roleLabel),
+                    if (user.isPassenger)
+                      _InfoRow(
+                        label: 'Passenger Type',
+                        value: user.passengerTypeLabel,
+                      ),
+                    _InfoRow(label: 'First Name', value: user.firstName),
+                    _InfoRow(label: 'Last Name', value: user.lastName),
+                    _InfoRow(label: 'Gender', value: user.genderLabel),
+                    _InfoRow(label: 'Age', value: user.ageLabel),
+                    _InfoTimeRow(
+                      label: 'Created At',
+                      value: user.createdAt,
+                      isLast: true,
+                    ),
+                  ],
+                ),
+              ),
+              if (user.isDriver) ...[
+                SizedBox(height: 18),
+                Text('Vehicle Information', style: AdminUi.sectionTitle),
                 SizedBox(height: 12),
                 AdminSurfaceCard(
                   child: Column(
                     children: [
-                      _InfoRow(label: 'User ID', value: user.userId),
-                      _InfoRow(label: 'Email', value: user.email),
-                      _InfoRow(label: 'Role', value: user.roleLabel),
-                      if (user.isPassenger)
-                        _InfoRow(
-                          label: 'Passenger Type',
-                          value: user.passengerTypeLabel,
-                        ),
-                      _InfoRow(label: 'First Name', value: user.firstName),
-                      _InfoRow(label: 'Last Name', value: user.lastName),
-                      _InfoRow(label: 'Gender', value: user.genderLabel),
-                      _InfoRow(label: 'Age', value: user.ageLabel),
-                      _InfoTimeRow(
-                        label: 'Created At',
-                        value: user.createdAt,
+                      _InfoRow(
+                        label: 'Vehicle Type',
+                        value: user.effectiveVehicleType ?? 'Not provided',
+                      ),
+                      _InfoRow(
+                        label: 'Tricycle Color',
+                        value: user.effectiveTricycleColor ?? 'Not provided',
+                      ),
+                      _InfoRow(
+                        label: 'Plate / Franchise No.',
+                        value: user.effectivePlateNumber ?? 'Not provided',
+                      ),
+                      _InfoDateRow(
+                        label: 'Driver\'s License Expiry',
+                        value: user.effectiveDriversLicenseExpiry,
+                      ),
+                      _InfoDateRow(
+                        label: 'OR/CR Expiry',
+                        value: user.effectiveOrCrExpiry,
                         isLast: true,
                       ),
                     ],
                   ),
                 ),
-                if (user.isDriver) ...[
-                  SizedBox(height: 18),
-                  Text('Vehicle Information', style: AdminUi.sectionTitle),
-                  SizedBox(height: 12),
-                  AdminSurfaceCard(
-                    child: Column(
-                      children: [
-                        _InfoRow(
-                          label: 'Vehicle Type',
-                          value: user.effectiveVehicleType ?? 'Not provided',
-                        ),
-                        _InfoRow(
-                          label: 'Tricycle Color',
-                          value: user.effectiveTricycleColor ?? 'Not provided',
-                        ),
-                        _InfoRow(
-                          label: 'Plate / Franchise No.',
-                          value: user.effectivePlateNumber ?? 'Not provided',
-                        ),
-                        _InfoDateRow(
-                          label: 'Driver\'s License Expiry',
-                          value: user.effectiveDriversLicenseExpiry,
-                        ),
-                        _InfoDateRow(
-                          label: 'OR/CR Expiry',
-                          value: user.effectiveOrCrExpiry,
-                          isLast: true,
-                        ),
-                      ],
-                    ),
+              ],
+              SizedBox(height: 18),
+              Text('Uploaded Credentials', style: AdminUi.sectionTitle),
+              SizedBox(height: 6),
+              Text(credentialsSubtitle, style: AdminUi.bodyText),
+              SizedBox(height: 12),
+              if (documents.isEmpty)
+                const AdminEmptyCollection(
+                  icon: Icons.image_not_supported_outlined,
+                  title: 'No uploaded credentials found',
+                  description:
+                      'This user does not currently have readable credential images for review.',
+                )
+              else
+                _CredentialGrid(
+                  documents: documents,
+                  onPreview: (document) => _showImagePreview(
+                    context,
+                    title: document.label,
+                    imageUrl: document.url,
                   ),
-                ],
+                ),
+              if (user.isPendingRenewal) ...[
                 SizedBox(height: 18),
-                Text('Uploaded Credentials', style: AdminUi.sectionTitle),
-                SizedBox(height: 6),
-                Text(credentialsSubtitle, style: AdminUi.bodyText),
-                SizedBox(height: 12),
-                if (documents.isEmpty)
-                  const AdminEmptyCollection(
-                    icon: Icons.image_not_supported_outlined,
-                    title: 'No uploaded credentials found',
-                    description:
-                        'This user does not currently have readable credential images for review.',
-                  )
-                else
-                  _CredentialGrid(
-                    documents: documents,
-                    onPreview: (document) => _showImagePreview(
-                      context,
-                      title: document.label,
-                      imageUrl: document.url,
-                    ),
-                  ),
-                if (user.isPendingRenewal) ...[
-                  SizedBox(height: 18),
-                  _RenewalReviewPanel(
-                    user: user,
-                    isProcessing: _isProcessing,
-                    onApprove: () => _confirmAndRunAction(
-                      title: 'Approve Renewal?',
-                      message:
-                          'This replaces the current ${user.driverDocumentStatus.renewalDocumentType?.label ?? 'driver document'} and applies its new expiry date.',
-                      confirmLabel: 'Approve Renewal',
-                      icon: Icons.verified_rounded,
-                      confirmColor: AdminUi.successText,
-                      action: () => AdminService.approveDriverRenewal(
-                        userId: user.userId,
-                        adminId: widget.adminId,
-                      ),
-                      successMessage:
-                          '${user.fullName}\'s document renewal was approved.',
-                    ),
-                    onReject: () => _promptAndRejectRenewal(user),
-                  ),
-                ],
-                if (user.hasPendingDocumentReview && user.isVerified) ...[
-                  SizedBox(height: 18),
-                  _DocumentUpdateReviewPanel(
-                    user: user,
-                    isProcessing: _isProcessing,
-                    onApprove: () => _confirmAndRunAction(
-                      title: 'Approve Document Update?',
-                      message:
-                          'This applies the staged ${user.pendingDocumentReviewLabel.toLowerCase()} without changing the account\'s verified status.',
-                      confirmLabel: 'Approve Update',
-                      icon: Icons.fact_check_rounded,
-                      confirmColor: AdminUi.successText,
-                      action: () => AdminService.approveDocumentReview(
-                        userId: user.userId,
-                        adminId: widget.adminId,
-                      ),
-                      successMessage:
-                          '${user.fullName}\'s document update was approved.',
-                    ),
-                    onReject: () => _promptAndRejectDocumentReview(user),
-                  ),
-                ],
-                SizedBox(height: 18),
-                _ActionPanel(
+                _RenewalReviewPanel(
                   user: user,
-                  adminId: widget.adminId,
                   isProcessing: _isProcessing,
-                  onVerify: user.canBeApproved
-                      ? () => _confirmAndRunAction(
-                          title: 'Verify User?',
-                          message:
-                              'This will approve ${user.fullName} and unlock verification-gated features for this account.',
-                          confirmLabel: 'Verify User',
-                          icon: Icons.verified_user_rounded,
-                          confirmColor: AdminUi.successText,
-                          action: () => AdminService.approveUser(
-                            userId: user.userId,
-                            adminId: widget.adminId,
-                          ),
-                          successMessage: '${user.fullName} is now verified.',
-                        )
-                      : null,
-                  onRestrict: !user.isBanned
-                      ? () => _confirmAndRunAction(
-                          title: 'Restrict Account?',
-                          message:
-                              'This will block ${user.fullName} from using verification-gated app features until access is restored.',
-                          confirmLabel: 'Restrict',
-                          icon: Icons.block_rounded,
-                          confirmColor: AdminUi.primary,
-                          action: () => AdminService.restrictUser(
-                            userId: user.userId,
-                            adminId: widget.adminId,
-                          ),
-                          successMessage:
-                              '${user.fullName} has been restricted.',
-                        )
-                      : null,
-                  onRestore: user.isBanned
-                      ? () => _runAction(
-                          action: () => AdminService.restoreUser(
-                            userId: user.userId,
-                            adminId: widget.adminId,
-                          ),
-                          successMessage: '${user.fullName} has been restored.',
-                        )
-                      : null,
+                  onApprove: () => _confirmAndRunAction(
+                    title: 'Approve Renewal?',
+                    message:
+                        'This replaces the current ${user.driverDocumentStatus.renewalDocumentType?.label ?? 'driver document'} and applies its new expiry date.',
+                    confirmLabel: 'Approve Renewal',
+                    icon: Icons.verified_rounded,
+                    confirmColor: AdminUi.successText,
+                    action: () => AdminService.approveDriverRenewal(
+                      userId: user.userId,
+                      adminId: widget.adminId,
+                    ),
+                    successMessage:
+                        '${user.fullName}\'s document renewal was approved.',
+                  ),
+                  onReject: () => _promptAndRejectRenewal(user),
                 ),
               ],
-            ),
-          );
-        },
+              if (user.hasPendingDocumentReview && user.isVerified) ...[
+                SizedBox(height: 18),
+                _DocumentUpdateReviewPanel(
+                  user: user,
+                  isProcessing: _isProcessing,
+                  onApprove: () => _confirmAndRunAction(
+                    title: 'Approve Document Update?',
+                    message:
+                        'This applies the staged ${user.pendingDocumentReviewLabel.toLowerCase()} without changing the account\'s verified status.',
+                    confirmLabel: 'Approve Update',
+                    icon: Icons.fact_check_rounded,
+                    confirmColor: AdminUi.successText,
+                    action: () => AdminService.approveDocumentReview(
+                      userId: user.userId,
+                      adminId: widget.adminId,
+                    ),
+                    successMessage:
+                        '${user.fullName}\'s document update was approved.',
+                  ),
+                  onReject: () => _promptAndRejectDocumentReview(user),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (showMissingDocumentsWarning)
+          const Positioned(
+            top: 10,
+            left: 16,
+            right: 16,
+            child: Center(child: AdminMissingDocumentsWarningPill()),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _verifyUser(AdminUserRecord user) {
+    return _confirmAndRunAction(
+      title: 'Verify User?',
+      message:
+          'This will approve ${user.fullName} and unlock verification-gated features for this account.',
+      confirmLabel: 'Verify User',
+      icon: Icons.verified_user_rounded,
+      confirmColor: AdminUi.successText,
+      action: () => AdminService.approveUser(
+        userId: user.userId,
+        adminId: widget.adminId,
       ),
+      successMessage: '${user.fullName} is now verified.',
+    );
+  }
+
+  Future<void> _restrictUser(AdminUserRecord user) {
+    return _confirmAndRunAction(
+      title: 'Restrict Account?',
+      message:
+          'This will block ${user.fullName} from using verification-gated app features until access is restored.',
+      confirmLabel: 'Restrict',
+      icon: Icons.block_rounded,
+      confirmColor: Theme.of(context).colorScheme.error,
+      action: () => AdminService.restrictUser(
+        userId: user.userId,
+        adminId: widget.adminId,
+      ),
+      successMessage: '${user.fullName} has been restricted.',
+    );
+  }
+
+  Future<void> _restoreUser(AdminUserRecord user) {
+    return _runAction(
+      action: () => AdminService.restoreUser(
+        userId: user.userId,
+        adminId: widget.adminId,
+      ),
+      successMessage: '${user.fullName} has been restored.',
     );
   }
 
@@ -764,156 +809,6 @@ class _DocumentUpdateReviewPanel extends StatelessWidget {
                 backgroundColor: AdminUi.dangerSoft,
                 foregroundColor: AdminUi.primary,
                 onPressed: isProcessing ? null : onReject,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionPanel extends StatelessWidget {
-  final AdminUserRecord user;
-  final String adminId;
-  final bool isProcessing;
-  final VoidCallback? onVerify;
-  final VoidCallback? onRestrict;
-  final VoidCallback? onRestore;
-
-  const _ActionPanel({
-    required this.user,
-    required this.adminId,
-    required this.isProcessing,
-    required this.onVerify,
-    required this.onRestrict,
-    required this.onRestore,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final messageButton = user.isPassengerOrDriver && !user.isDeleted
-        ? AdminMessageUserButton(
-            adminId: adminId,
-            user: user,
-            label: 'Message User',
-            enabled: !isProcessing,
-          )
-        : null;
-
-    if (user.isBanned) {
-      return AdminSurfaceCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Restricted Account', style: AdminUi.cardTitle),
-            SizedBox(height: 8),
-            Text(
-              'This account is currently restricted. Restore access if the review is complete and the user should be active again.',
-              style: AdminUi.bodyText,
-            ),
-            SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                ?messageButton,
-                AdminActionButton(
-                  label: 'Restore Access',
-                  icon: Icons.restart_alt_rounded,
-                  backgroundColor: AdminUi.successBackground,
-                  foregroundColor: AdminUi.successText,
-                  onPressed: isProcessing ? null : onRestore,
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (user.isVerified) {
-      return AdminSurfaceCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Admin Actions', style: AdminUi.cardTitle),
-            SizedBox(height: 8),
-            Text(
-              'This user is already verified. Account features that require verification should now be available.',
-              style: AdminUi.bodyText,
-            ),
-            SizedBox(height: 14),
-            ?messageButton,
-          ],
-        ),
-      );
-    }
-
-    return AdminSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Admin Actions', style: AdminUi.cardTitle),
-          SizedBox(height: 8),
-          Text(
-            'Verify this account to approve the submitted credentials and unlock features that require verification.',
-            style: AdminUi.bodyText,
-          ),
-          if (user.isDriver && !user.isDriverVerificationComplete) ...[
-            SizedBox(height: 12),
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AdminUi.warningSoft,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: AdminUi.highlightAmber.withValues(alpha: 0.4),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: AdminUi.highlightAmber,
-                    size: 20,
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Some driver documents or vehicle details are missing or expired. Admin verification is still available as an override; confirm the driver\'s identity before approving.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AdminUi.title,
-                        height: 1.35,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              ?messageButton,
-              AdminActionButton(
-                label: 'Verify User',
-                icon: Icons.verified_rounded,
-                backgroundColor: AdminUi.successBackground,
-                foregroundColor: AdminUi.successText,
-                onPressed: isProcessing ? null : onVerify,
-              ),
-              AdminActionButton(
-                label: 'Restrict Account',
-                icon: Icons.block_rounded,
-                backgroundColor: AdminUi.dangerSoft,
-                foregroundColor: AdminUi.primary,
-                onPressed: isProcessing ? null : onRestrict,
               ),
             ],
           ),

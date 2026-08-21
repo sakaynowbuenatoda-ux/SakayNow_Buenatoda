@@ -20,6 +20,7 @@ import '../core/session/user_roles.dart';
 import '../pages/driver/driver_queue.dart';
 import '../pages/messages/chat_page.dart';
 import '../pages/profile/profile_page.dart';
+import '../pages/profile/view_user_profile.dart';
 import '../pages/rides/ride_monitoring_page.dart';
 
 @pragma('vm:entry-point')
@@ -616,6 +617,7 @@ class NotificationService {
           builder: (_) => DriverQueuePage(
             driverId: currentUserId,
             isVerified: true,
+            canReceiveBookings: true,
             isActive: true,
           ),
         );
@@ -651,6 +653,19 @@ class NotificationService {
           navigator: navigator,
           builder: (_) =>
               AdminUserReviewPage(userId: userId, adminId: currentUserId),
+        );
+      }
+      return;
+    }
+
+    if (type == 'driver_documents_expired_admin' &&
+        isAdminStaffRole(currentUserRole)) {
+      final driverId = data['driver_id']?.toString().trim() ?? '';
+      if (driverId.isNotEmpty) {
+        _pushPageWhenNavigatorIsReady(
+          navigator: navigator,
+          builder: (_) =>
+              ViewUserProfilePage(adminId: currentUserId, userId: driverId),
         );
       }
     }

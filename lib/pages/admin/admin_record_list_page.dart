@@ -11,6 +11,7 @@ import 'widgets/admin_shared.dart';
 enum AdminRecordListType {
   registeredUsers,
   activeDrivers,
+  expiredDriverDocuments,
   studentAccounts,
   completedTrips,
   activeTrips,
@@ -217,6 +218,7 @@ class _AdminUserRecordList extends StatelessWidget {
                     child: _AdminUserListCard(
                       user: user,
                       adminId: adminId,
+                      hintLabel: listType.userHint(user),
                       onTap: () => AdminNavigation.openUserProfile(
                         context,
                         adminId: adminId,
@@ -596,6 +598,7 @@ class _AdminSortField extends StatelessWidget {
 class _AdminUserListCard extends StatelessWidget {
   final AdminUserRecord user;
   final String adminId;
+  final String hintLabel;
   final VoidCallback onTap;
   final VoidCallback? onRestrict;
   final VoidCallback? onRestore;
@@ -603,6 +606,7 @@ class _AdminUserListCard extends StatelessWidget {
   const _AdminUserListCard({
     required this.user,
     required this.adminId,
+    required this.hintLabel,
     required this.onTap,
     required this.onRestrict,
     required this.onRestore,
@@ -615,7 +619,7 @@ class _AdminUserListCard extends StatelessWidget {
     return AdminUserCard(
       user: user,
       onTap: onTap,
-      hintLabel: 'Open profile',
+      hintLabel: hintLabel,
       actions: [
         AdminMessageUserButton(
           adminId: adminId,
@@ -803,6 +807,7 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
   bool get isUserList {
     return this == AdminRecordListType.registeredUsers ||
         this == AdminRecordListType.activeDrivers ||
+        this == AdminRecordListType.expiredDriverDocuments ||
         this == AdminRecordListType.studentAccounts;
   }
 
@@ -812,6 +817,8 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return 'Registered Users';
       case AdminRecordListType.activeDrivers:
         return 'Active Drivers';
+      case AdminRecordListType.expiredDriverDocuments:
+        return 'Expired Driver Documents';
       case AdminRecordListType.studentAccounts:
         return 'Student Accounts';
       case AdminRecordListType.completedTrips:
@@ -827,6 +834,8 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return 'Users';
       case AdminRecordListType.activeDrivers:
         return 'Drivers';
+      case AdminRecordListType.expiredDriverDocuments:
+        return 'Expired';
       case AdminRecordListType.studentAccounts:
         return 'Students';
       case AdminRecordListType.completedTrips:
@@ -842,6 +851,8 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return 'Passenger and driver accounts';
       case AdminRecordListType.activeDrivers:
         return 'Currently online or on active rides';
+      case AdminRecordListType.expiredDriverDocuments:
+        return 'Verified drivers needing document renewal';
       case AdminRecordListType.studentAccounts:
         return 'Passenger accounts marked as students';
       case AdminRecordListType.completedTrips:
@@ -857,6 +868,8 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return 'User List';
       case AdminRecordListType.activeDrivers:
         return 'Driver List';
+      case AdminRecordListType.expiredDriverDocuments:
+        return 'Drivers Requiring Renewal';
       case AdminRecordListType.studentAccounts:
         return 'Student List';
       case AdminRecordListType.completedTrips:
@@ -872,6 +885,8 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return 'No registered users found';
       case AdminRecordListType.activeDrivers:
         return 'No active drivers found';
+      case AdminRecordListType.expiredDriverDocuments:
+        return 'No expired driver documents';
       case AdminRecordListType.studentAccounts:
         return 'No student accounts found';
       case AdminRecordListType.completedTrips:
@@ -887,6 +902,8 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return 'New app accounts will appear here after signup.';
       case AdminRecordListType.activeDrivers:
         return 'Drivers will appear here after going active with a fresh location.';
+      case AdminRecordListType.expiredDriverDocuments:
+        return 'Verified drivers will appear here when their Driver\'s License or OR/CR expires.';
       case AdminRecordListType.studentAccounts:
         return 'Student passenger accounts will appear here after registration.';
       case AdminRecordListType.completedTrips:
@@ -902,6 +919,8 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return 'Search passengers or drivers by name, email, role, or status';
       case AdminRecordListType.activeDrivers:
         return 'Search active drivers';
+      case AdminRecordListType.expiredDriverDocuments:
+        return 'Search drivers with expired documents';
       case AdminRecordListType.studentAccounts:
         return 'Search student accounts';
       case AdminRecordListType.completedTrips:
@@ -918,6 +937,7 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return 'Search trips in motion';
       case AdminRecordListType.registeredUsers:
       case AdminRecordListType.activeDrivers:
+      case AdminRecordListType.expiredDriverDocuments:
       case AdminRecordListType.studentAccounts:
         return 'Search';
     }
@@ -929,6 +949,8 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return Icons.groups_rounded;
       case AdminRecordListType.activeDrivers:
         return Icons.local_taxi_rounded;
+      case AdminRecordListType.expiredDriverDocuments:
+        return Icons.event_busy_rounded;
       case AdminRecordListType.studentAccounts:
         return Icons.school_rounded;
       case AdminRecordListType.completedTrips:
@@ -944,6 +966,8 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return AdminUi.primary;
       case AdminRecordListType.activeDrivers:
         return AdminUi.secondary;
+      case AdminRecordListType.expiredDriverDocuments:
+        return AdminUi.danger;
       case AdminRecordListType.studentAccounts:
         return AdminUi.accentBlue;
       case AdminRecordListType.completedTrips:
@@ -959,6 +983,8 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return user.isPassengerOrDriver;
       case AdminRecordListType.activeDrivers:
         return user.isEligibleDriverAccount;
+      case AdminRecordListType.expiredDriverDocuments:
+        return user.hasExpiredDriverDocuments;
       case AdminRecordListType.studentAccounts:
         return user.isStudentPassenger;
       case AdminRecordListType.completedTrips:
@@ -975,8 +1001,17 @@ extension AdminRecordListTypeDetails on AdminRecordListType {
         return booking.isActiveTrip;
       case AdminRecordListType.registeredUsers:
       case AdminRecordListType.activeDrivers:
+      case AdminRecordListType.expiredDriverDocuments:
       case AdminRecordListType.studentAccounts:
         return false;
     }
+  }
+
+  String userHint(AdminUserRecord user) {
+    if (this != AdminRecordListType.expiredDriverDocuments) {
+      return 'Open profile';
+    }
+
+    return 'License: ${formatDate(user.driverDocumentStatus.driversLicenseExpiry)}  •  OR/CR: ${formatDate(user.driverDocumentStatus.orCrExpiry)}  •  Open profile';
   }
 }

@@ -237,7 +237,8 @@ class _DriverShellState extends State<DriverShell> with WidgetsBindingObserver {
           valueListenable: _isActiveNotifier,
           builder: (context, isActive, _) => DriverQueuePage(
             driverId: widget.userId,
-            isVerified: widget.canReceiveBookings,
+            isVerified: widget.isVerified,
+            canReceiveBookings: widget.canReceiveBookings,
             isActive: isActive,
           ),
         ),

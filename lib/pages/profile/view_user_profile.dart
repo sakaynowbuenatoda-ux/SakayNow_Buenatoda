@@ -9,7 +9,7 @@ import '../../utils/user_facing_error_message.dart';
 import '../admin/admin_models.dart';
 import '../admin/admin_service.dart';
 import '../admin/widgets/admin_shared.dart';
-import '../admin/widgets/admin_message_user_button.dart';
+import '../admin/widgets/admin_user_app_bar_actions.dart';
 import 'models/profile_review_item.dart';
 import 'widgets/profile_reviews_section.dart';
 
@@ -30,6 +30,13 @@ class ViewUserProfilePage extends StatefulWidget {
 class _ViewUserProfilePageState extends State<ViewUserProfilePage> {
   bool _isProcessing = false;
   bool _areDocumentsVisible = false;
+  late final Stream<AdminUserRecord> _userStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _userStream = AdminService.watchUser(widget.userId).asBroadcastStream();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,14 +46,40 @@ class _ViewUserProfilePageState extends State<ViewUserProfilePage> {
         backgroundColor: PassengerUi.surface,
         surfaceTintColor: PassengerUi.surface,
         elevation: 0,
+        toolbarHeight: 68,
         leading: IconButton(
+          tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
           icon: Icon(Icons.arrow_back_rounded, color: PassengerUi.title),
         ),
         title: Text('User Profile', style: PassengerUi.cardTitle),
+        actions: <Widget>[
+          StreamBuilder<AdminUserRecord>(
+            stream: _userStream,
+            builder: (context, snapshot) {
+              final user = snapshot.data;
+              if (user == null) {
+                return const SizedBox.shrink();
+              }
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: AdminUserAppBarActions(
+                  user: user,
+                  adminId: widget.adminId,
+                  isProcessing: _isProcessing,
+                  onRestrict: user.isBanned || user.isAdmin || user.isDeleted
+                      ? null
+                      : () => _restrictUser(user),
+                  onRestore: user.isBanned ? () => _restoreUser(user) : null,
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: StreamBuilder<AdminUserRecord>(
-        stream: AdminService.watchUser(widget.userId),
+        stream: _userStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -74,70 +107,83 @@ class _ViewUserProfilePageState extends State<ViewUserProfilePage> {
           }
 
           final documents = _buildDocuments(user);
+          final showMissingDocumentsWarning =
+              user.isDriver &&
+              !user.isVerified &&
+              !user.isBanned &&
+              !user.isDeleted &&
+              !user.isDriverVerificationComplete;
 
-          return PassengerPageContainer(
-            maxContentWidth: AdminUi.detailContentWidth,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _ProfileHero(user: user),
-                SizedBox(height: 16),
-                _ProfileStats(user: user),
-                SizedBox(height: 16),
-                _BasicInfoCard(user: user),
-                SizedBox(height: 16),
-                _UploadedDocumentsCard(
-                  documents: documents,
-                  isExpanded: _areDocumentsVisible,
-                  onToggle: () => setState(
-                    () => _areDocumentsVisible = !_areDocumentsVisible,
-                  ),
-                  onPreview: (document) => _showImagePreview(
-                    context,
-                    title: document.label,
-                    imageUrl: document.url,
-                  ),
+          return Stack(
+            children: <Widget>[
+              PassengerPageContainer(
+                maxContentWidth: AdminUi.detailContentWidth,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (showMissingDocumentsWarning) const SizedBox(height: 46),
+                    _ProfileHero(user: user),
+                    SizedBox(height: 16),
+                    _ProfileStats(user: user),
+                    SizedBox(height: 16),
+                    _BasicInfoCard(user: user),
+                    SizedBox(height: 16),
+                    _UploadedDocumentsCard(
+                      documents: documents,
+                      isExpanded: _areDocumentsVisible,
+                      onToggle: () => setState(
+                        () => _areDocumentsVisible = !_areDocumentsVisible,
+                      ),
+                      onPreview: (document) => _showImagePreview(
+                        context,
+                        title: document.label,
+                        imageUrl: document.url,
+                      ),
+                    ),
+                    if (user.isDriver) ...[
+                      SizedBox(height: 16),
+                      _DriverReviewsSection(user: user),
+                    ],
+                  ],
                 ),
-                SizedBox(height: 16),
-                _AdminProfileActions(
-                  user: user,
-                  adminId: widget.adminId,
-                  isProcessing: _isProcessing,
-                  onRestrict: user.isBanned || user.isAdmin
-                      ? null
-                      : () => _confirmAndRunAction(
-                          title: 'Restrict Account?',
-                          message:
-                              'This will block ${user.fullName} from using verification-gated app features until access is restored.',
-                          confirmLabel: 'Restrict',
-                          icon: Icons.block_rounded,
-                          confirmColor: PassengerUi.primary,
-                          action: () => AdminService.restrictUser(
-                            userId: user.userId,
-                            adminId: widget.adminId,
-                          ),
-                          successMessage:
-                              '${user.fullName} has been restricted.',
-                        ),
-                  onRestore: user.isBanned
-                      ? () => _runAction(
-                          action: () => AdminService.restoreUser(
-                            userId: user.userId,
-                            adminId: widget.adminId,
-                          ),
-                          successMessage: '${user.fullName} has been restored.',
-                        )
-                      : null,
+              ),
+              if (showMissingDocumentsWarning)
+                const Positioned(
+                  top: 10,
+                  left: 16,
+                  right: 16,
+                  child: Center(child: AdminMissingDocumentsWarningPill()),
                 ),
-                if (user.isDriver) ...[
-                  SizedBox(height: 16),
-                  _DriverReviewsSection(user: user),
-                ],
-              ],
-            ),
+            ],
           );
         },
       ),
+    );
+  }
+
+  Future<void> _restrictUser(AdminUserRecord user) {
+    return _confirmAndRunAction(
+      title: 'Restrict Account?',
+      message:
+          'This will block ${user.fullName} from using verification-gated app features until access is restored.',
+      confirmLabel: 'Restrict',
+      icon: Icons.block_rounded,
+      confirmColor: Theme.of(context).colorScheme.error,
+      action: () => AdminService.restrictUser(
+        userId: user.userId,
+        adminId: widget.adminId,
+      ),
+      successMessage: '${user.fullName} has been restricted.',
+    );
+  }
+
+  Future<void> _restoreUser(AdminUserRecord user) {
+    return _runAction(
+      action: () => AdminService.restoreUser(
+        userId: user.userId,
+        adminId: widget.adminId,
+      ),
+      successMessage: '${user.fullName} has been restored.',
     );
   }
 
@@ -739,63 +785,6 @@ class _ProfileDocument {
   final String url;
 
   const _ProfileDocument({required this.label, required this.url});
-}
-
-class _AdminProfileActions extends StatelessWidget {
-  final AdminUserRecord user;
-  final String adminId;
-  final bool isProcessing;
-  final VoidCallback? onRestrict;
-  final VoidCallback? onRestore;
-
-  const _AdminProfileActions({
-    required this.user,
-    required this.adminId,
-    required this.isProcessing,
-    required this.onRestrict,
-    required this.onRestore,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PassengerSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Admin Actions', style: PassengerUi.cardTitle),
-          SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              if (user.isPassengerOrDriver && !user.isDeleted)
-                AdminMessageUserButton(
-                  adminId: adminId,
-                  user: user,
-                  enabled: !isProcessing,
-                ),
-              if (user.isBanned)
-                AdminActionButton(
-                  label: 'Restore Access',
-                  icon: Icons.restart_alt_rounded,
-                  backgroundColor: PassengerUi.successBackground,
-                  foregroundColor: PassengerUi.successText,
-                  onPressed: isProcessing ? null : onRestore,
-                )
-              else if (!user.isAdmin)
-                AdminActionButton(
-                  label: 'Restrict Account',
-                  icon: Icons.block_rounded,
-                  backgroundColor: PassengerUi.dangerSoft,
-                  foregroundColor: PassengerUi.primary,
-                  onPressed: isProcessing ? null : onRestrict,
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _DriverReviewsSection extends StatelessWidget {

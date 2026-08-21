@@ -494,10 +494,7 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
     return LatLng(position.latitude, position.longitude);
   }
 
-  Future<void> _centerOnCurrentLocation(
-    LatLng location,
-    double verticalOffset,
-  ) async {
+  Future<void> _centerOnCurrentLocation(LatLng location) async {
     final controller = _mapController;
     if (controller == null) {
       return;
@@ -505,7 +502,6 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
 
     try {
       await controller.animateCamera(CameraUpdate.newLatLng(location));
-      await controller.animateCamera(CameraUpdate.scrollBy(0, verticalOffset));
     } on Exception {
       // The native map can be unavailable briefly during a platform rebuild.
     }
@@ -612,10 +608,8 @@ class _DriverLiveRequestMapCardState extends State<DriverLiveRequestMapCard> {
                                 key: const Key(
                                   'driver-home-current-location-button',
                                 ),
-                                onPressed: () => _centerOnCurrentLocation(
-                                  mapCenter,
-                                  cameraVerticalOffset,
-                                ),
+                                onPressed: () =>
+                                    _centerOnCurrentLocation(mapCenter),
                               ),
                             ],
                           ],

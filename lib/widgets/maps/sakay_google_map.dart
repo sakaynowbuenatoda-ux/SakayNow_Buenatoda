@@ -199,6 +199,9 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
                 zoomControlsEnabled: widget.zoomControlsEnabled,
                 mapToolbarEnabled: false,
                 compassEnabled: true,
+                padding: mapPaddingForCameraTargetOffset(
+                  widget.cameraTargetOffset,
+                ),
                 rotateGesturesEnabled: true,
                 scrollGesturesEnabled: true,
                 tiltGesturesEnabled: true,
@@ -378,7 +381,6 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
           ),
         ),
       );
-      await _applyCameraTargetOffset(controller);
     } catch (_) {
       // GoogleMap can reject camera bounds before the first layout pass.
     }
@@ -406,22 +408,12 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
         await controller.animateCamera(
           CameraUpdate.newLatLngBounds(bounds, 56),
         );
-        await _applyCameraTargetOffset(controller);
         return;
       } catch (_) {
         // Web platform views can need more than one layout pass before bounds
         // camera updates are accepted.
       }
     }
-  }
-
-  Future<void> _applyCameraTargetOffset(GoogleMapController controller) async {
-    final offset = widget.cameraTargetOffset;
-    if (offset == Offset.zero || _isDisposed || !mounted) {
-      return;
-    }
-
-    await controller.animateCamera(CameraUpdate.scrollBy(offset.dx, offset.dy));
   }
 
   void _scheduleSelectedProfilePinPositionUpdate() {
@@ -532,6 +524,16 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
 
     return value.clamp(min, max).toDouble();
   }
+}
+
+@visibleForTesting
+EdgeInsets mapPaddingForCameraTargetOffset(Offset offset) {
+  return EdgeInsets.fromLTRB(
+    offset.dx < 0 ? -2 * offset.dx : 0,
+    offset.dy < 0 ? -2 * offset.dy : 0,
+    offset.dx > 0 ? 2 * offset.dx : 0,
+    offset.dy > 0 ? 2 * offset.dy : 0,
+  );
 }
 
 class _MapProfilePinCard extends StatelessWidget {

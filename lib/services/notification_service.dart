@@ -13,15 +13,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../controllers/ride_tracking_controller.dart';
 import '../firebase_options.dart';
 import '../models/app_notification.dart';
+import '../models/notification_destination.dart';
 import '../models/notification_preferences.dart';
 import '../models/notification_sound_profile.dart';
 import '../pages/admin/admin_user_review_page.dart';
 import '../core/session/user_roles.dart';
+import '../pages/driver/driver_info_hub_page.dart';
 import '../pages/driver/driver_queue.dart';
 import '../pages/messages/chat_page.dart';
+import '../pages/notifications/notification_details_page.dart';
 import '../pages/profile/profile_page.dart';
-import '../pages/profile/view_user_profile.dart';
 import '../pages/rides/ride_monitoring_page.dart';
+import '../pages/settings/passenger_document_verification_page.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -383,14 +386,10 @@ class NotificationService {
       await markNotificationRead(notification.id);
     }
 
-    await _handleNotificationData(<String, String>{
-      ...notification.data,
-      'notification_id': notification.id,
-      'type': notification.type,
-      'channel': notification.channel,
-      'title': notification.title,
-      'body': notification.body,
-    }, navigator: navigator);
+    await _handleNotificationData(
+      notification.routingData,
+      navigator: navigator,
+    );
   }
 
   Future<void> dispose() async {
@@ -521,7 +520,6 @@ class NotificationService {
     Map<dynamic, dynamic> data, {
     NavigatorState? navigator,
   }) async {
-    final conversationId = data['conversation_id']?.toString().trim() ?? '';
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
       return;
@@ -529,31 +527,10 @@ class NotificationService {
 
     final prefs = await SharedPreferences.getInstance();
     final role = prefs.getString('role')?.trim().toLowerCase() ?? 'passenger';
-
-    if (conversationId.isEmpty) {
-      _routeNonChatNotification(
-        data: data,
-        currentUserId: currentUser.uid,
-        currentUserRole: role,
-        navigator: navigator,
-      );
-      return;
-    }
-
-    final title = data['title']?.toString().trim();
-    final conversationType = data['conversation_type']?.toString().trim();
-    final subtitle = switch (conversationType) {
-      'support' => isAdminStaffRole(role) ? 'Support request' : 'Admin',
-      'admin_direct' => 'Admin staff',
-      _ => 'Ride chat',
-    };
-
-    _pushChatWhenNavigatorIsReady(
-      conversationId: conversationId,
+    _routeNotification(
+      data: data,
       currentUserId: currentUser.uid,
       currentUserRole: role,
-      title: title?.isNotEmpty == true ? title! : 'Messages',
-      subtitle: subtitle,
       navigator: navigator,
     );
   }
@@ -602,16 +579,42 @@ class NotificationService {
     );
   }
 
-  void _routeNonChatNotification({
+  void _routeNotification({
     required Map<dynamic, dynamic> data,
     required String currentUserId,
     required String currentUserRole,
     NavigatorState? navigator,
   }) {
-    final type = data['type']?.toString().trim().toLowerCase() ?? '';
+    final destination = resolveNotificationDestination(
+      data: data,
+      currentUserRole: currentUserRole,
+    );
+    final conversationId = data['conversation_id']?.toString().trim() ?? '';
     final bookingId = data['booking_id']?.toString().trim() ?? '';
-    if (bookingId.isNotEmpty) {
-      if (type == 'booking_request' && currentUserRole == 'driver') {
+    final targetUserId = _firstNonEmpty(<Object?>[
+      data['user_id'],
+      data['driver_id'],
+    ]);
+
+    switch (destination) {
+      case NotificationDestination.conversation:
+        final title = data['title']?.toString().trim();
+        final conversationType = data['conversation_type']?.toString().trim();
+        final subtitle = switch (conversationType) {
+          'support' =>
+            isAdminStaffRole(currentUserRole) ? 'Support request' : 'Admin',
+          'admin_direct' => 'Admin staff',
+          _ => 'Ride chat',
+        };
+        _pushChatWhenNavigatorIsReady(
+          conversationId: conversationId,
+          currentUserId: currentUserId,
+          currentUserRole: currentUserRole,
+          title: title?.isNotEmpty == true ? title! : 'Messages',
+          subtitle: subtitle,
+          navigator: navigator,
+        );
+      case NotificationDestination.driverQueue:
         _pushPageWhenNavigatorIsReady(
           navigator: navigator,
           builder: (_) => DriverQueuePage(
@@ -621,54 +624,63 @@ class NotificationService {
             isActive: true,
           ),
         );
-        return;
-      }
-
-      final viewerRole = currentUserRole == 'driver'
-          ? RideViewerRole.driver
-          : RideViewerRole.passenger;
-      _pushPageWhenNavigatorIsReady(
-        navigator: navigator,
-        builder: (_) => RideMonitoringPage(
-          bookingId: bookingId,
-          userId: currentUserId,
-          viewerRole: viewerRole,
-        ),
-      );
-      return;
-    }
-
-    if (type == 'review_received') {
-      _pushPageWhenNavigatorIsReady(
-        navigator: navigator,
-        builder: (_) => ProfilePage(userId: currentUserId),
-      );
-      return;
-    }
-
-    if (type == 'verification_request' && isAdminStaffRole(currentUserRole)) {
-      final userId = data['user_id']?.toString().trim() ?? '';
-      if (userId.isNotEmpty) {
+      case NotificationDestination.ride:
+        final viewerRole = currentUserRole == 'driver'
+            ? RideViewerRole.driver
+            : RideViewerRole.passenger;
+        _pushPageWhenNavigatorIsReady(
+          navigator: navigator,
+          builder: (_) => RideMonitoringPage(
+            bookingId: bookingId,
+            userId: currentUserId,
+            viewerRole: viewerRole,
+          ),
+        );
+      case NotificationDestination.profile:
+        _pushPageWhenNavigatorIsReady(
+          navigator: navigator,
+          builder: (_) => ProfilePage(userId: currentUserId),
+        );
+      case NotificationDestination.adminUserReview:
         _pushPageWhenNavigatorIsReady(
           navigator: navigator,
           builder: (_) =>
-              AdminUserReviewPage(userId: userId, adminId: currentUserId),
+              AdminUserReviewPage(userId: targetUserId, adminId: currentUserId),
         );
-      }
-      return;
-    }
-
-    if (type == 'driver_documents_expired_admin' &&
-        isAdminStaffRole(currentUserRole)) {
-      final driverId = data['driver_id']?.toString().trim() ?? '';
-      if (driverId.isNotEmpty) {
+      case NotificationDestination.driverInfoHub:
+        _pushPageWhenNavigatorIsReady(
+          navigator: navigator,
+          builder: (_) => DriverInfoHubPage(driverId: currentUserId),
+        );
+      case NotificationDestination.passengerVerification:
         _pushPageWhenNavigatorIsReady(
           navigator: navigator,
           builder: (_) =>
-              ViewUserProfilePage(adminId: currentUserId, userId: driverId),
+              PassengerDocumentVerificationPage(userId: currentUserId),
         );
+      case NotificationDestination.details:
+        _pushPageWhenNavigatorIsReady(
+          navigator: navigator,
+          builder: (_) => NotificationDetailsPage(
+            title: data['title']?.toString() ?? 'SakayNow update',
+            body:
+                data['body']?.toString() ??
+                'Open SakayNow to review this update.',
+            channel: data['channel']?.toString() ?? 'system',
+            createdAt: data['created_at']?.toString(),
+          ),
+        );
+    }
+  }
+
+  String _firstNonEmpty(Iterable<Object?> values) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty) {
+        return text;
       }
     }
+    return '';
   }
 
   void _pushPageWhenNavigatorIsReady({

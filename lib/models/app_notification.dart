@@ -57,6 +57,16 @@ class AppNotification {
   String? get conversationId => _readNullable(data['conversation_id']);
   String? get reviewId => _readNullable(data['review_id']);
 
+  Map<String, String> get routingData => <String, String>{
+    ...data,
+    'notification_id': id,
+    'type': type,
+    'channel': channel,
+    'title': title,
+    'body': body,
+    if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+  };
+
   static Map<String, String> _readStringMap(Object? value) {
     if (value is! Map) {
       return const <String, String>{};

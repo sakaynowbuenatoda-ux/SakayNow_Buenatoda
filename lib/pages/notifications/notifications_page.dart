@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/app_notification.dart';
+import '../../models/notification_destination.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_skeleton.dart';
 import '../../widgets/passenger_widgets/passenger_ui.dart';
@@ -195,6 +196,10 @@ class _NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = _accentColor(notification);
     final icon = _iconFor(notification);
+    final destination = resolveNotificationDestination(
+      data: notification.routingData,
+      currentUserRole: notification.role,
+    );
 
     return Material(
       color: notification.isRead
@@ -264,10 +269,31 @@ class _NotificationTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: PassengerUi.bodyText,
                     ),
-                    const SizedBox(height: 8),
-                    TimeAgoText(
-                      dateTime: notification.createdAt,
-                      style: PassengerUi.bodyText.copyWith(fontSize: 12),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: TimeAgoText(
+                            dateTime: notification.createdAt,
+                            style: PassengerUi.bodyText.copyWith(fontSize: 12),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          destination.actionLabel,
+                          style: PassengerUi.bodyText.copyWith(
+                            color: accent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: accent,
+                          size: 18,
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -306,7 +332,23 @@ class _NotificationTile extends StatelessWidget {
       case 'review_received':
         return Icons.star_rounded;
       case 'verification_request':
+      case 'document_review_submitted':
         return Icons.fact_check_rounded;
+      case 'driver_documents_expiring':
+        return Icons.event_note_rounded;
+      case 'driver_documents_expired':
+      case 'driver_documents_expired_admin':
+        return Icons.event_busy_rounded;
+      case 'driver_renewal_submitted':
+        return Icons.upload_file_rounded;
+      case 'driver_renewal_approved':
+      case 'document_review_approved':
+        return Icons.task_alt_rounded;
+      case 'driver_renewal_rejected':
+      case 'document_review_rejected':
+        return Icons.error_outline_rounded;
+      case 'chat_message':
+        return Icons.chat_bubble_rounded;
       default:
         return Icons.notifications_rounded;
     }
@@ -339,7 +381,8 @@ class _NotificationsEmptyState extends StatelessWidget {
         child: PassengerEmptyState(
           icon: Icons.notifications_none_rounded,
           title: 'No notifications yet',
-          description: 'Booking, account, and review updates will appear here.',
+          description:
+              'Ride, message, verification, document, account, and review updates will appear here.',
         ),
       ),
     );

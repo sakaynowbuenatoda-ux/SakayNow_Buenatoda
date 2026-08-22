@@ -745,14 +745,24 @@ class _PassengerHomeMapState extends State<_PassengerHomeMap> {
     return LatLng(position.latitude, position.longitude);
   }
 
-  Future<void> _centerOnCurrentLocation(LatLng location) async {
+  Future<void> _centerOnCurrentLocation(
+    LatLng location,
+    double verticalOffset,
+  ) async {
     final controller = _mapController;
     if (controller == null) {
       return;
     }
 
     try {
-      await controller.animateCamera(CameraUpdate.newLatLng(location));
+      await moveMapCameraTarget(
+        moveToTarget: () =>
+            controller.moveCamera(CameraUpdate.newLatLng(location)),
+        animateTargetOffset: (offset) => controller.animateCamera(
+          CameraUpdate.scrollBy(offset.dx, offset.dy),
+        ),
+        targetOffset: Offset(0, verticalOffset),
+      );
     } on Exception {
       // The native map can be unavailable briefly during a platform rebuild.
     }
@@ -831,7 +841,10 @@ class _PassengerHomeMapState extends State<_PassengerHomeMap> {
                           key: const Key(
                             'passenger-home-current-location-button',
                           ),
-                          onPressed: () => _centerOnCurrentLocation(location),
+                          onPressed: () => _centerOnCurrentLocation(
+                            location,
+                            cameraVerticalOffset,
+                          ),
                         ),
                       ],
                     ],

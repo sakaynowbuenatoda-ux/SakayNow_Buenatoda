@@ -199,9 +199,6 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
                 zoomControlsEnabled: widget.zoomControlsEnabled,
                 mapToolbarEnabled: false,
                 compassEnabled: true,
-                padding: mapPaddingForCameraTargetOffset(
-                  widget.cameraTargetOffset,
-                ),
                 rotateGesturesEnabled: true,
                 scrollGesturesEnabled: true,
                 tiltGesturesEnabled: true,
@@ -373,13 +370,19 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
         return;
       }
 
-      await controller.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: widget.initialCameraTarget,
-            zoom: MapConfig.routeZoom,
+      await moveMapCameraTarget(
+        moveToTarget: () => controller.moveCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: widget.initialCameraTarget,
+              zoom: MapConfig.routeZoom,
+            ),
           ),
         ),
+        animateTargetOffset: (offset) => controller.animateCamera(
+          CameraUpdate.scrollBy(offset.dx, offset.dy),
+        ),
+        targetOffset: widget.cameraTargetOffset,
       );
     } catch (_) {
       // GoogleMap can reject camera bounds before the first layout pass.
@@ -405,8 +408,13 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
       }
 
       try {
-        await controller.animateCamera(
-          CameraUpdate.newLatLngBounds(bounds, 56),
+        await moveMapCameraTarget(
+          moveToTarget: () =>
+              controller.moveCamera(CameraUpdate.newLatLngBounds(bounds, 56)),
+          animateTargetOffset: (offset) => controller.animateCamera(
+            CameraUpdate.scrollBy(offset.dx, offset.dy),
+          ),
+          targetOffset: widget.cameraTargetOffset,
         );
         return;
       } catch (_) {
@@ -526,14 +534,17 @@ class _SakayGoogleMapState extends State<SakayGoogleMap> {
   }
 }
 
-@visibleForTesting
-EdgeInsets mapPaddingForCameraTargetOffset(Offset offset) {
-  return EdgeInsets.fromLTRB(
-    offset.dx < 0 ? -2 * offset.dx : 0,
-    offset.dy < 0 ? -2 * offset.dy : 0,
-    offset.dx > 0 ? 2 * offset.dx : 0,
-    offset.dy > 0 ? 2 * offset.dy : 0,
-  );
+Future<void> moveMapCameraTarget({
+  required AsyncCallback moveToTarget,
+  required Future<void> Function(Offset offset) animateTargetOffset,
+  required Offset targetOffset,
+}) async {
+  await moveToTarget();
+  if (targetOffset == Offset.zero) {
+    return;
+  }
+
+  await animateTargetOffset(targetOffset);
 }
 
 class _MapProfilePinCard extends StatelessWidget {

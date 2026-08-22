@@ -1129,7 +1129,7 @@ class _DriverSelectionPanelState extends State<_DriverSelectionPanel> {
                     18,
                     0,
                     18,
-                    14 + PassengerUi.pageBottomInset(context),
+                    14 + MediaQuery.viewPaddingOf(context).bottom,
                   ),
                   child: snapshot.connectionState == ConnectionState.waiting
                       ? const AppSkeletonList(itemCount: 3)
@@ -1468,7 +1468,7 @@ class _DriverPanelContent extends StatelessWidget {
               fareEstimateBuilder: fareEstimateBuilder,
               onBookDriver: onBookDriver,
             )
-          else
+          else if (otherActiveDrivers.isEmpty)
             _NoDriversState(
               hasActiveDrivers: otherActiveDrivers.isNotEmpty,
               isBooking: isRequestingAny || isBookingLoading,
@@ -1477,7 +1477,7 @@ class _DriverPanelContent extends StatelessWidget {
               onRequestAnyway: onRequestAnyway,
             ),
           if (otherActiveDrivers.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 16),
+            if (hasNearbyDrivers) const SizedBox(height: 16),
             _DriverListSection(
               title: hasNearbyDrivers
                   ? 'Other active drivers'
@@ -1672,201 +1672,282 @@ class _AvailableDriverCard extends StatelessWidget {
         !driver.supportsOnlinePayments;
     final isCoolingDown = bookingCooldownRemaining > Duration.zero;
     final pickupSurcharge = fareEstimate?.driverPickupSurcharge ?? 0;
+    final ratingAndReviews = driver.reviewCount > 0
+        ? '${driver.ratingLabel} (${driver.reviewCountLabel})'
+        : driver.ratingLabel;
+    final fareLabel = fareEstimate == null
+        ? 'Fare pending'
+        : 'Fare ${fareEstimate!.amountLabel}';
 
     return PassengerSurfaceCard(
-      child: Row(
+      key: ValueKey<String>('available-driver-${driver.driverId}'),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          ClipOval(
-            child: SizedBox(
-              width: 52,
-              height: 52,
-              child: FirebaseStorageImage(
-                imageUrl: driver.profileImageUrl,
-                fallback: Container(
-                  color: PassengerUi.blueSoft,
-                  alignment: Alignment.center,
-                  child: Text(
-                    driver.fullName.isEmpty
-                        ? 'D'
-                        : driver.fullName[0].toUpperCase(),
-                    style: TextStyle(
-                      color: PassengerUi.accentBlue,
-                      fontWeight: FontWeight.w800,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              ClipOval(
+                child: SizedBox(
+                  width: 42,
+                  height: 42,
+                  child: FirebaseStorageImage(
+                    imageUrl: driver.profileImageUrl,
+                    fallback: Container(
+                      color: PassengerUi.blueSoft,
+                      alignment: Alignment.center,
+                      child: Text(
+                        driver.fullName.isEmpty
+                            ? 'D'
+                            : driver.fullName[0].toUpperCase(),
+                        style: TextStyle(
+                          color: PassengerUi.accentBlue,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        driver.fullName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: MapTextStyles.title.copyWith(fontSize: 15),
-                      ),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            driver.fullName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: MapTextStyles.title.copyWith(fontSize: 14),
+                          ),
+                        ),
+                        if (driver.isVerified) ...<Widget>[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.verified_rounded,
+                            size: 16,
+                            color: PassengerUi.successText,
+                          ),
+                        ],
+                      ],
                     ),
-                    if (driver.isVerified)
-                      Icon(
-                        Icons.verified_rounded,
-                        size: 18,
-                        color: PassengerUi.successText,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: <Widget>[
-                    Icon(
-                      Icons.star_rounded,
-                      size: 16,
-                      color: PassengerUi.highlightAmber,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      driver.ratingLabel,
-                      style: MapTextStyles.body.copyWith(fontSize: 12.5),
-                    ),
-                    if (driver.reviewCount > 0) ...<Widget>[
-                      const SizedBox(width: 4),
-                      Text(
-                        '(${driver.reviewCountLabel})',
-                        style: MapTextStyles.body.copyWith(fontSize: 12.5),
-                      ),
-                    ],
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        distanceLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: MapTextStyles.body.copyWith(fontSize: 12.5),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: <Widget>[
-                    PassengerStatusChip(
-                      label: forcesCash
-                          ? 'Cash only'
-                          : driver.supportsOnlinePayments
-                          ? 'Online payments'
-                          : 'Cash',
-                      textColor: forcesCash
-                          ? PassengerUi.primary
-                          : driver.supportsOnlinePayments
-                          ? PassengerUi.successText
-                          : PassengerUi.body,
-                      backgroundColor: forcesCash
-                          ? PassengerUi.dangerSoft
-                          : driver.supportsOnlinePayments
-                          ? PassengerUi.successBackground
-                          : PassengerUi.mutedSurface,
-                    ),
-                    if (driver.displayBadge.isNotEmpty)
-                      PassengerStatusChip(
-                        label: driver.displayBadge,
-                        textColor: driver.ratingRank == null
-                            ? PassengerUi.accentBlue
-                            : PassengerUi.highlightAmber,
-                        backgroundColor: driver.ratingRank == null
-                            ? PassengerUi.blueSoft
-                            : PassengerUi.warningSoft,
-                      ),
-                    PassengerStatusChip(
-                      label: 'Fare ${fareEstimate?.amountLabel ?? 'pending'}',
-                      textColor: PassengerUi.accentBlue,
-                      backgroundColor: PassengerUi.blueSoft,
-                    ),
-                    if (pickupSurcharge > 0)
-                      PassengerStatusChip(
-                        label:
-                            '+${fareEstimate!.driverPickupSurchargeLabel} pickup',
-                        textColor: PassengerUi.highlightAmber,
-                        backgroundColor: PassengerUi.warningSoft,
-                      ),
-                    if (driver.hasVehicleInfo)
-                      PassengerStatusChip(
-                        label: driver.vehicleSummary,
-                        textColor: PassengerUi.title,
-                        backgroundColor: PassengerUi.mutedSurface,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                InkWell(
-                  onTap: () => showDriverVehicleDetailsSheet(
-                    context: context,
-                    driverName: driver.fullName,
-                    profileImageUrl: driver.profileImageUrl,
-                    isVerified: driver.isVerified,
-                    rating: driver.rating,
-                    reviewCount: driver.reviewCount,
-                    vehicleType: driver.vehicleType,
-                    tricycleColor: driver.tricycleColor,
-                    plateNumber: driver.plateNumber,
-                    tricycleFrontUrl: driver.tricycleFrontUrl,
-                    tricycleBackUrl: driver.tricycleBackUrl,
-                  ),
-                  borderRadius: BorderRadius.circular(6),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 2,
-                      horizontal: 4,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    const SizedBox(height: 2),
+                    Row(
                       children: <Widget>[
                         Icon(
-                          Icons.info_outline_rounded,
+                          Icons.star_rounded,
                           size: 14,
-                          color: PassengerUi.accentBlue,
+                          color: PassengerUi.highlightAmber,
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'View Vehicle Details & Photos',
-                          style: MapTextStyles.body.copyWith(
-                            fontSize: 12,
-                            color: PassengerUi.accentBlue,
-                            fontWeight: FontWeight.w600,
+                        const SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            ratingAndReviews,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: MapTextStyles.body.copyWith(fontSize: 11.5),
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Container(
+                          width: 3,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: PassengerUi.body,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            distanceLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: MapTextStyles.body.copyWith(fontSize: 11.5),
                           ),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 5),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: <Widget>[
+                        PassengerStatusChip(
+                          dense: true,
+                          label: forcesCash
+                              ? 'Cash only'
+                              : driver.supportsOnlinePayments
+                              ? 'Online payments'
+                              : 'Cash',
+                          textColor: forcesCash
+                              ? PassengerUi.primary
+                              : driver.supportsOnlinePayments
+                              ? PassengerUi.successText
+                              : PassengerUi.body,
+                          backgroundColor: forcesCash
+                              ? PassengerUi.dangerSoft
+                              : driver.supportsOnlinePayments
+                              ? PassengerUi.successBackground
+                              : PassengerUi.mutedSurface,
+                        ),
+                        if (driver.displayBadge.isNotEmpty)
+                          PassengerStatusChip(
+                            dense: true,
+                            label: driver.displayBadge,
+                            textColor: driver.ratingRank == null
+                                ? PassengerUi.accentBlue
+                                : PassengerUi.highlightAmber,
+                            backgroundColor: driver.ratingRank == null
+                                ? PassengerUi.blueSoft
+                                : PassengerUi.warningSoft,
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          ElevatedButton(
-            onPressed: isBooking || isCoolingDown ? null : onBook,
-            child: isBooking
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(
-                    isCoolingDown
-                        ? 'Wait ${BookingActionCooldownService.formatRemaining(bookingCooldownRemaining)}'
-                        : forcesCash
-                        ? 'Cash Only'
-                        : 'Book Now',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Icon(
+                          Icons.payments_outlined,
+                          size: 14,
+                          color: PassengerUi.accentBlue,
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            fareLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: MapTextStyles.value.copyWith(
+                              fontSize: 12.5,
+                              color: PassengerUi.accentBlue,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (pickupSurcharge > 0) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Text(
+                        '+${fareEstimate!.driverPickupSurchargeLabel} pickup',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MapTextStyles.body.copyWith(
+                          fontSize: 11,
+                          color: PassengerUi.highlightAmber,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                    if (driver.hasVehicleInfo) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Semantics(
+                        button: true,
+                        label:
+                            'View ${driver.fullName} vehicle details and photos',
+                        child: InkWell(
+                          onTap: () => showDriverVehicleDetailsSheet(
+                            context: context,
+                            driverName: driver.fullName,
+                            profileImageUrl: driver.profileImageUrl,
+                            isVerified: driver.isVerified,
+                            rating: driver.rating,
+                            reviewCount: driver.reviewCount,
+                            vehicleType: driver.vehicleType,
+                            tricycleColor: driver.tricycleColor,
+                            plateNumber: driver.plateNumber,
+                            tricycleFrontUrl: driver.tricycleFrontUrl,
+                            tricycleBackUrl: driver.tricycleBackUrl,
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Row(
+                              children: <Widget>[
+                                Icon(
+                                  Icons.two_wheeler_outlined,
+                                  size: 13,
+                                  color: PassengerUi.body,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    driver.vehicleSummary,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: MapTextStyles.body.copyWith(
+                                      fontSize: 11.5,
+                                      color: PassengerUi.title,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  size: 14,
+                                  color: PassengerUi.body,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 88,
+                height: 38,
+                child: ElevatedButton(
+                  onPressed: isBooking || isCoolingDown ? null : onBook,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: Size.zero,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
+                  child: isBooking
+                      ? const SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          isCoolingDown
+                              ? 'Wait ${BookingActionCooldownService.formatRemaining(bookingCooldownRemaining)}'
+                              : forcesCash
+                              ? 'Cash Only'
+                              : 'Book Now',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                        ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

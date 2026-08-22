@@ -49,7 +49,7 @@ class PassengerRecentTripsSection extends StatelessWidget {
                 onActionTap: onViewAllTap,
               ),
               const SizedBox(height: 14),
-              const AppSkeletonCard(showAvatar: true, height: 126),
+              const AppSkeletonCard(showAvatar: true, height: 110),
             ],
           );
         }
@@ -100,7 +100,7 @@ class PassengerRecentTripsSection extends StatelessWidget {
               ...trips.asMap().entries.map(
                 (entry) => Padding(
                   padding: EdgeInsets.only(
-                    bottom: entry.key == trips.length - 1 ? 0 : 10,
+                    bottom: entry.key == trips.length - 1 ? 0 : 8,
                   ),
                   child: PassengerTripCard(
                     trip: entry.value,
@@ -160,17 +160,18 @@ class PassengerTripCard extends StatelessWidget {
         ),
       ),
       child: PassengerSurfaceCard(
+        key: ValueKey<String>('passenger-trip-${ride.bookingId}'),
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 12 : 14,
-          vertical: 10,
+          horizontal: compact ? 10 : 12,
+          vertical: 9,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
               children: <Widget>[
-                _DriverAvatar(driver: driver, size: compact ? 42 : 44),
-                const SizedBox(width: 9),
+                _DriverAvatar(driver: driver, size: compact ? 36 : 38),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,7 +184,7 @@ class PassengerTripCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: PassengerUi.cardTitle.copyWith(
-                                fontSize: compact ? 14 : 15,
+                                fontSize: compact ? 13.5 : 14,
                               ),
                             ),
                           ),
@@ -191,11 +192,18 @@ class PassengerTripCard extends StatelessWidget {
                             const SizedBox(width: 4),
                             Icon(
                               Icons.verified_rounded,
-                              size: 15,
+                              size: 14,
                               color: PassengerUi.accentBlue,
                             ),
                           ],
                         ],
+                      ),
+                      const SizedBox(height: 1),
+                      TimeAgoText(
+                        dateTime: ride.updatedAt ?? ride.createdAt,
+                        style: PassengerUi.bodyText.copyWith(fontSize: 11),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -213,31 +221,45 @@ class PassengerTripCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             _HistoryRouteBlock(
               pickup: ride.pickupLocation.displayLabel,
               dropoff: ride.dropoffLocation.displayLabel,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 7),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
-                Icon(
-                  Icons.calendar_today_rounded,
-                  size: 13,
-                  color: PassengerUi.accentBlue,
-                ),
-                const SizedBox(width: 5),
                 Expanded(
-                  child: TimeAgoText(
-                    dateTime: ride.updatedAt ?? ride.createdAt,
-                    style: PassengerUi.bodyText.copyWith(fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: Wrap(
+                    spacing: 7,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: <Widget>[
+                      _InfoPill(label: ride.fareLabel ?? 'Fare pending'),
+                      if (ride.distanceLabel != 'Calculating')
+                        _InfoPill(label: ride.distanceLabel),
+                      _RatingPill(
+                        icon: Icons.star_rounded,
+                        label: driver.reviewCount == 0
+                            ? 'Not rated'
+                            : driver.averageRating.toStringAsFixed(1),
+                      ),
+                      _RatingPill(
+                        icon:
+                            !passengerHasReviewedDriver &&
+                                canPassengerReviewDriver
+                            ? Icons.rate_review_outlined
+                            : Icons.rate_review_rounded,
+                        label: passengerReviewLabel,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 6),
-                if (canPreviewRoute || quickDestinationsController != null)
-                  Column(
+                if (canPreviewRoute ||
+                    quickDestinationsController != null) ...<Widget>[
+                  const SizedBox(width: 6),
+                  Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
                       if (canPreviewRoute)
@@ -245,12 +267,12 @@ class PassengerTripCard extends StatelessWidget {
                           pickupLocation: ride.pickupLocation,
                           dropoffLocation: ride.dropoffLocation,
                           route: ride.route,
-                          dimension: 34,
-                          iconSize: 18,
+                          dimension: 30,
+                          iconSize: 16,
                         ),
                       if (canPreviewRoute &&
                           quickDestinationsController != null)
-                        const SizedBox(height: 4),
+                        const SizedBox(width: 4),
                       if (quickDestinationsController != null)
                         _SaveToOneTapIconButton(
                           controller: quickDestinationsController!,
@@ -258,29 +280,7 @@ class PassengerTripCard extends StatelessWidget {
                         ),
                     ],
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: <Widget>[
-                _InfoPill(label: ride.fareLabel ?? 'Fare pending'),
-                if (ride.distanceLabel != 'Calculating')
-                  _InfoPill(label: ride.distanceLabel),
-                _RatingPill(
-                  icon: Icons.star_rounded,
-                  label: driver.reviewCount == 0
-                      ? 'No driver rating'
-                      : driver.averageRating.toStringAsFixed(1),
-                ),
-                _RatingPill(
-                  icon: !passengerHasReviewedDriver && canPassengerReviewDriver
-                      ? Icons.rate_review_outlined
-                      : Icons.rate_review_rounded,
-                  label: passengerReviewLabel,
-                ),
+                ],
               ],
             ),
           ],
@@ -336,7 +336,7 @@ class _SaveToOneTapIconButtonState extends State<_SaveToOneTapIconButton> {
               'save-trip-to-one-tap-${widget.trip.ride.bookingId}',
             ),
             visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+            constraints: const BoxConstraints.tightFor(width: 30, height: 30),
             style: IconButton.styleFrom(
               foregroundColor: PassengerUi.accentBlue,
               backgroundColor: PassengerUi.accentBlue.withValues(alpha: 0.10),
@@ -356,7 +356,7 @@ class _SaveToOneTapIconButtonState extends State<_SaveToOneTapIconButton> {
                     isSaved
                         ? Icons.bookmark_added_rounded
                         : Icons.bookmark_add_outlined,
-                    size: 18,
+                    size: 16,
                   ),
           ),
         );
@@ -411,7 +411,7 @@ class _HistoryRouteBlock extends StatelessWidget {
           label: 'Pickup',
           value: pickup,
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         _HistoryLocationLine(
           icon: Icons.location_on_rounded,
           iconColor: PassengerUi.primary,
@@ -443,22 +443,22 @@ class _HistoryLocationLine extends StatelessWidget {
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.only(top: 1),
-          child: Icon(icon, size: 14, color: iconColor),
+          child: Icon(icon, size: 13, color: iconColor),
         ),
         const SizedBox(width: 6),
         Expanded(
           child: RichText(
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             text: TextSpan(
-              style: PassengerUi.bodyText.copyWith(fontSize: 12, height: 1.25),
+              style: PassengerUi.bodyText.copyWith(fontSize: 11.5, height: 1.2),
               children: <InlineSpan>[
                 TextSpan(text: '$label: '),
                 TextSpan(
                   text: value,
                   style: PassengerUi.valueText.copyWith(
-                    fontSize: 12,
-                    height: 1.25,
+                    fontSize: 11.5,
+                    height: 1.2,
                   ),
                 ),
               ],
@@ -523,13 +523,13 @@ class _InfoPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
         color: PassengerUi.mutedSurface,
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: PassengerUi.border),
       ),
-      child: Text(label, style: PassengerUi.valueText.copyWith(fontSize: 12)),
+      child: Text(label, style: PassengerUi.valueText.copyWith(fontSize: 11)),
     );
   }
 }
@@ -545,9 +545,9 @@ class _RatingPill extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Icon(icon, size: 14, color: PassengerUi.highlightAmber),
+        Icon(icon, size: 13, color: PassengerUi.highlightAmber),
         const SizedBox(width: 3),
-        Text(label, style: PassengerUi.valueText.copyWith(fontSize: 12)),
+        Text(label, style: PassengerUi.valueText.copyWith(fontSize: 11)),
       ],
     );
   }

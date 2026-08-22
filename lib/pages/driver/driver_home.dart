@@ -1225,7 +1225,7 @@ class DriverRecentTripsSection extends StatelessWidget {
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const AppSkeletonCard(showAvatar: true, height: 126);
+          return const AppSkeletonCard(showAvatar: true, height: 112);
         }
 
         if (snapshot.hasError) {
@@ -1256,7 +1256,7 @@ class DriverRecentTripsSection extends StatelessWidget {
               .map(
                 (entry) => Padding(
                   padding: EdgeInsets.only(
-                    bottom: entry.key == trips.length - 1 ? 0 : 12,
+                    bottom: entry.key == trips.length - 1 ? 0 : 8,
                   ),
                   child: DriverRecentTripCard(
                     trip: entry.value,
@@ -1295,22 +1295,24 @@ class DriverRecentTripCard extends StatelessWidget {
         ride.dropoffLocation.latLng != null;
 
     return PassengerSurfaceCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      key: ValueKey<String>('driver-trip-${ride.bookingId}'),
+      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               Expanded(
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
                   onTap: () => _openPassengerProfile(context),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    padding: const EdgeInsets.symmetric(vertical: 1),
                     child: Row(
                       children: <Widget>[
-                        _PassengerAvatar(profile: passenger),
-                        const SizedBox(width: 12),
+                        _PassengerAvatar(profile: passenger, size: 40),
+                        const SizedBox(width: 9),
                         Expanded(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -1322,42 +1324,58 @@ class DriverRecentTripCard extends StatelessWidget {
                                     child: Text(
                                       passenger.fullName,
                                       style: PassengerUi.cardTitle.copyWith(
-                                        fontSize: 14.5,
+                                        fontSize: 13.5,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                   if (passenger.isVerified) ...[
-                                    const SizedBox(width: 6),
-                                    _MiniVerifiedBadge(),
+                                    const SizedBox(width: 4),
+                                    Tooltip(
+                                      message: 'Verified passenger',
+                                      child: Icon(
+                                        Icons.verified_rounded,
+                                        size: 14,
+                                        color: PassengerUi.accentBlue,
+                                      ),
+                                    ),
                                   ],
                                 ],
                               ),
-                              const SizedBox(height: 5),
+                              const SizedBox(height: 1),
                               Row(
                                 children: <Widget>[
-                                  Expanded(
+                                  Flexible(
                                     child: Text(
                                       passenger.roleLabel,
                                       style: PassengerUi.bodyText.copyWith(
-                                        fontSize: 12,
+                                        fontSize: 11,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  PassengerStatusChip(
-                                    label: ride.status.label,
-                                    textColor:
-                                        ride.status == RideStatus.completed
-                                        ? PassengerUi.successText
-                                        : PassengerUi.primary,
-                                    backgroundColor:
-                                        ride.status == RideStatus.completed
-                                        ? PassengerUi.successBackground
-                                        : PassengerUi.dangerSoft,
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    width: 3,
+                                    height: 3,
+                                    decoration: BoxDecoration(
+                                      color: PassengerUi.body,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: TimeAgoText(
+                                      dateTime:
+                                          ride.updatedAt ?? ride.createdAt,
+                                      style: PassengerUi.bodyText.copyWith(
+                                        fontSize: 11,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -1370,116 +1388,155 @@ class DriverRecentTripCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: () => _reportDriverHomePassenger(
-                  context: context,
-                  rideTrackingService: rideTrackingService,
-                  bookingId: ride.bookingId,
-                  driverId: driverId,
-                  passengerId: passenger.userId,
-                  passengerName: passenger.fullName,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    color: PassengerUi.dangerSoft,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: PassengerUi.primary.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.report_gmailerrorred_rounded,
-                    size: 18,
-                    color: PassengerUi.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: canReviewPassenger
-                    ? () => _showRatingChoices(context)
-                    : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: PassengerUi.mutedSurface,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: PassengerUi.border),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        rating == null
-                            ? canReviewPassenger
-                                  ? Icons.star_border_rounded
-                                  : Icons.block_rounded
-                            : Icons.star_rounded,
-                        size: 18,
-                        color: rating == null
-                            ? canReviewPassenger
-                                  ? PassengerUi.highlightAmber
-                                  : PassengerUi.body
-                            : PassengerUi.highlightAmber,
-                      ),
-                      if (rating != null) ...[
-                        const SizedBox(width: 4),
-                        Text(
-                          rating.toString(),
-                          style: PassengerUi.valueText.copyWith(
-                            fontSize: 12.5,
-                            color: PassengerUi.highlightAmber,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+              PassengerStatusChip(
+                dense: true,
+                label: ride.status.label,
+                textColor: ride.status == RideStatus.completed
+                    ? PassengerUi.successText
+                    : PassengerUi.primary,
+                backgroundColor: ride.status == RideStatus.completed
+                    ? PassengerUi.successBackground
+                    : PassengerUi.dangerSoft,
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 7),
           _DriverHistoryRouteBlock(
             pickup: ride.pickupLocation.publicDisplayLabel,
             dropoff: ride.dropoffLocation.publicDisplayLabel,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 7),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              Text(
-                ride.fareLabel ?? 'Fare pending',
-                style: PassengerUi.valueText.copyWith(fontSize: 12.5),
-              ),
-              if (ride.distanceLabel != 'Calculating') ...<Widget>[
-                const SizedBox(width: 8),
-                Text(
-                  ride.distanceLabel,
-                  style: PassengerUi.bodyText.copyWith(fontSize: 12),
-                ),
-              ],
-              const SizedBox(width: 8),
               Expanded(
-                child: TimeAgoText(
-                  dateTime: ride.updatedAt ?? ride.createdAt,
-                  style: PassengerUi.bodyText.copyWith(fontSize: 12),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 3,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
+                    Text(
+                      ride.fareLabel ?? 'Fare pending',
+                      style: PassengerUi.valueText.copyWith(fontSize: 11.5),
+                    ),
+                    if (ride.distanceLabel != 'Calculating')
+                      Text(
+                        ride.distanceLabel,
+                        style: PassengerUi.bodyText.copyWith(fontSize: 11.5),
+                      ),
+                  ],
                 ),
               ),
-              if (canPreviewRoute) ...<Widget>[
-                const SizedBox(width: 8),
-                RideLocationPreviewButton(
-                  pickupLocation: ride.pickupLocation,
-                  dropoffLocation: ride.dropoffLocation,
-                  route: ride.route,
-                ),
-              ],
+              const SizedBox(width: 6),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (canPreviewRoute) ...<Widget>[
+                    RideLocationPreviewButton(
+                      pickupLocation: ride.pickupLocation,
+                      dropoffLocation: ride.dropoffLocation,
+                      route: ride.route,
+                      dimension: 30,
+                      iconSize: 16,
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Tooltip(
+                    message: 'Report passenger',
+                    child: IconButton(
+                      key: ValueKey<String>(
+                        'driver-trip-report-${ride.bookingId}',
+                      ),
+                      onPressed: () => _reportDriverHomePassenger(
+                        context: context,
+                        rideTrackingService: rideTrackingService,
+                        bookingId: ride.bookingId,
+                        driverId: driverId,
+                        passengerId: passenger.userId,
+                        passengerName: passenger.fullName,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 30,
+                        height: 30,
+                      ),
+                      style: IconButton.styleFrom(
+                        foregroundColor: PassengerUi.primary,
+                        backgroundColor: PassengerUi.dangerSoft,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(
+                            color: PassengerUi.primary.withValues(alpha: 0.2),
+                          ),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.report_gmailerrorred_rounded,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Tooltip(
+                    message: rating == null
+                        ? canReviewPassenger
+                              ? 'Rate passenger'
+                              : 'Passenger rating unavailable'
+                        : 'Rated $rating stars',
+                    child: InkWell(
+                      key: ValueKey<String>(
+                        'driver-trip-review-${ride.bookingId}',
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: canReviewPassenger
+                          ? () => _showRatingChoices(context)
+                          : null,
+                      child: Container(
+                        height: 30,
+                        constraints: const BoxConstraints(minWidth: 30),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: rating == null ? 7 : 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: canReviewPassenger || rating != null
+                              ? PassengerUi.warningSoft
+                              : PassengerUi.mutedSurface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: PassengerUi.border),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Icon(
+                              rating == null
+                                  ? canReviewPassenger
+                                        ? Icons.star_border_rounded
+                                        : Icons.block_rounded
+                                  : Icons.star_rounded,
+                              size: 16,
+                              color: rating == null
+                                  ? canReviewPassenger
+                                        ? PassengerUi.highlightAmber
+                                        : PassengerUi.body
+                                  : PassengerUi.highlightAmber,
+                            ),
+                            if (rating != null) ...<Widget>[
+                              const SizedBox(width: 2),
+                              Text(
+                                rating.toString(),
+                                style: PassengerUi.valueText.copyWith(
+                                  fontSize: 10.5,
+                                  color: PassengerUi.highlightAmber,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ],
@@ -1560,7 +1617,7 @@ class _DriverHistoryRouteBlock extends StatelessWidget {
           label: 'Pickup',
           value: pickup,
         ),
-        const SizedBox(height: 7),
+        const SizedBox(height: 3),
         _DriverHistoryLocationLine(
           icon: Icons.location_on_rounded,
           iconColor: PassengerUi.primary,
@@ -1592,20 +1649,23 @@ class _DriverHistoryLocationLine extends StatelessWidget {
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.only(top: 1),
-          child: Icon(icon, size: 16, color: iconColor),
+          child: Icon(icon, size: 13, color: iconColor),
         ),
         const SizedBox(width: 7),
         Expanded(
           child: RichText(
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             text: TextSpan(
-              style: PassengerUi.bodyText.copyWith(fontSize: 12.5),
+              style: PassengerUi.bodyText.copyWith(fontSize: 11.5, height: 1.2),
               children: <InlineSpan>[
                 TextSpan(text: '$label: '),
                 TextSpan(
                   text: value,
-                  style: PassengerUi.valueText.copyWith(fontSize: 12.5),
+                  style: PassengerUi.valueText.copyWith(
+                    fontSize: 11.5,
+                    height: 1.2,
+                  ),
                 ),
               ],
             ),
@@ -1618,8 +1678,9 @@ class _DriverHistoryLocationLine extends StatelessWidget {
 
 class _PassengerAvatar extends StatelessWidget {
   final PassengerReviewProfile profile;
+  final double size;
 
-  const _PassengerAvatar({required this.profile});
+  const _PassengerAvatar({required this.profile, this.size = 40});
 
   @override
   Widget build(BuildContext context) {
@@ -1627,8 +1688,8 @@ class _PassengerAvatar extends StatelessWidget {
 
     return ClipOval(
       child: SizedBox(
-        width: 48,
-        height: 48,
+        width: size,
+        height: size,
         child: FirebaseStorageImage(
           imageUrl: imageUrl,
           fit: BoxFit.cover,
@@ -1659,33 +1720,6 @@ class _PassengerAvatar extends StatelessWidget {
     }
 
     return parts.map((part) => part[0].toUpperCase()).join();
-  }
-}
-
-class _MiniVerifiedBadge extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: PassengerUi.blueSoft,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(Icons.verified_rounded, size: 12, color: PassengerUi.accentBlue),
-          const SizedBox(width: 3),
-          Text(
-            'Verified',
-            style: PassengerUi.valueText.copyWith(
-              fontSize: 10.5,
-              color: PassengerUi.accentBlue,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

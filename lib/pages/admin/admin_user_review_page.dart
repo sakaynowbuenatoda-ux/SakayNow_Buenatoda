@@ -227,10 +227,8 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
                     confirmLabel: 'Approve Update',
                     icon: Icons.fact_check_rounded,
                     confirmColor: AdminUi.successText,
-                    action: () => AdminService.approveDocumentReview(
-                      userId: user.userId,
-                      adminId: widget.adminId,
-                    ),
+                    action: () =>
+                        AdminService.approveDocumentReview(userId: user.userId),
                     successMessage:
                         '${user.fullName}\'s document update was approved.',
                   ),
@@ -489,7 +487,6 @@ class _AdminUserReviewPageState extends State<AdminUserReviewPage> {
     await _runAction(
       action: () => AdminService.rejectDocumentReview(
         userId: user.userId,
-        adminId: widget.adminId,
         reason: reason,
       ),
       successMessage: '${user.fullName}\'s document update was rejected.',

@@ -738,6 +738,113 @@ export const verifyUserAccount = onCall(
   },
 );
 
+export const reviewDocumentUpdate = onCall(
+  {
+    region: "asia-southeast1",
+  },
+  async (request) => {
+    const requesterId = request.auth?.uid;
+    if (!requesterId) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in with an admin account to review document updates.",
+      );
+    }
+
+    const input = readMap(request.data);
+    const userId = readRequiredString(input, "user_id");
+    const decision = readRequiredString(input, "decision").toLowerCase();
+    const reason = readOptionalString(input.reason);
+    if (decision !== "approved" && decision !== "rejected") {
+      throw new HttpsError(
+        "invalid-argument",
+        "The document review decision must be approved or rejected.",
+      );
+    }
+    if (decision === "rejected" && !reason) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A rejection reason is required.",
+      );
+    }
+    if (reason && reason.length > 240) {
+      throw new HttpsError(
+        "invalid-argument",
+        "The rejection reason must be 240 characters or fewer.",
+      );
+    }
+
+    const requesterSnapshot = await firestore
+      .collection("users")
+      .doc(requesterId)
+      .get();
+    const requester = requesterSnapshot.data();
+    if (!requesterSnapshot.exists || !requester || !isAdminStaff(requester)) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only active admin staff can review document updates.",
+      );
+    }
+
+    const userRef = firestore.collection("users").doc(userId);
+    await firestore.runTransaction(async (transaction) => {
+      const targetSnapshot = await transaction.get(userRef);
+      const target = targetSnapshot.data();
+      if (!targetSnapshot.exists || !target) {
+        throw new HttpsError("not-found", "User account was not found.");
+      }
+
+      const targetRole = normalizedUserRole(target);
+      if (
+        isAdminStaffRole(targetRole) ||
+        (targetRole !== "driver" && targetRole !== "passenger")
+      ) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Only passenger and driver document updates can be reviewed here.",
+        );
+      }
+      if (isDeletedAccount(target)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Deleted accounts cannot have document updates reviewed.",
+        );
+      }
+      if (
+        readOptionalString(target.document_review_status) !== "pending" ||
+        Object.keys(readMap(target.pending_document_review)).length === 0
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This document update is no longer pending.",
+        );
+      }
+
+      const updates = decision === "approved" ?
+        approvedDocumentReviewDecisionUpdates(target, requesterId) :
+        {
+          document_review_status: "rejected",
+          document_upload_status: "rejected",
+          document_review_reviewed_by: requesterId,
+          document_review_reviewed_at: FieldValue.serverTimestamp(),
+          document_review_rejection_reason: reason,
+        };
+      transaction.set(
+        userRef,
+        {
+          ...updates,
+          reviewed_by: requesterId,
+          reviewed_at: FieldValue.serverTimestamp(),
+          updated_at: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+    });
+
+    return {user_id: userId, decision};
+  },
+);
+
 export const ensureAdminDirectConversation = onCall(
   {
     region: "asia-southeast1",
@@ -2917,9 +3024,14 @@ function normalizedBookingStatus(value: unknown) {
 }
 
 function normalizedUserRole(data: Record<string, unknown>) {
-  const role = readOptionalString(data.role)?.toLowerCase() ?? "passenger";
+  const role = readOptionalString(data.role)?.toLowerCase()
+    .replace(/[-\s]+/g, "_") ?? "passenger";
   if (role === "regular" || role === "student" || role === "senior_citizen") {
     return "passenger";
+  }
+
+  if (role === "superadmin") {
+    return "super_admin";
   }
 
   if (role === "driver" || role === "admin" || role === "super_admin") {
@@ -3345,10 +3457,79 @@ function documentReviewLabel(review: Record<string, unknown>) {
   return "document update";
 }
 
-function approvedPendingReviewUpdates(
+function approvedDocumentReviewDecisionUpdates(
   user: Record<string, unknown>,
   reviewerId: string,
 ) {
+  const review = readMap(user.pending_document_review);
+  const kind = readOptionalString(review.kind);
+  const role = normalizedUserRole(user);
+
+  if (kind === "driver_credential" && role === "driver") {
+    const credentialType = readOptionalString(review.credential_type);
+    const documentUrl = readOptionalString(review.document_url);
+    if (
+      !credentialType ||
+      !["nbi_clearance", "drivers_license", "selfie", "or_cr"]
+        .includes(credentialType) ||
+      !documentUrl
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The pending driver credential update is incomplete.",
+      );
+    }
+    if (credentialType === "drivers_license" || credentialType === "or_cr") {
+      const expiry = timestampFromUnknown(review.expiry);
+      if (!expiry || expiry.toMillis() <= Timestamp.now().toMillis()) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The pending driver credential expiry is invalid.",
+        );
+      }
+    }
+  } else if (kind === "driver_vehicle" && role === "driver") {
+    const requiredFields = [
+      "vehicle_type",
+      "tricycle_color",
+      "plate_number",
+      "tricycle_front_url",
+      "tricycle_back_url",
+    ];
+    if (requiredFields.some((field) => !readOptionalString(review[field]))) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The pending vehicle update is incomplete.",
+      );
+    }
+  } else if (kind === "passenger_identity" && role === "passenger") {
+    if (
+      !readOptionalString(review.id_image_url) &&
+      !readOptionalString(review.selfie_url)
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The pending passenger identity update is incomplete.",
+      );
+    }
+  } else {
+    throw new HttpsError(
+      "failed-precondition",
+      "The pending document review type is invalid.",
+    );
+  }
+
+  const updates = approvedPendingReviewUpdates(user, reviewerId);
+  if (updates.document_status === "expired") {
+    updates.is_active = false;
+  }
+  return updates;
+}
+
+function approvedPendingReviewUpdates(
+  user: Record<string, unknown>,
+  reviewerId: string,
+): Record<string, unknown> {
   if (readOptionalString(user.document_review_status) !== "pending") {
     return {};
   }

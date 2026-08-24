@@ -720,8 +720,8 @@ class RideTrackingService {
               .where((ride) => ride.status.isTerminal)
               .toList();
           rides.sort((a, b) {
-            final aDate = a.updatedAt ?? a.createdAt ?? DateTime(1970);
-            final bDate = b.updatedAt ?? b.createdAt ?? DateTime(1970);
+            final aDate = a.historyDate ?? DateTime(1970);
+            final bDate = b.historyDate ?? DateTime(1970);
             return bDate.compareTo(aDate);
           });
 
@@ -762,8 +762,8 @@ class RideTrackingService {
               .where((ride) => ride.status.isTerminal && ride.hasDriver)
               .toList();
           rides.sort((a, b) {
-            final aDate = a.updatedAt ?? a.createdAt ?? DateTime(1970);
-            final bDate = b.updatedAt ?? b.createdAt ?? DateTime(1970);
+            final aDate = a.historyDate ?? DateTime(1970);
+            final bDate = b.historyDate ?? DateTime(1970);
             return bDate.compareTo(aDate);
           });
 

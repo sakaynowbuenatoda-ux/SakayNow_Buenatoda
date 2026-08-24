@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sakaynow_buenatoda/models/ride.dart';
+import 'package:sakaynow_buenatoda/models/ride_status.dart';
 import 'package:sakaynow_buenatoda/widgets/trip_history_sort.dart';
 
 import '../support/ride_fixture.dart';
@@ -45,6 +46,31 @@ void main() {
         newerRide,
         middleExpensiveRide,
       ]);
+    });
+
+    test('uses terminal time instead of later review update time', () {
+      final completedRide = buildRideFixture(
+        bookingId: 'completed',
+        status: RideStatus.completed,
+        completedAt: DateTime(2025, 1, 1),
+        updatedAt: DateTime(2025, 4, 1),
+      );
+      final cancelledRide = buildRideFixture(
+        bookingId: 'cancelled',
+        status: RideStatus.cancelled,
+        cancelledAt: DateTime(2025, 2, 1),
+        updatedAt: DateTime(2025, 3, 1),
+      );
+
+      expect(completedRide.historyDate, DateTime(2025, 1, 1));
+      expect(cancelledRide.historyDate, DateTime(2025, 2, 1));
+      expect(
+        _sort(<Ride>[
+          completedRide,
+          cancelledRide,
+        ], TripHistorySortOption.newest),
+        <Ride>[cancelledRide, completedRide],
+      );
     });
   });
 

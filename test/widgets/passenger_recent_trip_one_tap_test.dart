@@ -80,10 +80,12 @@ void main() {
   testWidgets('driver recent trip card stays compact on a narrow layout', (
     tester,
   ) async {
+    final completedAt = DateTime.now().subtract(const Duration(days: 30));
     final trip = DriverRecentTrip(
       ride: buildRideFixture(
         status: RideStatus.completed,
-        updatedAt: DateTime.now().subtract(const Duration(days: 30)),
+        completedAt: completedAt,
+        updatedAt: DateTime.now().subtract(const Duration(minutes: 1)),
       ),
       passenger: const PassengerReviewProfile(
         userId: 'passenger-1',
@@ -128,6 +130,7 @@ void main() {
       find.byKey(const ValueKey<String>('driver-trip-review-booking-1')),
       findsOneWidget,
     );
+    expect(find.text('1 month ago'), findsOneWidget);
     expect(find.byIcon(Icons.map_rounded), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

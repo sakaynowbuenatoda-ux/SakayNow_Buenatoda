@@ -3,6 +3,7 @@ import 'package:sakaynow_buenatoda/models/ride_location.dart';
 import 'package:sakaynow_buenatoda/models/ride_status.dart';
 
 Ride buildRideFixture({
+  String bookingId = 'booking-1',
   RideStatus status = RideStatus.searching,
   int? estimatedDistanceMeters = 3600,
   int? estimatedDurationSeconds = 900,
@@ -18,12 +19,14 @@ Ride buildRideFixture({
   String paymentMethod = 'cash',
   String paymentProvider = 'cash',
   String paymentStatus = 'cash_pending',
+  DateTime? createdAt,
   DateTime? updatedAt,
   DateTime? completedAt,
+  DateTime? cancelledAt,
   int fareAmount = 50,
 }) {
   return Ride(
-    bookingId: 'booking-1',
+    bookingId: bookingId,
     passengerId: 'passenger-1',
     driverId: 'driver-1',
     preferredDriverId: null,
@@ -47,11 +50,11 @@ Ride buildRideFixture({
     driverToPickupDurationSeconds: driverToPickupDurationSeconds,
     remainingRideDistanceMeters: remainingRideDistanceMeters,
     remainingRideDurationSeconds: remainingRideDurationSeconds,
-    createdAt: null,
+    createdAt: createdAt,
     updatedAt: updatedAt,
     completedAt: completedAt,
     cancelledBy: null,
-    cancelledAt: null,
+    cancelledAt: cancelledAt,
     fareLabel: 'PHP 50',
     fareAmount: fareAmount,
     fareRuleLabel: null,

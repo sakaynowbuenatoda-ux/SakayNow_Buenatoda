@@ -200,7 +200,7 @@ class PassengerTripCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 1),
                       TimeAgoText(
-                        dateTime: ride.updatedAt ?? ride.createdAt,
+                        dateTime: ride.historyDate,
                         style: PassengerUi.bodyText.copyWith(fontSize: 11),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

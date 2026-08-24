@@ -1380,8 +1380,7 @@ class DriverRecentTripCard extends StatelessWidget {
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: TimeAgoText(
-                                      dateTime:
-                                          ride.updatedAt ?? ride.createdAt,
+                                      dateTime: ride.historyDate,
                                       style: PassengerUi.bodyText.copyWith(
                                         fontSize: 11,
                                       ),

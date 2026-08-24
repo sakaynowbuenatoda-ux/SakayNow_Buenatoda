@@ -63,7 +63,7 @@ List<T> sortTripHistory<T>({
 int _compareDates(Ride a, Ride b) => _historyDate(a).compareTo(_historyDate(b));
 
 DateTime _historyDate(Ride ride) =>
-    ride.updatedAt ?? ride.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    ride.historyDate ?? DateTime.fromMillisecondsSinceEpoch(0);
 
 int _compareFares(Ride a, Ride b, {required bool descending}) {
   final aFare = a.fareAmount ?? a.grossFare;

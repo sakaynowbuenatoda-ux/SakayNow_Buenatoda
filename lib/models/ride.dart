@@ -102,6 +102,18 @@ class Ride {
   bool get canDriverReviewPassenger =>
       status == RideStatus.completed && !hasDriverPassengerReview;
 
+  /// The time this ride should use in trip-history cards and ordering.
+  ///
+  /// A review or another post-trip change can update [updatedAt], but it must
+  /// not make the ride appear to have completed or been cancelled at that
+  /// later time. The fallbacks preserve support for older booking records
+  /// that do not have a status-specific timestamp.
+  DateTime? get historyDate => switch (status) {
+    RideStatus.completed => completedAt ?? updatedAt ?? createdAt,
+    RideStatus.cancelled => cancelledAt ?? updatedAt ?? createdAt,
+    _ => updatedAt ?? createdAt,
+  };
+
   String get distanceLabel {
     final meters = _distanceMetersForStatus;
     if (meters == null || meters <= 0) {

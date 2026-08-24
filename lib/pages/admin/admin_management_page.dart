@@ -10,6 +10,7 @@ import 'admin_navigation.dart';
 import 'admin_service.dart';
 import 'widgets/admin_shared.dart';
 import 'widgets/fare_settings_editor.dart';
+import 'widgets/platform_commission_account_editor.dart';
 
 class AdminManagementPage extends StatelessWidget {
   final String adminId;
@@ -131,13 +132,17 @@ class AdminManagementPage extends StatelessWidget {
                     payment: _ManagementSurfacePanel(
                       title: 'Payment Management',
                       subtitle:
-                          'Review cashless readiness and settlement status.',
+                          'Control the private commission settlement account and review checkout status.',
                       child: Column(
                         children: [
+                          PlatformCommissionAccountEditor(adminId: adminId),
+                          const SizedBox(height: 16),
+                          Divider(height: 1, color: AdminUi.border),
+                          const SizedBox(height: 16),
                           AdminInfoPanel(
                             title: 'Cashless readiness',
                             description:
-                                '$cashlessTrips trip(s) use a cashless method such as GCash, Maya, or card checkout. Payment setup remains separate from account management.',
+                                '$cashlessTrips trip(s) use a cashless method such as GCash, Maya, or card checkout.',
                           ),
                           const SizedBox(height: 12),
                           AdminInfoPanel(
@@ -307,7 +312,8 @@ class _AdminLogsPreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _ManagementSurfacePanel(
       title: 'Admin Action Logs',
-      subtitle: 'Recent admin account, fare, and moderation actions.',
+      subtitle:
+          'Recent admin account, fare, commission-account, and moderation actions.',
       child: StreamBuilder<List<AdminActionLogRecord>>(
         stream: AdminService.watchAdminLogs(limit: 3),
         builder: (context, snapshot) {
@@ -334,7 +340,7 @@ class _AdminLogsPreviewCard extends StatelessWidget {
               icon: Icons.history_rounded,
               title: 'No admin actions logged yet',
               description:
-                  'Actions will appear here after admins review users, restore accounts, update fares, or create admin accounts.',
+                  'Actions will appear here after admins review users, restore accounts, update fares or commission accounts, or create admin accounts.',
               accentColor: AdminUi.accentBlue,
             );
           }

@@ -1366,6 +1366,47 @@ service cloud.firestore {
         && settingsData.updated_at == request.time;
     }
 
+    function platformCommissionAccountAllowedKeys() {
+      return [
+        'account_type',
+        'provider',
+        'label',
+        'account_name',
+        'account_reference',
+        'bank_name',
+        'is_enabled',
+        'updated_by',
+        'updated_at',
+        'created_at'
+      ];
+    }
+
+    function isValidPlatformCommissionAccount(accountData) {
+      return accountData.keys().hasOnly(platformCommissionAccountAllowedKeys())
+        && accountData.keys().hasAll(platformCommissionAccountAllowedKeys())
+        && accountData.account_type in ['gcash', 'maya', 'bank']
+        && accountData.provider == 'xendit'
+        && accountData.label is string
+        && accountData.label.size() >= 2
+        && accountData.label.size() <= 60
+        && accountData.account_name is string
+        && accountData.account_name.size() >= 2
+        && accountData.account_name.size() <= 100
+        && accountData.account_reference is string
+        && accountData.account_reference.size() >= 4
+        && accountData.account_reference.size() <= 100
+        && accountData.bank_name is string
+        && accountData.bank_name.size() <= 80
+        && (
+          accountData.account_type != 'bank'
+          || accountData.bank_name.size() >= 2
+        )
+        && accountData.is_enabled is bool
+        && accountData.updated_by == request.auth.uid
+        && accountData.updated_at == request.time
+        && accountData.created_at is timestamp;
+    }
+
     function isOpenBookingQueueRecord(bookingData) {
       return bookingData.status in ['searching', 'pending', 'queued', 'new'];
     }
@@ -1731,6 +1772,19 @@ service cloud.firestore {
         && isAdmin()
         && isValidFareSettings(request.resource.data);
       allow delete: if isAdmin();
+    }
+
+    match /platform_commission_accounts/{accountId} {
+      allow read: if accountId == 'current' && isAdmin();
+      allow create: if accountId == 'current'
+        && isAdmin()
+        && isValidPlatformCommissionAccount(request.resource.data)
+        && request.resource.data.created_at == request.time;
+      allow update: if accountId == 'current'
+        && isAdmin()
+        && isValidPlatformCommissionAccount(request.resource.data)
+        && request.resource.data.created_at == resource.data.created_at;
+      allow delete: if false;
     }
 
     match /rides/{rideId} {

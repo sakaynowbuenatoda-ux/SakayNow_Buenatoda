@@ -107,6 +107,18 @@ beforeEach(async () => {
       admin_name: "Admin One",
       summary: "A user was approved.",
     });
+    await setDoc(doc(firestore, "platform_commission_accounts", "current"), {
+      account_type: "gcash",
+      provider: "xendit",
+      label: "Main commission wallet",
+      account_name: "SakayNow Buenatoda",
+      account_reference: "09171234567",
+      bank_name: "",
+      is_enabled: true,
+      updated_by: "admin-1",
+      created_at: Timestamp.fromMillis(1_700_000_000_000),
+      updated_at: Timestamp.fromMillis(1_700_000_000_000),
+    });
     await setDoc(doc(firestore, "conversations", "admin_direct_admin-1_admin-2"), {
       conversation_id: "admin_direct_admin-1_admin-2",
       type: "admin_direct",
@@ -152,6 +164,31 @@ test("regular and super admins can read shared admin logs", async () => {
 
   const passenger = environment.authenticatedContext("passenger-1").firestore();
   await assertFails(getDoc(doc(passenger, "admin_logs", "log-1")));
+});
+
+test("only active admins can access the platform commission account", async () => {
+  for (const userId of ["admin-1", "super-1"]) {
+    const firestore = environment.authenticatedContext(userId).firestore();
+    const account = doc(firestore, "platform_commission_accounts", "current");
+    await assertSucceeds(getDoc(account));
+    await assertSucceeds(updateDoc(account, {
+      label: `${userId} commission wallet`,
+      updated_by: userId,
+      updated_at: serverTimestamp(),
+    }));
+    await assertFails(deleteDoc(account));
+  }
+
+  for (const userId of ["passenger-1", "driver-1", "admin-disabled"]) {
+    const firestore = environment.authenticatedContext(userId).firestore();
+    const account = doc(firestore, "platform_commission_accounts", "current");
+    await assertFails(getDoc(account));
+    await assertFails(updateDoc(account, {
+      label: "Unauthorized change",
+      updated_by: userId,
+      updated_at: serverTimestamp(),
+    }));
+  }
 });
 
 test("legacy passengers can upload and submit their verification documents", async () => {

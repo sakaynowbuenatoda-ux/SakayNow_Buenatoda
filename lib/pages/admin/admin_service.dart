@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../models/fare_settings.dart';
+import '../../models/platform_commission_account.dart';
 import '../../services/fare_settings_service.dart';
+import '../../services/platform_commission_account_service.dart';
 import '../../services/ride_tracking_service.dart';
 import 'admin_models.dart';
 
@@ -14,6 +16,10 @@ class AdminService {
     region: 'asia-southeast1',
   );
   static final FareSettingsService _fareSettingsService = FareSettingsService(
+    firestore: _firestore,
+  );
+  static final PlatformCommissionAccountService
+  _platformCommissionAccountService = PlatformCommissionAccountService(
     firestore: _firestore,
   );
 
@@ -373,6 +379,20 @@ class AdminService {
   }) {
     return _fareSettingsService.updateSettings(
       settings: settings,
+      adminId: adminId,
+    );
+  }
+
+  static Stream<PlatformCommissionAccount?> watchPlatformCommissionAccount() {
+    return _platformCommissionAccountService.watchAccount();
+  }
+
+  static Future<void> savePlatformCommissionAccount({
+    required PlatformCommissionAccount account,
+    required String adminId,
+  }) {
+    return _platformCommissionAccountService.saveAccount(
+      account: account,
       adminId: adminId,
     );
   }

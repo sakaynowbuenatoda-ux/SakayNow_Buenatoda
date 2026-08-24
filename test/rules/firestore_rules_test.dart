@@ -418,6 +418,24 @@ void main() {
       expect(rules, contains('bookingData.driver_id == request.auth.uid'));
     });
 
+    test('keep platform commission checkout account admin-only', () {
+      expect(
+        rules,
+        contains('match /platform_commission_accounts/{accountId}'),
+      );
+      expect(
+        rules,
+        contains("allow read: if accountId == 'current' && isAdmin();"),
+      );
+      expect(
+        rules,
+        contains('function isValidPlatformCommissionAccount(accountData)'),
+      );
+      expect(rules, contains("accountData.provider == 'xendit'"));
+      expect(rules, contains('accountData.updated_by == request.auth.uid'));
+      expect(rules, contains('allow delete: if false;'));
+    });
+
     test('keep notification documents server-created and owner-readable', () {
       expect(rules, contains('match /notifications/{notificationId}'));
       expect(

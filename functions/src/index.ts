@@ -16,6 +16,7 @@ import {
   onDocumentUpdated,
   onDocumentUpdatedWithAuthContext,
   onDocumentWritten,
+  onDocumentWrittenWithAuthContext,
 } from "firebase-functions/v2/firestore";
 import {defineSecret} from "firebase-functions/params";
 import {HttpsError, onCall, onRequest} from "firebase-functions/v2/https";
@@ -57,6 +58,8 @@ const studentDiscountCode = "verified_student";
 const seniorCitizenDiscountCode = "verified_senior_citizen";
 const fareSettingsCollection = "fare_settings";
 const currentFareSettingsDocument = "current";
+const platformCommissionAccountsCollection = "platform_commission_accounts";
+const currentPlatformCommissionAccountDocument = "current";
 const adminLogsCollection = "admin_logs";
 const driverRatingPriorAverage = 4.0;
 const driverRatingMinimumReviews = 20;
@@ -123,6 +126,12 @@ type FareValidationSettings = {
   regularPassengerDiscountRate: number;
   studentDiscountRate: number;
   seniorCitizenDiscountRate: number;
+  commissionRate: number;
+};
+
+type ActivePlatformCommissionAccount = {
+  id: string;
+  provider: "xendit";
 };
 
 type AdminLogParams = {
@@ -144,6 +153,7 @@ const defaultFareValidationSettings: FareValidationSettings = {
   regularPassengerDiscountRate,
   studentDiscountRate,
   seniorCitizenDiscountRate,
+  commissionRate: 0,
 };
 
 export const createXenditCheckoutSession = onCall(
@@ -226,6 +236,25 @@ export const createXenditCheckoutSession = onCall(
       );
     }
 
+    const storedCommissionAmount = readNumber(booking.commission_amount);
+    const storedCommissionRate = readNumber(booking.commission_rate) ?? 0;
+    const commissionAmount = Math.max(
+      0,
+      Math.round(
+        storedCommissionAmount ?? amount * Math.min(1, storedCommissionRate),
+      ),
+      Math.round(amount * fareSettings.commissionRate),
+    );
+    const platformCommissionAccount = commissionAmount > 0 ?
+      await loadActivePlatformCommissionAccount() :
+      undefined;
+    if (commissionAmount > 0 && !platformCommissionAccount) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Platform commission checkout account is not configured.",
+      );
+    }
+
     const invoice = await createXenditInvoice({
       secretKey: xenditSecretKey.value(),
       bookingId,
@@ -255,6 +284,11 @@ export const createXenditCheckoutSession = onCall(
         payment_method: methodLabelForStorage(paymentMethodType),
         payment_method_type: paymentMethodType,
         payment_provider: "xendit",
+        ...(platformCommissionAccount ? {
+          platform_commission_account_id: platformCommissionAccount.id,
+          platform_commission_account_provider:
+            platformCommissionAccount.provider,
+        } : {}),
         updated_at: FieldValue.serverTimestamp(),
       },
       {merge: true},
@@ -1942,9 +1976,10 @@ export const stampBookingRetention = onDocumentWritten(
   },
 );
 
-export const logFareSettingsUpdated = onDocumentWritten(
+export const logFareSettingsUpdated = onDocumentWrittenWithAuthContext(
   {
     region: "asia-southeast1",
+    cpu: "gcf_gen1",
     document: "fare_settings/{settingId}",
   },
   async (event) => {
@@ -1954,35 +1989,135 @@ export const logFareSettingsUpdated = onDocumentWritten(
     }
 
     const settings = snapshot.data() ?? {};
-    const adminId = readOptionalString(settings.updated_by);
-    if (!adminId) {
+    const previousSettings = event.data?.before.data() ?? {};
+    const adminId = readOptionalString(event.authId);
+    if (!adminId || adminId !== readOptionalString(settings.updated_by)) {
+      return;
+    }
+    const adminSnapshot = await firestore.collection("users").doc(adminId).get();
+    const admin = adminSnapshot.data();
+    if (!adminSnapshot.exists || !admin || !isAdminStaff(admin)) {
       return;
     }
 
+    const auditedFields = [
+      "one_barangay_fare",
+      "buenavista_five_barangay_fare",
+      "outside_buenavista_min_fare",
+      "outside_buenavista_9km_fare",
+      "outside_buenavista_12km_fare",
+      "outside_buenavista_16km_fare",
+      "outside_buenavista_max_fare",
+      "regular_passenger_discount_rate",
+      "student_discount_rate",
+      "senior_citizen_discount_rate",
+      "driver_pickup_surcharge_per_extra_barangay",
+      "max_driver_pickup_surcharge",
+      "commission_rate",
+    ];
+    const changedFields = auditedFields.filter(
+      (field) => previousSettings[field] !== settings[field],
+    );
+    const previousValues = Object.fromEntries(
+      changedFields
+        .filter((field) => previousSettings[field] !== undefined)
+        .map((field) => [field, previousSettings[field]]),
+    );
+    const newValues = Object.fromEntries(
+      changedFields
+        .filter((field) => settings[field] !== undefined)
+        .map((field) => [field, settings[field]]),
+    );
+    const isCreated = event.data?.before.exists !== true;
+
     await writeAdminLog({
       logDocumentId: `fare_${event.id}`,
-      action: "fare_settings_updated",
+      action: isCreated ? "fare_settings_created" : "fare_settings_updated",
       adminId,
-      summary: "Fare settings were updated.",
+      adminName: fullName(admin),
+      summary: changedFields.length === 0 ?
+        "Fare settings were saved without changing a fare field." :
+        `Fare management updated ${changedFields.length} field(s): ${
+          changedFields.join(", ")
+        }.`,
       targetId: event.params.settingId,
       targetName: "Fare Settings",
       targetRole: "system",
       metadata: {
-        one_barangay_fare: settings.one_barangay_fare,
-        buenavista_five_barangay_fare:
-          settings.buenavista_five_barangay_fare,
-        outside_buenavista_min_fare: settings.outside_buenavista_min_fare,
-        outside_buenavista_max_fare: settings.outside_buenavista_max_fare,
-        regular_passenger_discount_rate:
-          settings.regular_passenger_discount_rate ?? 0,
-        student_discount_rate: settings.student_discount_rate ?? 0.15,
-        senior_citizen_discount_rate:
-          settings.senior_citizen_discount_rate ?? 0.15,
-        driver_pickup_surcharge_per_extra_barangay:
-          settings.driver_pickup_surcharge_per_extra_barangay ?? 5,
-        max_driver_pickup_surcharge:
-          settings.max_driver_pickup_surcharge ?? 10,
-        commission_rate: settings.commission_rate ?? 0,
+        changed_fields: changedFields,
+        previous_values: previousValues,
+        new_values: newValues,
+      },
+    });
+  },
+);
+
+export const logPlatformCommissionAccountChanged =
+onDocumentWrittenWithAuthContext(
+  {
+    region: "asia-southeast1",
+    cpu: "gcf_gen1",
+    document: "platform_commission_accounts/{accountId}",
+  },
+  async (event) => {
+    const snapshot = event.data?.after;
+    if (!snapshot?.exists || event.params.accountId !== "current") {
+      return;
+    }
+
+    const account = snapshot.data() ?? {};
+    const previousAccount = event.data?.before.data() ?? {};
+    const adminId = readOptionalString(event.authId);
+    if (!adminId || adminId !== readOptionalString(account.updated_by)) {
+      return;
+    }
+    const adminSnapshot = await firestore.collection("users").doc(adminId).get();
+    const admin = adminSnapshot.data();
+    if (!adminSnapshot.exists || !admin || !isAdminStaff(admin)) {
+      return;
+    }
+
+    const auditedFields = [
+      "account_type",
+      "provider",
+      "label",
+      "account_name",
+      "account_reference",
+      "bank_name",
+      "is_enabled",
+    ];
+    const changedFields = auditedFields.filter(
+      (field) => previousAccount[field] !== account[field],
+    );
+    const isCreated = event.data?.before.exists !== true;
+    const isEnabled = account.is_enabled === true;
+    const accountReference = readOptionalString(account.account_reference) ?? "";
+    const action = isCreated ?
+      "platform_commission_account_created" :
+      isEnabled ?
+        "platform_commission_account_updated" :
+        "platform_commission_account_disabled";
+
+    await writeAdminLog({
+      logDocumentId: `platform_commission_account_${event.id}`,
+      action,
+      adminId,
+      adminName: fullName(admin),
+      summary: isCreated ?
+        "The platform commission checkout account was configured." :
+        isEnabled ?
+          "The platform commission checkout account was updated." :
+          "The platform commission checkout account was disabled.",
+      targetId: event.params.accountId,
+      targetName: "Platform Commission Account",
+      targetRole: "payment",
+      metadata: {
+        changed_fields: changedFields,
+        account_type: readOptionalString(account.account_type) ?? "",
+        provider: readOptionalString(account.provider) ?? "",
+        label: readOptionalString(account.label) ?? "",
+        account_reference_last4: accountReference.slice(-4),
+        is_enabled: isEnabled,
       },
     });
   },
@@ -4165,6 +4300,30 @@ function readOptionalBool(value: unknown, fallback: boolean) {
   return fallback;
 }
 
+async function loadActivePlatformCommissionAccount():
+Promise<ActivePlatformCommissionAccount | undefined> {
+  const snapshot = await firestore
+    .collection(platformCommissionAccountsCollection)
+    .doc(currentPlatformCommissionAccountDocument)
+    .get();
+  const data = snapshot.data();
+  if (
+    !snapshot.exists ||
+    !data ||
+    data.provider !== "xendit" ||
+    data.is_enabled !== true ||
+    !readOptionalString(data.account_name) ||
+    !readOptionalString(data.account_reference)
+  ) {
+    return undefined;
+  }
+
+  return {
+    id: snapshot.id,
+    provider: "xendit",
+  };
+}
+
 async function loadFareValidationSettings(): Promise<FareValidationSettings> {
   const snapshot = await firestore
     .collection(fareSettingsCollection)
@@ -4243,6 +4402,10 @@ async function loadFareValidationSettings(): Promise<FareValidationSettings> {
           defaultMaxDriverPickupSurcharge,
       ),
     );
+  const commissionRate = Math.min(
+    1,
+    Math.max(0, readNumber(data.commission_rate) ?? 0),
+  );
   const minimumRegularFare = Math.min(
     oneBarangayFare,
     fiveBarangayFare,
@@ -4263,6 +4426,7 @@ async function loadFareValidationSettings(): Promise<FareValidationSettings> {
     regularPassengerDiscountRate: regularDiscountRate,
     studentDiscountRate: activeStudentDiscountRate,
     seniorCitizenDiscountRate: activeSeniorDiscountRate,
+    commissionRate,
   };
 }
 

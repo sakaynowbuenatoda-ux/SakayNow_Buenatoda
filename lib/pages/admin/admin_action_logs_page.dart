@@ -36,7 +36,7 @@ class AdminActionLogsPage extends StatelessWidget {
                 AdminCountPageHeader(
                   title: 'Admin Action Logs',
                   subtitle:
-                      'Review account, verification, report moderation, restoration, and fare-setting activity.',
+                      'Review account, verification, report moderation, restoration, fare, and commission-account activity.',
                   count: logs.length.toString(),
                   countLabel: 'logged actions',
                   accentColor: AdminUi.accentBlue,
@@ -47,7 +47,7 @@ class AdminActionLogsPage extends StatelessWidget {
                     icon: Icons.history_rounded,
                     title: 'No admin actions logged yet',
                     description:
-                        'Admin actions will appear here after account reviews, report moderation, restores, fare updates, or admin account creation.',
+                        'Admin actions will appear here after account reviews, report moderation, restores, fare or commission-account updates, or admin account creation.',
                   )
                 else
                   ...logs.map(

@@ -14,13 +14,17 @@ import 'registration_image_preview.dart';
 import 'terms_and_privacy_policy_sheet.dart';
 
 class DriverSignUp extends StatefulWidget {
-  const DriverSignUp({super.key});
+  const DriverSignUp({super.key, this.emailAvailabilityChecker});
+
+  final Future<bool> Function(String email)? emailAvailabilityChecker;
 
   @override
   State<DriverSignUp> createState() => _DriverSignUpState();
 }
 
 class _DriverSignUpState extends State<DriverSignUp> {
+  static const _duplicateEmailMessage = 'That email is already registered.';
+
   final _formKey = GlobalKey<FormState>();
   final _vehicleFormKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -36,8 +40,10 @@ class _DriverSignUpState extends State<DriverSignUp> {
 
   int _currentStep = 0;
   bool _isSubmitting = false;
+  bool _isCheckingEmail = false;
   bool _agreeToPolicies = false;
   bool _showValidationErrors = false;
+  String? _unavailableEmail;
 
   String? _gender;
   String? _vehicleType = 'Traditional Tricycle';
@@ -169,6 +175,19 @@ class _DriverSignUpState extends State<DriverSignUp> {
     return value == null ? 'Gender is required' : null;
   }
 
+  String _normalizedEmail(String email) => email.trim().toLowerCase();
+
+  String? _validateEmail(String? value) {
+    final formatError = SignupValidators.email(value);
+    if (formatError != null) return formatError;
+
+    if (_unavailableEmail == _normalizedEmail(value!)) {
+      return _duplicateEmailMessage;
+    }
+
+    return null;
+  }
+
   bool _validateBasicInfo() {
     final formState = _formKey.currentState;
     if (formState != null) {
@@ -176,7 +195,7 @@ class _DriverSignUpState extends State<DriverSignUp> {
     }
 
     final validations = <String?>[
-      SignupValidators.email(_emailController.text),
+      _validateEmail(_emailController.text),
       SignupValidators.accountFirstName(_firstNameController.text),
       SignupValidators.name(_lastNameController.text, fieldName: 'Last name'),
       SignupValidators.age(
@@ -192,6 +211,50 @@ class _DriverSignUpState extends State<DriverSignUp> {
     ];
 
     return validations.every((error) => error == null);
+  }
+
+  Future<void> _continueFromBasicInfo() async {
+    setState(() => _showValidationErrors = true);
+    if (!_validateBasicInfo()) return;
+
+    final checkedEmail = _normalizedEmail(_emailController.text);
+    setState(() => _isCheckingEmail = true);
+
+    try {
+      final checker =
+          widget.emailAvailabilityChecker ??
+          RegistrationService.isEmailAvailable;
+      final isAvailable = await checker(checkedEmail);
+      if (!mounted) return;
+
+      if (_normalizedEmail(_emailController.text) != checkedEmail) {
+        _showMessage('Email changed. Tap Continue to verify the new address.');
+        return;
+      }
+
+      if (!isAvailable) {
+        setState(() => _unavailableEmail = checkedEmail);
+        _formKey.currentState?.validate();
+        _showMessage(_duplicateEmailMessage);
+        return;
+      }
+
+      setState(() {
+        _unavailableEmail = null;
+        _currentStep = 1;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(
+        userFacingErrorMessage(
+          error,
+          fallback:
+              'Unable to verify this email right now. Please try again before continuing.',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isCheckingEmail = false);
+    }
   }
 
   Future<void> _showSuccessAndNavigate() async {
@@ -280,7 +343,11 @@ class _DriverSignUpState extends State<DriverSignUp> {
     } on FirebaseAuthException catch (e) {
       String message = e.message ?? 'Signup failed.';
       if (e.code == 'email-already-in-use') {
-        message = 'That email is already registered.';
+        message = _duplicateEmailMessage;
+        setState(() {
+          _unavailableEmail = _normalizedEmail(_emailController.text);
+          _currentStep = 0;
+        });
       } else if (e.code == 'weak-password') {
         message = 'Password is too weak.';
       } else if (e.code == 'invalid-email') {
@@ -606,13 +673,14 @@ class _DriverSignUpState extends State<DriverSignUp> {
 
   Widget _buildActionButtons() {
     final isLast = _currentStep == 2;
+    final isBusy = _isSubmitting || _isCheckingEmail;
 
     return Row(
       children: [
         if (_currentStep > 0)
           Expanded(
             child: OutlinedButton(
-              onPressed: _isSubmitting
+              onPressed: isBusy
                   ? null
                   : () => setState(() => _currentStep -= 1),
               style: OutlinedButton.styleFrom(
@@ -633,17 +701,15 @@ class _DriverSignUpState extends State<DriverSignUp> {
         Expanded(
           flex: 2,
           child: ElevatedButton(
-            onPressed: _isSubmitting
+            onPressed: isBusy
                 ? null
                 : () {
                     if (isLast) {
                       _submit();
                     } else {
                       if (_currentStep == 0) {
-                        setState(() => _showValidationErrors = true);
-                        if (!_validateBasicInfo()) {
-                          return;
-                        }
+                        _continueFromBasicInfo();
+                        return;
                       } else if (_currentStep == 1) {
                         setState(() => _showValidationErrors = true);
                         final formValid =
@@ -679,7 +745,7 @@ class _DriverSignUpState extends State<DriverSignUp> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: _isSubmitting
+            child: isBusy
                 ? SizedBox(
                     height: 20,
                     width: 20,
@@ -715,7 +781,13 @@ class _DriverSignUpState extends State<DriverSignUp> {
                 label: 'Email',
                 icon: Icons.email_outlined,
               ),
-              validator: SignupValidators.email,
+              onChanged: (value) {
+                if (_unavailableEmail != null &&
+                    _unavailableEmail != _normalizedEmail(value)) {
+                  setState(() => _unavailableEmail = null);
+                }
+              },
+              validator: _validateEmail,
             ),
             SizedBox(height: 14),
             _buildResponsiveFieldRow(

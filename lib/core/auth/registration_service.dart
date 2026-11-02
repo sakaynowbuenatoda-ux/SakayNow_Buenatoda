@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,7 +14,24 @@ class RegistrationService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseStorage _storage = FirebaseStorage.instance;
+  static final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: 'asia-southeast1',
+  );
   static const int maxDocumentImageBytes = 10 * 1024 * 1024;
+
+  static Future<bool> isEmailAvailable(String email) async {
+    final callable = _functions.httpsCallable('checkEmailAvailability');
+    final result = await callable.call<Map<String, dynamic>>({
+      'email': email.trim().toLowerCase(),
+    });
+    final available = result.data['available'];
+
+    if (available is! bool) {
+      throw StateError('Email availability check returned an invalid result.');
+    }
+
+    return available;
+  }
 
   static Future<void> registerPassenger({
     required String email,

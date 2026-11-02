@@ -515,6 +515,34 @@ export const createAdminAccount = onCall(
   },
 );
 
+export const checkEmailAvailability = onCall(
+  {
+    region: "asia-southeast1",
+    invoker: "public",
+  },
+  async (request) => {
+    const email = readRequiredString(request.data, "email").toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new HttpsError("invalid-argument", "Enter a valid email address.");
+    }
+
+    try {
+      await auth.getUserByEmail(email);
+      return {available: false};
+    } catch (error) {
+      const code = (error as {code?: string}).code;
+      if (code === "auth/user-not-found") {
+        return {available: true};
+      }
+
+      throw new HttpsError(
+        "internal",
+        "Unable to verify this email right now.",
+      );
+    }
+  },
+);
+
 export const deactivateAdminAccount = onCall(
   {
     region: "asia-southeast1",

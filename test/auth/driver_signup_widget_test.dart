@@ -9,7 +9,11 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 2400));
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(body: SingleChildScrollView(child: DriverSignUp())),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: DriverSignUp(emailAvailabilityChecker: _availableEmail),
+            ),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -85,4 +89,66 @@ void main() {
       );
     },
   );
+
+  testWidgets('DriverSignUp keeps an existing email on step 1', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 2400));
+    var checkedEmail = '';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: DriverSignUp(
+              emailAvailabilityChecker: (email) async {
+                checkedEmail = email;
+                return false;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _fillBasicInfo(tester, email: ' Existing@Buenatoda.com ');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(checkedEmail, 'existing@buenatoda.com');
+    expect(find.text('Basic Information'), findsOneWidget);
+    expect(find.text('Vehicle Information & Photos'), findsNothing);
+    expect(find.text('That email is already registered.'), findsWidgets);
+  });
+}
+
+Future<bool> _availableEmail(String email) async => true;
+
+Future<void> _fillBasicInfo(
+  WidgetTester tester, {
+  required String email,
+}) async {
+  await tester.enterText(find.widgetWithText(TextFormField, 'Email'), email);
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'First Name'),
+    'Jose',
+  );
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'Last Name'),
+    'Rizal',
+  );
+  await tester.enterText(find.widgetWithText(TextFormField, 'Age'), '30');
+  await tester.tap(
+    find.widgetWithText(DropdownButtonFormField<String>, 'Gender'),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Male').last);
+  await tester.pumpAndSettle();
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'Password'),
+    'driverPass123',
+  );
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'Confirm Password'),
+    'driverPass123',
+  );
+  await tester.pumpAndSettle();
 }
